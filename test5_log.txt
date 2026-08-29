@@ -1,0 +1,41 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260817090642
+Username: DESKTOP-S34P1GU\Kal
+RunAs User: DESKTOP-S34P1GU\Kal
+Configuration Name: 
+Machine: DESKTOP-S34P1GU (Microsoft Windows NT 10.0.19045.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File C:\Users\Kal\Desktop\junkie\Vitalpayroll\test5.ps1
+Process ID: 11972
+PSVersion: 5.1.19041.6456
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.19041.6456
+BuildVersion: 10.0.19041.6456
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\Kal\Desktop\junkie\Vitalpayroll\test5_log.txt
+=== Try login with hr@vitalpayroll.com ===
+SUCCESS: Login returned 200
+Response: {"success":true,"data":{"user":{"_id":"6a82a418cd8593ab5b15bc76","email":"hr@vitalpayroll.com","firstName":"HR","lastName":"Manager","role":"HR_ADMIN","employeeId":null,"isActive":true,"createdAt":"2026-08-17T06:03:04.331Z","updatedAt":"2026-08-17T06:06:46.832Z","__v":0,"lastLogin":"2026-08-17T06:06:46.752Z"},"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTgyYTQxOGNkODU5M2FiNWIxNWJjNzYiLCJlbWFpbCI6ImhyQHZpdGFscGF5cm9sbC5jb20iLCJyb2xlIjoiSFJfQURNSU4iLCJpYXQiOjE3ODY5NDY4MDYsImV4cCI6MTc4NzAzMzIwNn0.f5Uznz-GwfLhaG4-nF_DSN2ROTWXPmDQrOByFqfagWg"}}
+Token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTgyYTQxOGNkODU5M2FiNWIxNWJjNzYiLCJlbWFpbCI6ImhyQHZpdGFscGF5cm9sbC5jb20iLCJyb2xlIjoiSFJfQURNSU4iLCJpYXQiOjE3ODY5NDY4MDYsImV4cCI6MTc4NzAzMzIwNn0.f5Uznz-GwfLhaG4-nF_DSN2ROTWXPmDQrOByFqfagWg
+
+=== Try login with admin ===
+PS>TerminatingError(Invoke-WebRequest): "{"success":false,"message":"Invalid email or password","error":"Error: Invalid email or password\n    at Function.unauthorized (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\common\\ApiError.ts:17:12)\n    at Function.login (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\modules\\auth\\auth.service.ts:43:22)\n    at async login (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\modules\\auth\\auth.controller.ts:20:22)"}"
+Response: {"success":false,"message":"Invalid email or password","error":"Error: Invalid email or password\n    at Function.unauthorized (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\common\\ApiError.ts:17:12)\n    at Function.login (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\modules\\auth\\auth.service.ts:43:22)\n    at async login (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\modules\\auth\\auth.controller.ts:20:22)"}
+FAILED: The remote server returned an error: (401) Unauthorized.
+
+=== Try login with site@vitalpayroll.com ===
+SUCCESS: Login returned 200
+Response: {"success":true,"data":{"user":{"_id":"6a82a418cd8593ab5b15bc82","email":"site@vitalpayroll.com","firstName":"Site","lastName":"Operator","role":"SITE_OPERATOR","employeeId":null,"isActive":true,"createdAt":"2026-08-17T06:03:04.393Z","updatedAt":"2026-08-17T06:06:53.502Z","__v":0,"lastLogin":"2026-08-17T06:06:53.498Z"},"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTgyYTQxOGNkODU5M2FiNWIxNWJjODIiLCJlbWFpbCI6InNpdGVAdml0YWxwYXlyb2xsLmNvbSIsInJvbGUiOiJTSVRFX09QRVJBVE9SIiwiaWF0IjoxNzg2OTQ2ODEzLCJleHAiOjE3ODcwMzMyMTN9.evuxobd3U3GDxTVUWsEp3JxwxYjvr2b2X2AkSbOvHts"}}
+Token from site user: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2YTgyYTQxOGNkODU5M2FiNWIxNWJjODIiLCJlbWFpbCI6InNpdGVAdml0YWxwYXlyb2xsLmNvbSIsInJvbGUiOiJTSVRFX09QRVJBVE9SIiwiaWF0IjoxNzg2OTQ2ODEzLCJleHAiOjE3ODcwMzMyMTN9.evuxobd3U3GDxTVUWsEp3JxwxYjvr2b2X2AkSbOvHts
+
+=== Test authenticated API call ===
+SUCCESS: /api/auth/me returned 200
+Response: {"success":true,"data":{"_id":"6a82a418cd8593ab5b15bc76","email":"hr@vitalpayroll.com","firstName":"HR","lastName":"Manager","role":"HR_ADMIN","employeeId":null,"isActive":true,"createdAt":"2026-08-17T06:03:04.331Z","updatedAt":"2026-08-17T06:06:46.832Z","__v":0,"lastLogin":"2026-08-17T06:06:46.752Z"}}
+**********************
+Windows PowerShell transcript end
+End time: 20260817090654
+**********************

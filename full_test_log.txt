@@ -1,0 +1,95 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20260817090255
+Username: DESKTOP-S34P1GU\Kal
+RunAs User: DESKTOP-S34P1GU\Kal
+Configuration Name: 
+Machine: DESKTOP-S34P1GU (Microsoft Windows NT 10.0.19045.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -File C:\Users\Kal\Desktop\junkie\Vitalpayroll\test4.ps1
+Process ID: 11144
+PSVersion: 5.1.19041.6456
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.19041.6456
+BuildVersion: 10.0.19041.6456
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is C:\Users\Kal\Desktop\junkie\Vitalpayroll\full_test_log.txt
+==========================================
+STEP 1: Backend Server Status
+==========================================
+
+Checking if backend PID 1156 is running...
+SUCCESS: Backend process 1156 is running
+
+Testing health endpoint...
+SUCCESS: Health check returned 200
+Response: {"success":true,"message":"Vital Payroll API is running","timestamp":"2026-08-17T06:02:56.352Z"}
+
+==========================================
+STEP 2: Seed Data
+==========================================
+
+--- Seeding Tax Brackets ---
+PS>TerminatingError(Invoke-WebRequest): "{"success":false,"message":"No token provided","error":"Error: No token provided\n    at Function.unauthorized (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\common\\ApiError.ts:17:12)\n    at authenticate (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\middleware\\auth.ts:25:22)\n    at Layer.handle [as handle_request] (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at Function.process_params (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:346:12)\n    at next (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at Function.handle (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:175:3)\n    at router (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:47:12)\n    at Layer.handle [as handle_request] (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)"}"
+Response: {"success":false,"message":"No token provided","error":"Error: No token provided\n    at Function.unauthorized (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\common\\ApiError.ts:17:12)\n    at authenticate (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\middleware\\auth.ts:25:22)\n    at Layer.handle [as handle_request] (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at Function.process_params (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:346:12)\n    at next (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at Function.handle (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:175:3)\n    at router (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:47:12)\n    at Layer.handle [as handle_request] (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)"}
+FAILED: The remote server returned an error: (401) Unauthorized.
+
+--- Seeding Pension Rules ---
+PS>TerminatingError(Invoke-WebRequest): "{"success":false,"message":"No token provided","error":"Error: No token provided\n    at Function.unauthorized (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\common\\ApiError.ts:17:12)\n    at authenticate (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\middleware\\auth.ts:25:22)\n    at Layer.handle [as handle_request] (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at Function.process_params (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:346:12)\n    at next (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at Function.handle (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:175:3)\n    at router (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:47:12)\n    at Layer.handle [as handle_request] (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)"}"
+Response: {"success":false,"message":"No token provided","error":"Error: No token provided\n    at Function.unauthorized (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\common\\ApiError.ts:17:12)\n    at authenticate (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\middleware\\auth.ts:25:22)\n    at Layer.handle [as handle_request] (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)\n    at trim_prefix (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:328:13)\n    at C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:286:9\n    at Function.process_params (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:346:12)\n    at next (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:280:10)\n    at Function.handle (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:175:3)\n    at router (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\index.js:47:12)\n    at Layer.handle [as handle_request] (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\node_modules\\express\\lib\\router\\layer.js:95:5)"}
+FAILED: The remote server returned an error: (401) Unauthorized.
+
+--- Running seed.ts ---
+Seed output:
+(node:11272) [MONGOOSE] Warning: Duplicate schema index on {"email":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:11272) [MONGOOSE] Warning: Duplicate schema index on {"employeeCode":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(node:11272) [MONGOOSE] Warning: Duplicate schema index on {"siteCode":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+[SEED] Connected to MongoDB
+[SEED] HR: hr@vitalpayroll.com / password123
+[SEED] Finance: finance@vitalpayroll.com / password123
+[SEED] Approver: approver@vitalpayroll.com / password123
+[SEED] Payment: payment@vitalpayroll.com / password123
+[SEED] Site Operator: site@vitalpayroll.com / password123
+[SEED] Guard employee created: VSP-100 Abebe Kebede
+[SEED] Guard: guard@vitalpayroll.com / password123
+[SEED] Office staff: VSP-200 Berhanu W/Giyorgis
+[SEED] Office staff: VSP-201 Terefe Yadeta
+[SEED] Office staff: VSP-202 Rahel Tadesse
+[SEED] Site: VSP-HQ - Head Office
+[SEED] Site: VSP-DK - Dukem Factory
+[SEED] Site: VSP-MT - Metehara Farm
+[SEED] Site: VSP-AD - Adama Mall
+[SEED] Guard VSP-100 assigned to VSP-HQ (208 hrs, 26.63 ETB/hr)
+[SEED] Payroll period: August 2026 (OPEN)
+
+[SEED] ============================
+[SEED] ALL USERS (password: password123):
+[SEED]   Admin:     admin@vitalpayroll.com
+[SEED]   HR:        hr@vitalpayroll.com
+[SEED]   Finance:   finance@vitalpayroll.com
+[SEED]   Approver:  approver@vitalpayroll.com
+[SEED]   Payment:   payment@vitalpayroll.com
+[SEED]   Site Op:   site@vitalpayroll.com
+[SEED]   Guard:     guard@vitalpayroll.com
+[SEED] ============================
+
+
+==========================================
+STEP 3: Test Login
+==========================================
+PS>TerminatingError(Invoke-WebRequest): "{"success":false,"message":"Invalid email or password","error":"Error: Invalid email or password\n    at Function.unauthorized (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\common\\ApiError.ts:17:12)\n    at Function.login (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\modules\\auth\\auth.service.ts:43:22)\n    at async login (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\modules\\auth\\auth.controller.ts:20:22)"}"
+Response: {"success":false,"message":"Invalid email or password","error":"Error: Invalid email or password\n    at Function.unauthorized (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\common\\ApiError.ts:17:12)\n    at Function.login (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\modules\\auth\\auth.service.ts:43:22)\n    at async login (C:\\Users\\Kal\\Desktop\\junkie\\Vitalpayroll\\backend\\src\\modules\\auth\\auth.controller.ts:20:22)"}
+FAILED: The remote server returned an error: (401) Unauthorized.
+
+==========================================
+STEP 5: Test Authenticated API Call
+==========================================
+SKIPPED: No token available from login
+**********************
+Windows PowerShell transcript end
+End time: 20260817090305
+**********************

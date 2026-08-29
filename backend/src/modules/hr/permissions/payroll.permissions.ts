@@ -1,0 +1,33 @@
+import { registerModule } from '../../../core/permissions/registry';
+import { UserRole, PERMISSIONS } from '../../../types';
+
+export function registerPayrollPermissions(): void {
+  registerModule({
+    module: 'payroll',
+    permissions: [
+      PERMISSIONS.GUARD_PAYROLL_READ,
+      PERMISSIONS.GUARD_PAYROLL_RATES,
+      PERMISSIONS.GUARD_PAYROLL_CALCULATE,
+      PERMISSIONS.GUARD_PAYROLL_CHECK,
+      PERMISSIONS.GUARD_PAYROLL_APPROVE,
+      PERMISSIONS.GUARD_PAYROLL_PAY,
+      PERMISSIONS.GUARD_PAYROLL_RETURN,
+      PERMISSIONS.OFFICE_PAYROLL_CREATE,
+      PERMISSIONS.OFFICE_PAYROLL_RATES,
+      PERMISSIONS.OFFICE_PAYROLL_APPROVE,
+      PERMISSIONS.OFFICE_PAYROLL_PAY,
+    ],
+    roleDefaults: {
+      [UserRole.HR_ADMIN]: [
+        PERMISSIONS.GUARD_PAYROLL_READ,
+        PERMISSIONS.OFFICE_PAYROLL_CREATE,
+      ],
+      [UserRole.OPERATIONS]: [
+        PERMISSIONS.GUARD_PAYROLL_READ,
+      ],
+      [UserRole.GUARD]: [
+        PERMISSIONS.GUARD_PAYROLL_READ,
+      ],
+    },
+  });
+}

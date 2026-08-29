@@ -1,0 +1,22 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const guardPayroll_controller_1 = require("./guardPayroll.controller");
+const auth_1 = require("../../../middleware/auth");
+const rbac_1 = require("../../../middleware/rbac");
+const types_1 = require("../../../types");
+const router = (0, express_1.Router)();
+router.use(auth_1.authenticate);
+router.get('/', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_READ), guardPayroll_controller_1.GuardPayrollController.getAll);
+router.get('/:id', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_READ), guardPayroll_controller_1.GuardPayrollController.getById);
+router.post('/generate/:periodId', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_CALCULATE), guardPayroll_controller_1.GuardPayrollController.generateRecords);
+router.put('/:id/hours', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_MODIFY_HOURS), guardPayroll_controller_1.GuardPayrollController.updateHours);
+router.post('/:id/submit', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_READ), guardPayroll_controller_1.GuardPayrollController.submit);
+router.put('/:id/rates', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_RATES), guardPayroll_controller_1.GuardPayrollController.enterRates);
+router.post('/:id/calculate', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_CALCULATE), guardPayroll_controller_1.GuardPayrollController.calculate);
+router.post('/:id/check', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_CHECK), guardPayroll_controller_1.GuardPayrollController.check);
+router.post('/:id/approve', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_APPROVE), guardPayroll_controller_1.GuardPayrollController.approve);
+router.post('/:id/pay', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_PAY), guardPayroll_controller_1.GuardPayrollController.pay);
+router.post('/:id/return', (0, rbac_1.authorize)(types_1.PERMISSIONS.GUARD_PAYROLL_RETURN), guardPayroll_controller_1.GuardPayrollController.returnForCorrection);
+exports.default = router;
+//# sourceMappingURL=guardPayroll.routes.js.map
