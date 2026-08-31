@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
 import { PageHeader, LoadingSpinner, Card, Badge, Button } from '../../components/ui';
+import QuickLogPanel from './QuickLogPanel';
 
 interface Guard {
   employeeId: string;
@@ -84,15 +85,18 @@ export default function GuardManualFiling() {
       ]);
 
       const allGuards = (guardsRes.data.data || guardsRes.data || [])
-        .filter((g: any) => g.currentAssignment)
-        .map((g: any) => ({
-          employeeId: g.employee._id,
-          employeeCode: g.employee.employeeCode,
-          firstName: g.employee.firstName,
-          lastName: g.employee.lastName,
-          siteName: g.currentAssignment?.siteId?.siteName || 'Unknown',
-          siteId: g.currentAssignment?.siteId?._id || g.currentAssignment?.siteId || '',
-        }));
+        .filter((g: any) => g.currentAssignments?.length > 0)
+        .flatMap((g: any) =>
+          (g.currentAssignments || []).map((a: any) => ({
+            employeeId: g.employee._id,
+            employeeCode: g.employee.employeeCode,
+            firstName: g.employee.firstName,
+            lastName: g.employee.lastName,
+            siteName: typeof a.siteId === 'object' ? a.siteId.siteName : 'Unknown',
+            siteId: typeof a.siteId === 'object' ? a.siteId._id : a.siteId,
+            assignmentRole: a.role || 'GUARD',
+          }))
+        );
 
       setGuards(allGuards);
 
@@ -242,6 +246,12 @@ export default function GuardManualFiling() {
           </div>
         }
       />
+
+      {!isLocked && (
+        <div className="mb-6">
+          <QuickLogPanel onLogged={load} />
+        </div>
+      )}
 
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">

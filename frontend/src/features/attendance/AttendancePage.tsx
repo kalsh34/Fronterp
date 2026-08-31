@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button, Card, Modal } from '../../components/ui';
 import api from '../../lib/api';
 import GuardManualFiling from './GuardManualFiling';
+import GuardAttendanceGrid from './GuardAttendanceGrid';
+import CoverageDashboard from './CoverageDashboard';
+import SiteNotes from './SiteNotes';
+import ShiftsPage from './ShiftsPage';
 
 interface Site {
   id: string;
@@ -46,7 +50,7 @@ const TABS = [
   { key: 'guard-filing', label: 'Guard Filing' },
   { key: 'coverage', label: 'Coverage' },
   { key: 'sites', label: 'Sites' },
-  { key: 'incidents', label: 'Incidents' },
+  { key: 'site-notes', label: 'Site Notes' },
   { key: 'shifts', label: 'Shifts' },
 ] as const;
 
@@ -382,6 +386,14 @@ const AttendancePage: React.FC = () => {
         {/* Main Content Grid */}
         {activeTab === 'guard-filing' ? (
           <GuardManualFiling />
+        ) : activeTab === 'attendance' ? (
+          <GuardAttendanceGrid />
+        ) : activeTab === 'coverage' ? (
+          <CoverageDashboard />
+        ) : activeTab === 'site-notes' ? (
+          <SiteNotes />
+        ) : activeTab === 'shifts' ? (
+          <ShiftsPage />
         ) : (
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-6">
           {/* Heatmap */}

@@ -19,6 +19,8 @@ import reportsRoutes from './modules/reports/reports.routes';
 import staffAttendanceRoutes from './modules/hr/staffAttendance/staffAttendance.routes';
 import contractRoutes from './modules/hr/contracts/contract.routes';
 import payrollConfigRoutes from './modules/hr/payrollConfig/payrollConfig.routes';
+import siteNotesRoutes from './modules/hr/sites/siteNotes.routes';
+import shiftRoutes from './modules/hr/shifts/shift.routes';
 
 import financeAccountingStub from './modules/finance-accounting/index';
 import journalRoutes from './modules/finance-accounting/journal.routes';
@@ -55,6 +57,8 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/staff-attendance', staffAttendanceRoutes);
 app.use('/api/contracts', contractRoutes);
 app.use('/api/admin/payroll-config', payrollConfigRoutes);
+app.use('/api/site-notes', siteNotesRoutes);
+app.use('/api/shifts', shiftRoutes);
 
 app.use('/api/v2/finance-accounting', financeAccountingStub);
 app.use('/api/journal', journalRoutes);

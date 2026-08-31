@@ -60,7 +60,7 @@ export default function GuardsPage() {
   const [guards, setGuards] = useState<GuardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeFilter, setActiveFilter] = useState<FilterTab>('active');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('unassigned');
   const [selectedGuard, setSelectedGuard] = useState<string | null>(null);
   const [showAssignModal, setShowAssignModal] = useState<string | null>(null);
   const [showRelieveModal, setShowRelieveModal] = useState<string | null>(null);

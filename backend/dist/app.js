@@ -23,6 +23,8 @@ const reports_routes_1 = __importDefault(require("./modules/reports/reports.rout
 const staffAttendance_routes_1 = __importDefault(require("./modules/hr/staffAttendance/staffAttendance.routes"));
 const contract_routes_1 = __importDefault(require("./modules/hr/contracts/contract.routes"));
 const payrollConfig_routes_1 = __importDefault(require("./modules/hr/payrollConfig/payrollConfig.routes"));
+const siteNotes_routes_1 = __importDefault(require("./modules/hr/sites/siteNotes.routes"));
+const shift_routes_1 = __importDefault(require("./modules/hr/shifts/shift.routes"));
 const index_1 = __importDefault(require("./modules/finance-accounting/index"));
 const journal_routes_1 = __importDefault(require("./modules/finance-accounting/journal.routes"));
 const index_2 = __importDefault(require("./modules/inventory/index"));
@@ -54,6 +56,8 @@ app.use('/api/reports', reports_routes_1.default);
 app.use('/api/staff-attendance', staffAttendance_routes_1.default);
 app.use('/api/contracts', contract_routes_1.default);
 app.use('/api/admin/payroll-config', payrollConfig_routes_1.default);
+app.use('/api/site-notes', siteNotes_routes_1.default);
+app.use('/api/shifts', shift_routes_1.default);
 app.use('/api/v2/finance-accounting', index_1.default);
 app.use('/api/journal', journal_routes_1.default);
 app.use('/api/v2/inventory', index_2.default);

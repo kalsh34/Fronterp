@@ -173,7 +173,11 @@ export class PayrollCalculationService {
       });
 
       let normalHours = 0;
-      attendance.forEach((a) => { normalHours += a.totalHours; });
+      let holidayHours = 0;
+      attendance.forEach((a) => {
+        if (a.isHoliday) holidayHours += a.totalHours;
+        else normalHours += a.totalHours;
+      });
 
       const secondaryShifts = await SecondaryShiftEntry.find({
         guardId: assignment.guardId,
@@ -196,7 +200,7 @@ export class PayrollCalculationService {
         standardMonthlyHours: assignment.standardMonthlyHours,
         normalHours,
         otHours: 0,
-        holidayHours: 0,
+        holidayHours,
         secondaryShiftPay,
         normalRate: rate.normalRate,
         otRate: rate.otRate,

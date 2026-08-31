@@ -52,7 +52,7 @@ function getStepIndex(status: string): number {
     CHECKED: 5,
     APPROVED: 6,
     PAID: 7,
-    RETURNED: 2,
+    RETURNED: 1,
   };
   return map[status] ?? 0;
 }

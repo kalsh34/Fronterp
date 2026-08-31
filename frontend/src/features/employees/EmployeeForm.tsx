@@ -97,7 +97,7 @@ export default function EmployeeForm() {
           if (e.category === 'GUARD') {
             api.get(`/guards/${id}`).then((gRes) => {
               const detail = gRes.data.data;
-              setGuardAssignment(detail?.currentAssignment || null);
+              setGuardAssignment(detail?.assignments?.find((a: any) => a.isCurrent) || detail?.assignments?.[0] || null);
             }).catch(() => {});
           }
         })
