@@ -9,13 +9,14 @@ export default function Header({ title, subtitle }: HeaderProps) {
   const { user } = useAuthStore();
 
   const roleDisplay: Record<string, string> = {
-    SUPER_ADMIN: 'CEO',
+    SUPER_ADMIN: 'Super Admin',
     SYSTEM_ADMIN: 'System Admin',
     HR_ADMIN: 'HR Director',
     FINANCE_OFFICER: 'CFO',
     OPERATIONS: 'Operations Manager',
     GUARD: 'Security Officer',
     HEAD: 'Department Head',
+    CEO: 'CEO',
   };
 
   return (

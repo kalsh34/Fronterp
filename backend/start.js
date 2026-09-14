@@ -7,7 +7,7 @@ const app = require('./src/app').default;
 async function main() {
   await connectDatabase();
   app.listen(config.port, () => {
-    console.log(`Vital Payroll API running on http://localhost:${config.port}`);
+    console.log(`Vital Security API running on http://localhost:${config.port}`);
   });
 }
 

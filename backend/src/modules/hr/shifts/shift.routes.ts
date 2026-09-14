@@ -4,12 +4,11 @@ import { authorize } from '../../../middleware/rbac';
 import { PERMISSIONS } from '../../../types';
 import { ShiftTemplate } from '../../../models/ShiftTemplate';
 import { ShiftAssignment } from '../../../models/ShiftAssignment';
+import { RotationService } from '../rotation/rotation.service';
 import { ApiError } from '../../../common/ApiError';
 
 const router = Router();
 router.use(authenticate);
-
-// ==================== Shift Templates ====================
 
 router.get('/templates', authorize(PERMISSIONS.ATTENDANCE_READ), async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -30,14 +29,12 @@ router.get('/templates/:id', authorize(PERMISSIONS.ATTENDANCE_READ), async (req:
 
 router.post('/templates', authorize(PERMISSIONS.SITE_CREATE), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { siteId, name, startTime, endTime, daysOfWeek, color } = req.body;
-    if (!siteId || !name || !startTime || !endTime) {
-      throw ApiError.badRequest('siteId, name, startTime, and endTime are required');
-    }
+    const { siteId, name, startTime, endTime, daysOfWeek, color, maxGuards } = req.body;
+    if (!siteId || !name || !startTime || !endTime) throw ApiError.badRequest('siteId, name, startTime, and endTime are required');
     const template = await ShiftTemplate.create({
       siteId, name, startTime, endTime,
       daysOfWeek: daysOfWeek || [0, 1, 2, 3, 4, 5, 6],
-      color: color || '#3B82F6',
+      maxGuards: maxGuards || 1, color: color || '#3B82F6',
     });
     res.status(201).json({ success: true, data: template });
   } catch (error) { next(error); }
@@ -58,8 +55,6 @@ router.delete('/templates/:id', authorize(PERMISSIONS.SITE_UPDATE), async (req: 
     res.json({ success: true, message: 'Template deactivated' });
   } catch (error) { next(error); }
 });
-
-// ==================== Shift Assignments ====================
 
 router.get('/assignments', authorize(PERMISSIONS.ATTENDANCE_READ), async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -84,27 +79,22 @@ router.get('/assignments', authorize(PERMISSIONS.ATTENDANCE_READ), async (req: R
 router.post('/assignments', authorize(PERMISSIONS.GUARD_ASSIGN_SITE), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { guardId, siteId, shiftTemplateId, startDate, endDate } = req.body;
-    if (!guardId || !siteId || !shiftTemplateId || !startDate) {
-      throw ApiError.badRequest('guardId, siteId, shiftTemplateId, and startDate are required');
-    }
+    if (!guardId || !siteId || !shiftTemplateId || !startDate) throw ApiError.badRequest('guardId, siteId, shiftTemplateId, and startDate are required');
     const template = await ShiftTemplate.findById(shiftTemplateId);
     if (!template) throw ApiError.notFound('Shift template not found');
-    if (template.siteId.toString() !== siteId) {
-      throw ApiError.badRequest('Shift template does not belong to the specified site');
+    if ((template as any).siteId.toString() !== siteId) throw ApiError.badRequest('Shift template does not belong to the specified site');
+    const rotationId = await RotationService.isGuardInActiveRotation(guardId);
+    if (rotationId) throw ApiError.badRequest('This guard is enrolled in an active rotation. Remove from rotation before manual shift assignment.');
+    const assignDate = new Date(startDate);
+    const assignDayOfWeek = assignDate.getDay();
+    if (!(template as any).daysOfWeek.includes(assignDayOfWeek)) {
+      throw ApiError.badRequest(`Shift "${template.name}" does not run on ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][assignDayOfWeek]}s`);
     }
-    const existing = await ShiftAssignment.findOne({
-      guardId, siteId, status: 'ACTIVE',
-      $or: [{ endDate: { $exists: false } }, { endDate: null }],
-    });
-    if (existing) {
-      throw ApiError.badRequest('This guard already has an active shift assignment at this site. Remove it first.');
-    }
-    const assignment = await ShiftAssignment.create({
-      guardId, siteId, shiftTemplateId,
-      startDate: new Date(startDate),
-      endDate: endDate ? new Date(endDate) : undefined,
-      assignedById: req.user?.userId,
-    });
+    const existingForGuard = await ShiftAssignment.findOne({ guardId, siteId, status: 'ACTIVE', $or: [{ endDate: { $exists: false } }, { endDate: null }] });
+    if (existingForGuard) throw ApiError.badRequest('This guard already has an active shift assignment at this site. Remove it first.');
+    const existingCount = await ShiftAssignment.countDocuments({ shiftTemplateId, status: 'ACTIVE', startDate: { $lte: assignDate }, $or: [{ endDate: { $gte: assignDate } }, { endDate: { $exists: false } }, { endDate: null }] });
+    if (existingCount >= (template as any).maxGuards) throw ApiError.badRequest(`Shift full: ${existingCount}/${(template as any).maxGuards} guards already assigned to "${template.name}"`);
+    const assignment = await ShiftAssignment.create({ guardId, siteId, shiftTemplateId, startDate: assignDate, endDate: endDate ? new Date(endDate) : undefined, assignedById: req.user?.userId });
     res.status(201).json({ success: true, data: assignment });
   } catch (error) { next(error); }
 });
@@ -122,28 +112,6 @@ router.delete('/assignments/:id', authorize(PERMISSIONS.GUARD_ASSIGN_SITE), asyn
     const assignment = await ShiftAssignment.findByIdAndUpdate(req.params.id, { status: 'INACTIVE' }, { new: true });
     if (!assignment) throw ApiError.notFound('Assignment not found');
     res.json({ success: true, message: 'Assignment deactivated' });
-  } catch (error) { next(error); }
-});
-
-// ==================== Schedule View ====================
-
-router.get('/schedule', authorize(PERMISSIONS.ATTENDANCE_READ), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { siteId, dateFrom, dateTo } = req.query;
-    if (!siteId || !dateFrom || !dateTo) {
-      throw ApiError.badRequest('siteId, dateFrom, and dateTo are required');
-    }
-    const from = new Date(dateFrom as string);
-    const to = new Date(dateTo as string);
-    const assignments = await ShiftAssignment.find({
-      siteId,
-      status: 'ACTIVE',
-      startDate: { $lte: to },
-      $or: [{ endDate: { $gte: from } }, { endDate: { $exists: false } }, { endDate: null }],
-    })
-      .populate('guardId', 'firstName lastName employeeCode')
-      .populate('shiftTemplateId', 'name startTime endTime color daysOfWeek');
-    res.json({ success: true, data: assignments });
   } catch (error) { next(error); }
 });
 

@@ -2,6 +2,7 @@ import { Site, ISite } from '../../../models/Site';
 import { ApiError } from '../../../common/ApiError';
 import { AuditService } from '../../../core/audit/AuditService';
 import { eventBus } from '../../../core/events/EventBus';
+import { SiteStatus } from '../../../types';
 
 export class SiteService {
   static async getAll(query: { page?: number; limit?: number; status?: string; search?: string }) {
@@ -78,21 +79,23 @@ export class SiteService {
   static async delete(id: string, auditCtx?: { userId: string; ip?: string; ua?: string }): Promise<void> {
     const site = await Site.findById(id);
     if (!site) throw ApiError.notFound('Site not found');
-    const snapshot = site.toObject();
+    if (site.status === SiteStatus.INACTIVE) throw ApiError.badRequest('Site is already inactive');
 
-    await Site.findByIdAndDelete(id);
+    site.status = SiteStatus.INACTIVE;
+    await site.save();
 
     if (auditCtx) {
       AuditService.log({
         userId: auditCtx.userId,
-        action: 'SITE_DELETE',
+        action: 'SITE_DEACTIVATE',
         entity: 'Site',
         entityId: id,
-        oldValues: { siteCode: snapshot.siteCode, siteName: snapshot.siteName },
+        oldValues: { status: SiteStatus.ACTIVE },
+        newValues: { status: SiteStatus.INACTIVE },
         ipAddress: auditCtx.ip,
         userAgent: auditCtx.ua,
       });
     }
-    eventBus.emit('hr.site.deleted', { siteId: id, siteCode: snapshot.siteCode });
+    eventBus.emit('hr.site.deactivated', { siteId: id, siteCode: site.siteCode });
   }
 }

@@ -21,7 +21,7 @@ Transcript started, output file is C:\Users\Kal\Desktop\junkie\Vitalpayroll\fina
 STEP 1: Backend Server Status
 ==========================================
 PASS: Backend health check returned 200
-Response: {"success":true,"message":"Vital Payroll API is running","timestamp":"2026-08-17T06:08:03.890Z"}
+Response: {"success":true,"message":"Vital Security API is running","timestamp":"2026-08-17T06:08:03.890Z"}
 
 ==========================================
 STEP 2: Seed Data
@@ -73,7 +73,7 @@ window.$RefreshSig$ = () => (type) => type;</script>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vital Payroll</title>
+    <title>Vital Security</title>
 
 ==========================================
 STEP 5: Test Authenticated API Call

@@ -17,7 +17,6 @@ export interface ISite extends Document {
   contactPerson?: string;
   contactPhone?: string;
   address?: string;
-  requiredGuardCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,7 +38,6 @@ const siteSchema = new Schema<ISite>(
     contactPerson: { type: String, trim: true },
     contactPhone: { type: String, trim: true },
     address: { type: String, trim: true },
-    requiredGuardCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

@@ -2,24 +2,20 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IContract extends Document {
   employeeId: mongoose.Types.ObjectId;
+  salaryStructureId?: mongoose.Types.ObjectId;
   contractStartDate: Date;
   contractEndDate?: Date;
-  workingSchedule: string;
-  salaryStructureType: string;
   department?: string;
-  salaryStructure?: string;
+  grade?: string;
   jobPosition?: string;
   contractType: string;
   wage: number;
-  monthlyAdvantagesInCash: number;
-  allowances: {
-    hra: number;
-    da: number;
-    travelAllowance: number;
-    mealAllowance: number;
-    medicalAllowance: number;
-    otherAllowance: number;
-  };
+  responsibilityAllowance: number;
+  teleAllowance: number;
+  taxableTransport: number;
+  nonTaxableAllowance: number;
+  transportAllowance: number;
+  pensionEnrolled: boolean;
   notes?: string;
   status: 'ACTIVE' | 'EXPIRED' | 'TERMINATED';
   createdAt: Date;
@@ -29,24 +25,20 @@ export interface IContract extends Document {
 const contractSchema = new Schema<IContract>(
   {
     employeeId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
+    salaryStructureId: { type: Schema.Types.ObjectId, ref: 'SalaryStructure' },
     contractStartDate: { type: Date, required: true },
     contractEndDate: { type: Date },
-    workingSchedule: { type: String, required: true, default: 'Monday-Friday (9AM-6PM)' },
-    salaryStructureType: { type: String, required: true, default: 'Basic' },
     department: { type: String, trim: true },
-    salaryStructure: { type: String, trim: true },
+    grade: { type: String, trim: true },
     jobPosition: { type: String, trim: true },
     contractType: { type: String, required: true, default: 'Full-Time' },
     wage: { type: Number, required: true, default: 0 },
-    monthlyAdvantagesInCash: { type: Number, default: 0 },
-    allowances: {
-      hra: { type: Number, default: 0 },
-      da: { type: Number, default: 0 },
-      travelAllowance: { type: Number, default: 0 },
-      mealAllowance: { type: Number, default: 0 },
-      medicalAllowance: { type: Number, default: 0 },
-      otherAllowance: { type: Number, default: 0 },
-    },
+    responsibilityAllowance: { type: Number, default: 0 },
+    teleAllowance: { type: Number, default: 0 },
+    taxableTransport: { type: Number, default: 0 },
+    nonTaxableAllowance: { type: Number, default: 0 },
+    transportAllowance: { type: Number, default: 0 },
+    pensionEnrolled: { type: Boolean, default: true },
     notes: { type: String, trim: true },
     status: { type: String, enum: ['ACTIVE', 'EXPIRED', 'TERMINATED'], default: 'ACTIVE' },
   },

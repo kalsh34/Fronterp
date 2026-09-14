@@ -168,10 +168,79 @@ export class StaffPayrollService {
     return record;
   }
 
-  static async pay(recordId: string, data: { paymentMethod: string; bankReference?: string; paymentDate: Date }, userId: string, auditCtx?: { ip?: string; ua?: string }): Promise<IStaffPayrollRecord> {
+  static async enterOt(
+    recordId: string,
+    data: { regularOtHours?: number; holidayOtHours?: number },
+    userId: string,
+    auditCtx?: { ip?: string; ua?: string }
+  ): Promise<IStaffPayrollRecord> {
     const record = await StaffPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
-    if (record.status !== PayrollRecordStatus.APPROVED) throw ApiError.badRequest('Record must be APPROVED');
+    if (record.status !== PayrollRecordStatus.DRAFT && record.status !== PayrollRecordStatus.RETURNED) {
+      throw ApiError.badRequest('Record must be DRAFT or RETURNED');
+    }
+
+    const old = { regularOtHours: record.regularOtHours, holidayOtHours: record.holidayOtHours };
+    if (data.regularOtHours !== undefined) record.regularOtHours = data.regularOtHours;
+    if (data.holidayOtHours !== undefined) record.holidayOtHours = data.holidayOtHours;
+    await record.save();
+
+    AuditService.log({
+      userId,
+      action: 'STAFF_PAYROLL_ENTER_OT',
+      entity: 'StaffPayrollRecord',
+      entityId: recordId,
+      oldValues: old,
+      newValues: data,
+      ipAddress: auditCtx?.ip,
+      userAgent: auditCtx?.ua,
+    });
+    eventBus.emit('hr.staffPayroll.otEntered', { recordId });
+
+    return record;
+  }
+
+  static async initiatePayment(recordId: string, userId: string, auditCtx?: { ip?: string; ua?: string }): Promise<IStaffPayrollRecord> {
+    const record = await StaffPayrollRecord.findById(recordId);
+    if (!record) throw ApiError.notFound('Record not found');
+    if (record.status !== PayrollRecordStatus.APPROVED) {
+      throw ApiError.badRequest('Record must be APPROVED');
+    }
+
+    record.status = PayrollRecordStatus.PAYMENT_PROCESSING;
+    await record.save();
+
+    await PayrollApproval.create({
+      payrollRecordId: record._id,
+      payrollType: 'STAFF',
+      action: 'PAYMENT_PROCESSING',
+      performedBy: userId,
+    });
+
+    AuditService.log({
+      userId,
+      action: 'STAFF_PAYROLL_INITIATE_PAYMENT',
+      entity: 'StaffPayrollRecord',
+      entityId: recordId,
+      ipAddress: auditCtx?.ip,
+      userAgent: auditCtx?.ua,
+    });
+
+    return record;
+  }
+
+  static async confirmPaid(
+    recordId: string,
+    data: { paymentMethod: string; bankReference?: string; paymentDate: Date },
+    userId: string,
+    auditCtx?: { ip?: string; ua?: string }
+  ): Promise<IStaffPayrollRecord> {
+    const record = await StaffPayrollRecord.findById(recordId);
+    if (!record) throw ApiError.notFound('Record not found');
+    if (record.status !== PayrollRecordStatus.PAYMENT_PROCESSING) {
+      throw ApiError.badRequest('Record must be PAYMENT_PROCESSING');
+    }
+
     record.status = PayrollRecordStatus.PAID;
     record.paymentMethod = data.paymentMethod;
     record.bankReference = data.bankReference;
@@ -179,7 +248,13 @@ export class StaffPayrollService {
     record.paidBy = userId as any;
     record.paidAt = new Date();
     await record.save();
-    await PayrollApproval.create({ payrollRecordId: record._id, payrollType: 'STAFF', action: 'PAID', performedBy: userId });
+
+    await PayrollApproval.create({
+      payrollRecordId: record._id,
+      payrollType: 'STAFF',
+      action: 'PAID',
+      performedBy: userId,
+    });
 
     const period = await PayrollPeriod.findById(record.payrollPeriodId);
     const periodLabel = period ? `${period.monthName} ${period.year}` : 'Unknown Period';
@@ -206,6 +281,9 @@ export class StaffPayrollService {
   static async returnForCorrection(recordId: string, userId: string, reason: string, auditCtx?: { ip?: string; ua?: string }): Promise<IStaffPayrollRecord> {
     const record = await StaffPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
+    if (record.status !== PayrollRecordStatus.CHECKED && record.status !== PayrollRecordStatus.APPROVED) {
+      throw ApiError.badRequest('Record must be CHECKED or APPROVED');
+    }
     record.status = PayrollRecordStatus.RETURNED;
     record.returnedBy = userId as any;
     record.returnedAt = new Date();

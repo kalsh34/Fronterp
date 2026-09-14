@@ -12,6 +12,10 @@ export interface IStaffPayrollRecord extends Document {
   taxableTransport: number;
   nonTaxableTransport: number;
   overtime: number;
+  regularOtHours: number;
+  holidayOtHours: number;
+  regularOtPay: number;
+  holidayOtPay: number;
   bonus: number;
   penalty: number;
   grossSalary: number;
@@ -63,6 +67,10 @@ const staffPayrollRecordSchema = new Schema<IStaffPayrollRecord>(
     taxableTransport: { type: Number, default: 0 },
     nonTaxableTransport: { type: Number, default: 0 },
     overtime: { type: Number, default: 0 },
+    regularOtHours: { type: Number, default: 0 },
+    holidayOtHours: { type: Number, default: 0 },
+    regularOtPay: { type: Number, default: 0 },
+    holidayOtPay: { type: Number, default: 0 },
     bonus: { type: Number, default: 0 },
     penalty: { type: Number, default: 0 },
     grossSalary: { type: Number, default: 0 },

@@ -9,6 +9,8 @@ export interface IGuardPayrollRecord extends Document {
 
   normalHours: number;
   otHours: number;
+  regularOtHours: number;
+  holidayOtHours: number;
   holidayHours: number;
   secondaryShiftPay: number;
 
@@ -19,6 +21,8 @@ export interface IGuardPayrollRecord extends Document {
   normalSalary: number;
   workedSalary: number;
   otPay: number;
+  regularOtPay: number;
+  holidayOtPay: number;
   holidayPay: number;
   grossPay: number;
 
@@ -65,6 +69,8 @@ const guardPayrollRecordSchema = new Schema<IGuardPayrollRecord>(
 
     normalHours: { type: Number, default: 0 },
     otHours: { type: Number, default: 0 },
+    regularOtHours: { type: Number, default: 0 },
+    holidayOtHours: { type: Number, default: 0 },
     holidayHours: { type: Number, default: 0 },
     secondaryShiftPay: { type: Number, default: 0 },
 
@@ -75,6 +81,8 @@ const guardPayrollRecordSchema = new Schema<IGuardPayrollRecord>(
     normalSalary: { type: Number, default: 0 },
     workedSalary: { type: Number, default: 0 },
     otPay: { type: Number, default: 0 },
+    regularOtPay: { type: Number, default: 0 },
+    holidayOtPay: { type: Number, default: 0 },
     holidayPay: { type: Number, default: 0 },
     grossPay: { type: Number, default: 0 },
 

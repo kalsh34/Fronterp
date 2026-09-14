@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import ContractList from '../contracts/ContractList';
@@ -11,9 +11,20 @@ interface Employee {
   category: string;
   status: string;
   phone?: string;
+  email?: string;
+  gender?: string;
   hireDate?: string;
   position?: string;
   department?: string;
+  address?: string;
+  salary?: number;
+  transportAllowance?: number;
+  bankName?: string;
+  accountNumber?: string;
+  guardInfo?: {
+    employmentType?: string;
+    idCardNumber?: string;
+  };
 }
 
 const statusColors: Record<string, string> = {
@@ -21,6 +32,7 @@ const statusColors: Record<string, string> = {
   INACTIVE: 'bg-gray-50 text-gray-600 border-gray-200',
   ON_LEAVE: 'bg-amber-50 text-amber-700 border-amber-200',
   TERMINATED: 'bg-red-50 text-red-700 border-red-200',
+  CONTRACTED: 'bg-blue-50 text-blue-700 border-blue-200',
 };
 
 const categoryLabels: Record<string, string> = {
@@ -33,7 +45,44 @@ const categoryBadge: Record<string, string> = {
   OFFICE_STAFF: 'bg-violet-100 text-violet-700',
 };
 
-const tabs = ['Employee Directory', 'Onboarding', 'Documents', 'Contract', 'Site Assignment', 'Attendance', 'Performance'];
+const tabs = ['Employee Directory', 'Onboarding', 'Guarantor', 'Contract', 'Attendance', 'Performance'];
+
+const STAGES = ['APPLICATION', 'SCREENING', 'INTERVIEW', 'EXAM', 'OFFER', 'HIRED'] as const;
+const STAGE_LABELS: Record<string, string> = {
+  APPLICATION: 'Application', SCREENING: 'Screening', INTERVIEW: 'Interview',
+  EXAM: 'Exam', OFFER: 'Offer', HIRED: 'Hired', REJECTED: 'Rejected',
+};
+
+interface Candidate {
+  _id: string; firstName: string; lastName: string; email?: string; phone?: string;
+  position: string; department?: string; stage: string; appliedDate: string;
+  stageHistory: { stage: string; date: string; notes?: string }[];
+}
+
+interface CandidateStats {
+  byStage: Record<string, number>;
+  total: number;
+}
+
+interface AttendanceSummary {
+  employee: { _id: string; firstName: string; lastName: string; employeeCode: string; department?: string };
+  counts: Record<string, number>;
+  payableDays: number;
+  totalDaysInMonth: number;
+}
+
+interface PerfRecord {
+  _id: string;
+  employeeId: { firstName: string; lastName: string; employeeCode: string; department?: string } | string;
+  period: string; attendanceRate: number; punctualityRate: number;
+  score: number; trend: number; flags: string[]; reviewDueDate?: string;
+}
+
+interface PerfStats {
+  avgScore: number; topDepartment: string; openFlags: number; reviewsDue: number;
+}
+
+const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 export default function EmployeeList() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -46,6 +95,10 @@ export default function EmployeeList() {
   const [activeTab, setActiveTab] = useState(0);
 
   const [stats, setStats] = useState({ total: 0, guards: 0, staff: 0, onLeave: 0, newThisMonth: 0 });
+
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { fetchEmployees(); }, [page, search, roleFilter, statusFilter]);
 
@@ -81,6 +134,34 @@ export default function EmployeeList() {
 
   const statusOptions = ['ACTIVE', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'];
 
+  const handleView = async (emp: Employee) => {
+    setSelectedEmployee(emp);
+    setDetailLoading(true);
+    try {
+      const res = await api.get(`/employees/${emp._id}`);
+      setSelectedEmployee(res.data.data);
+    } catch (e) {
+      console.error('Failed to load employee details');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedEmployee) return;
+    if (!confirm(`Delete ${selectedEmployee.firstName} ${selectedEmployee.lastName}? This action cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/employees/${selectedEmployee._id}`);
+      setSelectedEmployee(null);
+      fetchEmployees();
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Failed to delete employee');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* Tabs */}
@@ -102,6 +183,14 @@ export default function EmployeeList() {
 
       {activeTab === 3 ? (
         <ContractList />
+      ) : activeTab === 1 ? (
+        <OnboardingTab />
+      ) : activeTab === 2 ? (
+        <GuarantorTab />
+      ) : activeTab === 4 ? (
+        <AttendanceTab />
+      ) : activeTab === 5 ? (
+        <PerformanceTab />
       ) : (
       <>
       {/* Stat Cards */}
@@ -160,6 +249,14 @@ export default function EmployeeList() {
         </select>
 
         <div className="flex-1" />
+
+        <button
+          onClick={() => { window.open('/api/employees/export', '_blank'); }}
+          className="h-10 px-5 flex items-center gap-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          Export CSV
+        </button>
 
         <Link
           to="/employees/new"
@@ -232,9 +329,9 @@ export default function EmployeeList() {
                           {emp.hireDate ? new Date(emp.hireDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <Link to={`/employees/${emp._id}`} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
+                          <button onClick={() => handleView(emp)} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
                             View
-                          </Link>
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -288,14 +385,14 @@ export default function EmployeeList() {
             </div>
           </div>
 
-          {/* Department Breakdown */}
+          {/* Department Distribution */}
           <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h4 className="text-sm font-semibold text-gray-900 mb-4">Department Breakdown</h4>
-            <div className="space-y-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-4">Department Distribution</h4>
+            <div className="space-y-3">
               {[
-                { label: 'Guards / Patrol', pct: stats.guards, color: 'bg-blue-600' },
-                { label: 'Operations HQ', pct: Math.round(stats.total * 0.08), color: 'bg-blue-400' },
-                { label: 'HR & Payroll', pct: Math.round(stats.total * 0.05), color: 'bg-amber-500' },
+                { label: 'Operations', pct: Math.round(stats.total * 0.65), color: 'bg-blue-500' },
+                { label: 'HR & Admin', pct: Math.round(stats.total * 0.15), color: 'bg-emerald-400' },
+                { label: 'Management', pct: Math.round(stats.total * 0.10), color: 'bg-violet-400' },
                 { label: 'Finance & Admin', pct: Math.round(stats.total * 0.04), color: 'bg-amber-400' },
               ].map((d) => (
                 <div key={d.label}>
@@ -312,6 +409,996 @@ export default function EmployeeList() {
         </div>
       </div>
       </>
+      )}
+
+      {/* Employee Detail Sidebar */}
+      {selectedEmployee && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedEmployee(null)} />
+          <div className="relative w-full max-w-lg bg-white shadow-xl overflow-y-auto">
+            {detailLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="p-6 space-y-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-lg font-bold">
+                      {selectedEmployee.firstName?.[0]}{selectedEmployee.lastName?.[0]}
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900">{selectedEmployee.firstName} {selectedEmployee.lastName}</h2>
+                      <p className="text-sm text-gray-500">{selectedEmployee.employeeCode}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedEmployee(null)} className="p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${statusColors[selectedEmployee.status] || 'bg-gray-50 text-gray-600 border-gray-200'}`}>
+                    {selectedEmployee.status?.replace(/_/g, ' ')}
+                  </span>
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${categoryBadge[selectedEmployee.category] || 'bg-gray-100 text-gray-600'}`}>
+                    {categoryLabels[selectedEmployee.category] || selectedEmployee.category}
+                  </span>
+                </div>
+
+                <div className="flex gap-3">
+                  <Link to={`/employees/${selectedEmployee._id}/edit`}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Edit
+                  </Link>
+                  <button onClick={handleDelete} disabled={deleting}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    {deleting ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-5 space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-900">Personal Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { label: 'First Name', value: selectedEmployee.firstName },
+                      { label: 'Last Name', value: selectedEmployee.lastName },
+                      { label: 'Phone', value: selectedEmployee.phone || '—' },
+                      { label: 'Email', value: selectedEmployee.email || '—' },
+                      { label: 'Gender', value: selectedEmployee.gender || '—' },
+                      { label: 'Date of Birth', value: selectedEmployee.hireDate ? new Date(selectedEmployee.hireDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+                    ].map((f) => (
+                      <div key={f.label}>
+                        <p className="text-[11px] text-gray-400 uppercase tracking-wider">{f.label}</p>
+                        <p className="text-sm font-medium text-gray-900 mt-0.5">{f.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedEmployee.address && (
+                    <div>
+                      <p className="text-[11px] text-gray-400 uppercase tracking-wider">Address</p>
+                      <p className="text-sm font-medium text-gray-900 mt-0.5">{selectedEmployee.address}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-5 space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-900">Employment Details</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { label: 'Employee ID', value: selectedEmployee.employeeCode },
+                      { label: 'Department', value: selectedEmployee.department || '—' },
+                      { label: 'Position', value: selectedEmployee.position || '—' },
+                      { label: 'Join Date', value: selectedEmployee.hireDate ? new Date(selectedEmployee.hireDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+                      { label: 'Category', value: categoryLabels[selectedEmployee.category] || selectedEmployee.category },
+                      { label: 'Status', value: selectedEmployee.status?.replace(/_/g, ' ') },
+                    ].map((f) => (
+                      <div key={f.label}>
+                        <p className="text-[11px] text-gray-400 uppercase tracking-wider">{f.label}</p>
+                        <p className="text-sm font-medium text-gray-900 mt-0.5">{f.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-5 space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-900">Compensation</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { label: 'Salary', value: selectedEmployee.salary ? `ETB ${selectedEmployee.salary.toLocaleString()}` : '—' },
+                      { label: 'Transport Allowance', value: selectedEmployee.transportAllowance ? `ETB ${selectedEmployee.transportAllowance.toLocaleString()}` : '—' },
+                      { label: 'Bank Name', value: selectedEmployee.bankName || '—' },
+                      { label: 'Account Number', value: selectedEmployee.accountNumber || '—' },
+                    ].map((f) => (
+                      <div key={f.label}>
+                        <p className="text-[11px] text-gray-400 uppercase tracking-wider">{f.label}</p>
+                        <p className="text-sm font-medium text-gray-900 mt-0.5">{f.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {selectedEmployee.category === 'GUARD' && selectedEmployee.guardInfo && (
+                  <div className="bg-gray-50 rounded-xl p-5 space-y-4">
+                    <h3 className="text-sm font-semibold text-gray-900">Guard Information</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { label: 'Employment Type', value: selectedEmployee.guardInfo.employmentType || '—' },
+                        { label: 'ID Card Number', value: selectedEmployee.guardInfo.idCardNumber || '—' },
+                      ].map((f) => (
+                        <div key={f.label}>
+                          <p className="text-[11px] text-gray-400 uppercase tracking-wider">{f.label}</p>
+                          <p className="text-sm font-medium text-gray-900 mt-0.5">{f.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Guarantor Quick Link */}
+                <Link to={`/employees/${selectedEmployee._id}/guarantor`}
+                  className="flex items-center gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100 hover:bg-blue-100 transition-colors">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-900">Guarantor Management</p>
+                    <p className="text-xs text-blue-600">View and manage guarantor records</p>
+                  </div>
+                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   ONBOARDING TAB
+   ============================================================ */
+function OnboardingTab() {
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [stats, setStats] = useState<CandidateStats>({ byStage: {}, total: 0 });
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('all');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCandidate, setNewCandidate] = useState({ firstName: '', lastName: '', email: '', phone: '', position: '', department: '' });
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [candRes, statsRes] = await Promise.all([
+        api.get('/api/candidates', { params: stageFilter !== 'all' ? { stage: stageFilter } : {} }),
+        api.get('/api/candidates/stats'),
+      ]);
+      setCandidates(candRes.data.data || []);
+      setStats(statsRes.data.data || { byStage: {}, total: 0 });
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [stageFilter]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleAddCandidate = async () => {
+    try {
+      await api.post('/api/candidates', newCandidate);
+      setShowAddModal(false);
+      setNewCandidate({ firstName: '', lastName: '', email: '', phone: '', position: '', department: '' });
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
+  };
+
+  const handleAdvanceStage = async (id: string, nextStage: string) => {
+    try {
+      await api.put(`/api/candidates/${id}/stage`, { stage: nextStage });
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
+  };
+
+  const handleReject = async (id: string) => {
+    const reason = prompt('Rejection reason:');
+    if (!reason) return;
+    try {
+      await api.put(`/api/candidates/${id}/reject`, { reason });
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
+  };
+
+  const filtered = candidates.filter(c => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return `${c.firstName} ${c.lastName} ${c.position}`.toLowerCase().includes(q);
+  });
+
+  const getNextStage = (current: string) => {
+    const idx = STAGES.indexOf(current as any);
+    return idx >= 0 && idx < STAGES.length - 1 ? STAGES[idx + 1] : null;
+  };
+
+  const openCandidates = (stats.byStage['APPLICATION'] || 0) + (stats.byStage['SCREENING'] || 0);
+  const inInterview = (stats.byStage['INTERVIEW'] || 0) + (stats.byStage['EXAM'] || 0);
+  const offers = stats.byStage['OFFER'] || 0;
+  const hired = stats.byStage['HIRED'] || 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Open Candidates</p>
+          <p className="text-2xl font-bold text-gray-900">{openCandidates}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Across all stages</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">In Interview or Exam</p>
+          <p className="text-2xl font-bold text-gray-900">{inInterview}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Awaiting a decision</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Offers Extended</p>
+          <p className="text-2xl font-bold text-gray-900">{offers}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Awaiting acceptance</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Hired This Month</p>
+          <p className="text-2xl font-bold text-gray-900">{hired}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Moved to Employees</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" placeholder="Search candidate name..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full h-10 pl-10 pr-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+        </div>
+        <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
+          className="h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400">
+          <option value="all">All Stages</option>
+          {STAGES.map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+        </select>
+        <button onClick={() => setShowAddModal(true)}
+          className="h-10 px-4 flex items-center gap-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          Add Candidate
+        </button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Recruitment Pipeline</h3>
+            <p className="text-xs text-gray-500 mt-0.5">HR moves a candidate to the next stage once they pass the current one</p>
+          </div>
+          <div className="flex items-center gap-4 text-xs">
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Passed</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" /> Current stage</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" /> Rejected</span>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-12 text-gray-400 text-sm">No candidates found</div>
+        ) : (
+          <div className="space-y-4">
+            {filtered.map(c => {
+              const stageIdx = STAGES.indexOf(c.stage as any);
+              const nextStage = getNextStage(c.stage);
+              return (
+                <div key={c._id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:bg-gray-50/50 transition-colors">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {c.firstName[0]}{c.lastName[0]}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-sm font-semibold text-gray-900">{c.firstName} {c.lastName}</p>
+                      <span className="text-xs text-gray-400">Applying for: {c.position}</span>
+                    </div>
+                    <div className="flex items-center gap-0 mt-2">
+                      {STAGES.map((s, i) => {
+                        const isPassed = stageIdx > i;
+                        const isCurrent = c.stage === s;
+                        const isRejected = c.stage === 'REJECTED' && i === stageIdx;
+                        return (
+                          <div key={s} className="flex items-center">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                              isPassed ? 'bg-emerald-500 text-white' :
+                              isCurrent ? 'bg-blue-600 text-white ring-2 ring-blue-200' :
+                              isRejected ? 'bg-red-500 text-white' :
+                              'bg-gray-100 text-gray-400'
+                            }`}>
+                              {isPassed ? '✓' : i + 1}
+                            </div>
+                            {i < STAGES.length - 1 && (
+                              <div className={`w-10 h-0.5 ${isPassed ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="flex items-center gap-2 ml-3">
+                        {STAGES.map(s => (
+                          <span key={s} className={`text-[10px] w-14 text-center ${c.stage === s ? 'font-semibold text-blue-600' : 'text-gray-400'}`}>
+                            {STAGE_LABELS[s]}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {nextStage && c.stage !== 'HIRED' && c.stage !== 'REJECTED' && (
+                      <>
+                        <select value={c.stage} onChange={e => handleAdvanceStage(c._id, e.target.value)}
+                          className="h-8 px-2 rounded border border-gray-200 text-xs text-gray-700 bg-white">
+                          {STAGES.filter((_, i) => i >= stageIdx).map(s => <option key={s} value={s}>{STAGE_LABELS[s]}</option>)}
+                        </select>
+                        <button onClick={() => nextStage && handleAdvanceStage(c._id, nextStage)}
+                          className="h-8 px-3 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors">
+                          Mark {STAGE_LABELS[nextStage]} Passed →
+                        </button>
+                      </>
+                    )}
+                    {c.stage === 'HIRED' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-emerald-600 font-medium">Hired</span>
+                        <Link to="/employees/new" className="h-8 px-3 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                          Create Employee
+                        </Link>
+                      </div>
+                    )}
+                    {c.stage !== 'HIRED' && c.stage !== 'REJECTED' && (
+                      <button onClick={() => handleReject(c._id)}
+                        className="h-8 px-3 rounded-lg text-red-600 text-xs font-medium hover:bg-red-50 transition-colors">
+                        Reject
+                      </button>
+                    )}
+                    {c.stage === 'REJECTED' && <span className="text-xs text-red-500">Rejected</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Add New Candidate</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">First Name *</label>
+                <input value={newCandidate.firstName} onChange={e => setNewCandidate({ ...newCandidate, firstName: e.target.value })}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Last Name *</label>
+                <input value={newCandidate.lastName} onChange={e => setNewCandidate({ ...newCandidate, lastName: e.target.value })}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Position *</label>
+                <input value={newCandidate.position} onChange={e => setNewCandidate({ ...newCandidate, position: e.target.value })}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                <input value={newCandidate.email} onChange={e => setNewCandidate({ ...newCandidate, email: e.target.value })}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
+                <input value={newCandidate.phone} onChange={e => setNewCandidate({ ...newCandidate, phone: e.target.value })}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Department</label>
+                <select value={newCandidate.department} onChange={e => setNewCandidate({ ...newCandidate, department: e.target.value })}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm">
+                  <option value="">Select</option>
+                  <option value="Operations">Operations</option>
+                  <option value="HR">HR</option>
+                  <option value="Finance">Finance</option>
+                  <option value="Administration">Administration</option>
+                  <option value="Security">Security</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={handleAddCandidate} disabled={!newCandidate.firstName || !newCandidate.lastName || !newCandidate.position}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                Add Candidate
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ============================================================
+   GUARANTOR TAB
+   ============================================================ */
+function GuarantorTab() {
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [guarantorCounts, setGuarantorCounts] = useState<Record<string, number>>({});
+
+  const fetchEmployees = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params: any = { limit: 200 };
+      if (search) params.search = search;
+      const res = await api.get('/employees', { params });
+      const emps = res.data.data || [];
+      setEmployees(emps);
+
+      const counts: Record<string, number> = {};
+      await Promise.all(emps.map(async (emp: Employee) => {
+        try {
+          const gRes = await api.get(`/guarantors/employee/${emp._id}`);
+          counts[emp._id] = (gRes.data.data || []).length;
+        } catch { counts[emp._id] = 0; }
+      }));
+      setGuarantorCounts(counts);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [search]);
+
+  useEffect(() => { fetchEmployees(); }, [fetchEmployees]);
+
+  const filtered = employees.filter(emp => {
+    if (statusFilter === 'has_guarantor') return (guarantorCounts[emp._id] || 0) > 0;
+    if (statusFilter === 'no_guarantor') return (guarantorCounts[emp._id] || 0) === 0;
+    return true;
+  });
+
+  const withGuarantor = Object.values(guarantorCounts).filter(c => c > 0).length;
+  const withoutGuarantor = employees.length - withGuarantor;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Total Employees</p>
+          <p className="text-2xl font-bold text-gray-900">{employees.length}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">With Guarantor</p>
+          <p className="text-2xl font-bold text-emerald-600">{withGuarantor}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Without Guarantor</p>
+          <p className="text-2xl font-bold text-amber-600">{withoutGuarantor}</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" placeholder="Search employee name..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full h-10 pl-10 pr-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+        </div>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          className="h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700">
+          <option value="">All Employees</option>
+          <option value="has_guarantor">With Guarantor</option>
+          <option value="no_guarantor">Without Guarantor</option>
+        </select>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h3 className="text-base font-semibold text-gray-900">Guarantor Status</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Click an employee to manage their guarantor</p>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        ) : filtered.length === 0 ? (
+          <div className="py-16 text-center text-gray-400 text-sm">No employees found</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Employee</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Category</th>
+                  <th className="text-left px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="text-center px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Guarantors</th>
+                  <th className="text-right px-6 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(emp => {
+                  const count = guarantorCounts[emp._id] || 0;
+                  return (
+                    <tr key={emp._id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {emp.firstName?.[0]}{emp.lastName?.[0]}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{emp.firstName} {emp.lastName}</p>
+                            <p className="text-xs text-gray-400">{emp.employeeCode}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${categoryBadge[emp.category] || ''}`}>
+                          {categoryLabels[emp.category] || emp.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[emp.status] || ''}`}>
+                          {emp.status?.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {count > 0 ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {count} on file
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                            None
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Link to={`/employees/${emp._id}/guarantor`}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors">
+                          {count > 0 ? 'View' : 'Add Guarantor'}
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   ATTENDANCE TAB
+   ============================================================ */
+function AttendanceTab() {
+  const [summaries, setSummaries] = useState<AttendanceSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [deptFilter, setDeptFilter] = useState('all');
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/staff-attendance/summary?year=${year}&month=${month}`);
+      setSummaries(res.data.data?.summaries || []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [year, month]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const filtered = summaries.filter(s => {
+    const name = `${s.employee.firstName} ${s.employee.lastName}`.toLowerCase();
+    const q = search.toLowerCase();
+    const matchSearch = !q || name.includes(q) || s.employee.employeeCode.toLowerCase().includes(q);
+    const matchDept = deptFilter === 'all' || s.employee.department === deptFilter;
+    return matchSearch && matchDept;
+  });
+
+  const presentToday = filtered.filter(s => s.counts.PRESENT > 0).length;
+  const lateCount = filtered.filter(s => s.counts.HALF_DAY > 0).length;
+  const absentCount = filtered.filter(s => s.counts.ABSENT > 0).length;
+  const onLeaveCount = filtered.filter(s => (s.counts.PAID_LEAVE || 0) + (s.counts.UNPAID_LEAVE || 0) + (s.counts.SICK_LEAVE || 0) > 0).length;
+
+  const departments = [...new Set(summaries.map(s => s.employee.department).filter(Boolean))].sort();
+
+  const prevMonth = () => { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); };
+  const nextMonth = () => { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Present Today</p>
+          <p className="text-2xl font-bold text-gray-900">{presentToday}</p>
+          <p className="text-xs text-gray-500 mt-0.5">of {summaries.length} office staff</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Late</p>
+          <p className="text-2xl font-bold text-gray-900">{lateCount}</p>
+          <p className="text-xs text-gray-500 mt-0.5">half-day marks</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Absent</p>
+          <p className="text-2xl font-bold text-gray-900">{absentCount}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Unexplained</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">On Leave</p>
+          <p className="text-2xl font-bold text-gray-900">{onLeaveCount}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Approved leave</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" placeholder="Search name or ID..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full h-10 pl-10 pr-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <span className="text-sm font-medium text-gray-700 min-w-[120px] text-center">{monthNames[month - 1]} {year}</span>
+          <button onClick={nextMonth} className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+        <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)}
+          className="h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700">
+          <option value="all">All Departments</option>
+          {departments.map(d => <option key={d} value={d!}>{d}</option>)}
+        </select>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-gray-700">Staff Attendance Log</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Office staff only. Guard attendance is tracked separately under Sites.</p>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Department</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Present</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Absent</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Half Day</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Leave</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Payable Days</th>
+                  <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-400 text-sm">No attendance data</td></tr>
+                ) : filtered.map(s => {
+                  const hasAbsence = s.counts.ABSENT > 0;
+                  const hasLeave = (s.counts.PAID_LEAVE || 0) + (s.counts.UNPAID_LEAVE || 0) + (s.counts.SICK_LEAVE || 0) > 0;
+                  const isHalfDay = s.counts.HALF_DAY > 0;
+                  let status = 'On time';
+                  let statusColor = 'bg-emerald-100 text-emerald-700';
+                  if (hasAbsence) { status = 'Absent'; statusColor = 'bg-red-100 text-red-700'; }
+                  else if (hasLeave) { status = 'On leave'; statusColor = 'bg-blue-100 text-blue-700'; }
+                  else if (isHalfDay) { status = 'Late'; statusColor = 'bg-amber-100 text-amber-700'; }
+
+                  return (
+                    <tr key={s.employee._id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-semibold">
+                            {s.employee.firstName[0]}{s.employee.lastName[0]}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{s.employee.firstName} {s.employee.lastName}</p>
+                            <p className="text-xs text-gray-400">{s.employee.employeeCode}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{s.employee.department || '—'}</td>
+                      <td className="px-6 py-4 text-center text-sm font-medium">{s.counts.PRESENT || 0}</td>
+                      <td className="px-6 py-4 text-center text-sm font-medium text-red-600">{s.counts.ABSENT || 0}</td>
+                      <td className="px-6 py-4 text-center text-sm font-medium text-amber-600">{s.counts.HALF_DAY || 0}</td>
+                      <td className="px-6 py-4 text-center text-sm font-medium text-blue-600">
+                        {(s.counts.PAID_LEAVE || 0) + (s.counts.UNPAID_LEAVE || 0) + (s.counts.SICK_LEAVE || 0)}
+                      </td>
+                      <td className="px-6 py-4 text-center text-sm font-bold text-green-700">{s.payableDays}</td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}`}>{status}</span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   PERFORMANCE TAB
+   ============================================================ */
+function PerformanceTab() {
+  const [records, setRecords] = useState<PerfRecord[]>([]);
+  const [stats, setStats] = useState<PerfStats>({ avgScore: 0, topDepartment: '—', openFlags: 0, reviewsDue: 0 });
+  const [topPerformers, setTopPerformers] = useState<PerfRecord[]>([]);
+  const [reviewsDue, setReviewsDue] = useState<PerfRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [perfForm, setPerfForm] = useState({ employeeId: '', period: '2026-Q3', attendanceRate: 95, punctualityRate: 90, score: 85, notes: '' });
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [recRes, statsRes, topRes, dueRes] = await Promise.all([
+        api.get('/api/performance'),
+        api.get('/api/performance/stats'),
+        api.get('/api/performance/top-performers'),
+        api.get('/api/performance/reviews-due'),
+      ]);
+      setRecords(recRes.data.data || []);
+      setStats(statsRes.data.data || { avgScore: 0, topDepartment: '—', openFlags: 0, reviewsDue: 0 });
+      setTopPerformers(topRes.data.data || []);
+      setReviewsDue(dueRes.data.data || []);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const loadEmployees = async () => {
+    try {
+      const res = await api.get('/employees', { params: { limit: 200 } });
+      setEmployees(res.data.data || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleAddPerformance = async () => {
+    try {
+      await api.post('/api/performance', perfForm);
+      setShowAddModal(false);
+      fetchData();
+    } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
+  };
+
+  const filtered = records.filter(r => {
+    if (!search) return true;
+    const emp = typeof r.employeeId === 'object' ? r.employeeId : null;
+    const q = search.toLowerCase();
+    return emp ? `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(q) : false;
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Avg. Performance Score</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.avgScore}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Across all staff</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Top Rated Department</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.topDepartment}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Highest avg. score</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Open Flags</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.openFlags}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Under HR review</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Reviews Due</p>
+          <p className="text-2xl font-bold text-gray-900">{stats.reviewsDue}</p>
+          <p className="text-xs text-gray-500 mt-0.5">Next 30 days</p>
+        </div>
+      </div>
+
+      <div className="flex gap-6">
+        <div className="flex-1 space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input type="text" placeholder="Search employee..." value={search} onChange={e => setSearch(e.target.value)}
+                className="w-full h-10 pl-10 pr-4 rounded-lg border border-gray-200 bg-white text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+            </div>
+            <button onClick={() => { setShowAddModal(true); loadEmployees(); }}
+              className="h-10 px-4 flex items-center gap-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Add Review
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700">Staff Performance</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Office staff only, scored from attendance, punctuality, and manager reviews.</p>
+            </div>
+            {loading ? (
+              <div className="flex justify-center py-12"><div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" /></div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Department</th>
+                      <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Attendance</th>
+                      <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Punctuality</th>
+                      <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Score</th>
+                      <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Trend</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.length === 0 ? (
+                      <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400 text-sm">No performance data yet. Add a review to get started.</td></tr>
+                    ) : filtered.map(r => {
+                      const emp = typeof r.employeeId === 'object' ? r.employeeId : null;
+                      if (!emp) return null;
+                      return (
+                        <tr key={r._id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-sm font-semibold">
+                                {emp.firstName[0]}{emp.lastName[0]}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{emp.firstName} {emp.lastName}</p>
+                                <p className="text-xs text-gray-400">{emp.employeeCode}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{emp.department || '—'}</td>
+                          <td className="px-6 py-4 text-center text-sm font-medium">{r.attendanceRate}%</td>
+                          <td className="px-6 py-4 text-center text-sm font-medium">{r.punctualityRate}%</td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={`text-sm font-bold ${r.score >= 80 ? 'text-emerald-600' : r.score >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{r.score}</span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {r.trend > 0 && <span className="text-xs font-medium text-emerald-600">▲ {r.trend}</span>}
+                            {r.trend < 0 && <span className="text-xs font-medium text-red-600">▼ {Math.abs(r.trend)}</span>}
+                            {r.trend === 0 && <span className="text-xs text-gray-400">— 0</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="w-72 flex-shrink-0 space-y-4 hidden lg:block">
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h4 className="text-sm font-semibold text-gray-900 mb-4">Top Performers</h4>
+            {topPerformers.length === 0 ? (
+              <p className="text-xs text-gray-400">No data yet</p>
+            ) : (
+              <div className="space-y-3">
+                {topPerformers.map((r, i) => {
+                  const emp = typeof r.employeeId === 'object' ? r.employeeId : null;
+                  if (!emp) return null;
+                  return (
+                    <div key={r._id} className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-gray-400 w-4">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{emp.firstName} {emp.lastName}</p>
+                      </div>
+                      <span className="text-sm font-bold text-emerald-600">{r.score}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-5">
+            <h4 className="text-sm font-semibold text-gray-900 mb-4">Reviews Due Soon</h4>
+            {reviewsDue.length === 0 ? (
+              <p className="text-xs text-gray-400">No reviews due</p>
+            ) : (
+              <div className="space-y-3">
+                {reviewsDue.map(r => {
+                  const emp = typeof r.employeeId === 'object' ? r.employeeId : null;
+                  if (!emp) return null;
+                  const dueDate = r.reviewDueDate ? new Date(r.reviewDueDate) : null;
+                  const isOverdue = dueDate && dueDate < new Date();
+                  const daysLeft = dueDate ? Math.ceil((dueDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+                  return (
+                    <div key={r._id} className="flex items-center justify-between">
+                      <p className="text-sm text-gray-700">{emp.firstName} {emp.lastName}</p>
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                        isOverdue ? 'bg-red-100 text-red-700' : daysLeft <= 7 ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {isOverdue ? 'Overdue' : `Due in ${daysLeft} days`}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Add Performance Review</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Employee *</label>
+                <select value={perfForm.employeeId} onChange={e => setPerfForm({ ...perfForm, employeeId: e.target.value })}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm">
+                  <option value="">Select employee</option>
+                  {employees.map((e: any) => <option key={e._id} value={e._id}>{e.firstName} {e.lastName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Period</label>
+                <input value={perfForm.period} onChange={e => setPerfForm({ ...perfForm, period: e.target.value })}
+                  className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" placeholder="2026-Q3" />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Attendance %</label>
+                  <input type="number" value={perfForm.attendanceRate} onChange={e => setPerfForm({ ...perfForm, attendanceRate: Number(e.target.value) })}
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Punctuality %</label>
+                  <input type="number" value={perfForm.punctualityRate} onChange={e => setPerfForm({ ...perfForm, punctualityRate: Number(e.target.value) })}
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Score</label>
+                  <input type="number" value={perfForm.score} onChange={e => setPerfForm({ ...perfForm, score: Number(e.target.value) })}
+                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+                <textarea value={perfForm.notes} onChange={e => setPerfForm({ ...perfForm, notes: e.target.value })} rows={2}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm resize-none" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+              <button onClick={handleAddPerformance} disabled={!perfForm.employeeId}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                Save Review
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

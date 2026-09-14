@@ -49,12 +49,13 @@ export default function QuickLogPanel({ onLogged }: Props) {
 
   useEffect(() => {
     api.get('/guards').then((res) => {
-      const all = (res.data.data || []).filter((g: any) => g.currentAssignments?.length > 0);
+      const all = (res.data.data || []).filter((g: any) => g.employee.status === 'CONTRACTED');
       const flat: GuardAssignment[] = [];
       for (const g of all) {
-        for (const a of g.currentAssignments) {
-          const siteName = typeof a.siteId === 'object' ? a.siteId.siteName : 'Unknown';
-          const siteId = typeof a.siteId === 'object' ? a.siteId._id : a.siteId;
+        const assignments = g.currentAssignments?.length > 0 ? g.currentAssignments : [{ siteId: null, siteName: 'Unassigned' }];
+        for (const a of assignments) {
+          const siteName = (typeof a.siteId === 'object' && a.siteId !== null) ? a.siteId.siteName : 'Unassigned';
+          const siteId = (typeof a.siteId === 'object' && a.siteId !== null) ? a.siteId._id : a.siteId;
           flat.push({
             employeeId: g.employee._id,
             employeeCode: g.employee.employeeCode,
@@ -77,9 +78,7 @@ export default function QuickLogPanel({ onLogged }: Props) {
       })
     : [];
 
-  useEffect(() => {
-    setHighlightIdx(0);
-  }, [query]);
+  useEffect(() => { setHighlightIdx(0); }, [query]);
 
   const selectGuard = useCallback((g: GuardAssignment) => {
     setSelected(g);
@@ -168,15 +167,15 @@ export default function QuickLogPanel({ onLogged }: Props) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-          <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-sm">
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-gray-900">Quick Attendance Log</h3>
+          <h3 className="text-sm font-bold text-gray-900">Quick Attendance Log</h3>
           <p className="text-xs text-gray-400">Log one guard at a time — Enter to submit, auto-focus back to search</p>
         </div>
       </div>
@@ -184,7 +183,7 @@ export default function QuickLogPanel({ onLogged }: Props) {
       <div className="grid grid-cols-12 gap-3 items-end">
         {/* Guard Search */}
         <div className="col-span-12 sm:col-span-3 relative">
-          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Guard</label>
+          <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Guard</label>
           <input
             ref={searchRef}
             type="text"
@@ -199,16 +198,16 @@ export default function QuickLogPanel({ onLogged }: Props) {
             onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
             onKeyDown={handleSearchKeyDown}
             placeholder="Search name or code..."
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+            className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
           />
           {showDropdown && filtered.length > 0 && (
-            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto">
               {filtered.slice(0, 10).map((g, i) => (
                 <button
                   key={`${g.employeeId}-${g.siteId}`}
                   onMouseDown={() => selectGuard(g)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between ${
-                    i === highlightIdx ? 'bg-blue-50' : ''
+                  className={`w-full text-left px-3 py-2.5 text-sm hover:bg-indigo-50 flex items-center justify-between transition-colors ${
+                    i === highlightIdx ? 'bg-indigo-50' : ''
                   }`}
                 >
                   <span className="font-medium text-gray-900">{g.firstName} {g.lastName}</span>
@@ -221,26 +220,26 @@ export default function QuickLogPanel({ onLogged }: Props) {
 
         {/* Site (read-only) */}
         <div className="col-span-12 sm:col-span-2">
-          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Site</label>
-          <div className="h-9 px-3 rounded-lg border border-gray-200 bg-gray-100 text-sm text-gray-600 flex items-center truncate">
+          <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Site</label>
+          <div className="h-10 px-3 rounded-xl border border-gray-200 bg-gray-100 text-sm text-gray-600 flex items-center truncate">
             {selected ? selected.siteName : '—'}
           </div>
         </div>
 
         {/* Date */}
         <div className="col-span-6 sm:col-span-2">
-          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Date</label>
+          <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Date</label>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+            className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
           />
         </div>
 
         {/* Hours */}
         <div className="col-span-6 sm:col-span-2">
-          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Hours *</label>
+          <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Hours *</label>
           <input
             ref={hoursRef}
             type="number"
@@ -252,7 +251,7 @@ export default function QuickLogPanel({ onLogged }: Props) {
             onKeyDown={handleHoursKeyDown}
             placeholder="0"
             disabled={!selected}
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 disabled:opacity-50"
+            className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 disabled:opacity-50 transition-all"
           />
         </div>
 
@@ -264,14 +263,14 @@ export default function QuickLogPanel({ onLogged }: Props) {
             checked={isHoliday}
             onChange={(e) => setIsHoliday(e.target.checked)}
             disabled={!selected}
-            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
           />
-          <label htmlFor="holiday-check" className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Holiday</label>
+          <label htmlFor="holiday-check" className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Holiday</label>
         </div>
 
         {/* Notes */}
         <div className="col-span-8 sm:col-span-2">
-          <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Notes</label>
+          <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Notes</label>
           <input
             ref={notesRef}
             type="text"
@@ -280,19 +279,19 @@ export default function QuickLogPanel({ onLogged }: Props) {
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }}
             placeholder="Optional"
             disabled={!selected}
-            className="w-full h-9 px-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 disabled:opacity-50"
+            className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 disabled:opacity-50 transition-all"
           />
         </div>
       </div>
 
       {/* Errors / Flags */}
       {error && (
-        <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
           {error}
         </div>
       )}
       {flagged && (
-        <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
           {flagged}
         </div>
       )}
@@ -302,7 +301,7 @@ export default function QuickLogPanel({ onLogged }: Props) {
         <button
           onClick={submit}
           disabled={!selected || !hours || submitting}
-          className="h-9 px-5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="h-10 px-6 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-indigo-200"
         >
           {submitting ? (
             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -319,26 +318,26 @@ export default function QuickLogPanel({ onLogged }: Props) {
       {/* Session Log */}
       {sessionLog.length > 0 && (
         <div className="mt-5 border-t border-gray-100 pt-4">
-          <h4 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">
+          <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">
             Logged This Session ({sessionLog.length})
           </h4>
           <div className="max-h-40 overflow-y-auto space-y-1">
             {sessionLog.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between text-xs py-1.5 px-2 rounded hover:bg-gray-50">
+              <div key={entry.id} className="flex items-center justify-between text-xs py-2 px-3 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="flex items-center gap-3">
                   <span className="text-gray-900 font-medium">{entry.guardName}</span>
                   <span className="text-gray-400">{entry.siteName}</span>
                   {entry.isHoliday && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 font-medium">Holiday</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-lg bg-violet-100 text-violet-700 font-medium">Holiday</span>
                   )}
                   {entry.flagged && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">Flagged</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-lg bg-amber-100 text-amber-700 font-medium">Flagged</span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-gray-500">
-                  <span>{entry.hours}h</span>
+                  <span className="font-medium">{entry.hours}h</span>
                   <span>{entry.date}</span>
-                  <span className="text-gray-400">{new Date(entry.filedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-gray-400 font-mono">{new Date(entry.filedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               </div>
             ))}

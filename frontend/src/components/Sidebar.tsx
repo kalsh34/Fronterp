@@ -1,4 +1,5 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { UserRole } from '../types';
 
@@ -7,6 +8,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   badge?: number;
+  children?: { path: string; label: string }[];
 }
 
 const DashboardIcon = () => (
@@ -24,6 +26,25 @@ const OpsIcon = () => (
 const FinanceIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 );
+const ReportsIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+);
+const AdminIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-.786-.426-1.756-.426-2.532 0a1.724 1.724 0 00-1.066 2.573c.94 1.543.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426.786-.426 1.756 0 2.532a1.724 1.724 0 001.066 2.573c.94 1.543.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-.426 2.924 0 3.35" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+);
+const AttendanceIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+);
+const SitesIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+);
+const ChevronDown = () => (
+  <svg className="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+);
+const ShieldIcon = () => (
+  <img src="/logo.png" alt="Vital Security" className="w-10 h-10 object-contain" />
+);
+
 const SalesIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" /></svg>
 );
@@ -42,89 +63,6 @@ const ProjectsIcon = () => (
 const DocsIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
 );
-const ReportsIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-);
-const AdminIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-.786-.426-1.756-.426-2.532 0a1.724 1.724 0 00-1.066 2.573c.94 1.543.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573-1.066c-.426.786-.426 1.756 0 2.532a1.724 1.724 0 001.066 2.573c.94 1.543.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-.426 2.924 0 3.35" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-);
-const AttendanceIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-);
-const ShieldIcon = () => (
-  <img src="/logo.png" alt="Vital Security" className="w-10 h-10 object-contain" />
-);
-
-type NavItemData = NavItem;
-
-function getNavItems(role: UserRole, opsAlerts: number): NavItemData[] {
-  const base: NavItemData[] = [
-    { path: '/', label: 'Executive Dashboard', icon: <DashboardIcon /> },
-  ];
-
-  switch (role) {
-    case UserRole.SUPER_ADMIN:
-      return [
-        ...base,
-        { path: '/employees', label: 'HR & People', icon: <PeopleIcon /> },
-        { path: '/guard-payroll', label: 'Payroll', icon: <PayrollIcon /> },
-        { path: '/attendance', label: 'Operations', icon: <OpsIcon />, badge: opsAlerts || undefined },
-        { path: '/finance', label: 'Finance', icon: <FinanceIcon /> },
-        { path: '/reports', label: 'Reporting & Analytics', icon: <ReportsIcon /> },
-        { path: '/settings', label: 'Administration', icon: <AdminIcon /> },
-        { path: '/admin/payroll-config', label: 'Payroll Config', icon: <PayrollIcon /> },
-      ];
-    case UserRole.SYSTEM_ADMIN:
-      return [
-        ...base,
-        { path: '/employees', label: 'HR & People', icon: <PeopleIcon /> },
-        { path: '/guard-payroll', label: 'Payroll', icon: <PayrollIcon /> },
-        { path: '/attendance', label: 'Operations', icon: <OpsIcon />, badge: opsAlerts || undefined },
-        { path: '/finance', label: 'Finance', icon: <FinanceIcon /> },
-        { path: '/reports', label: 'Reporting & Analytics', icon: <ReportsIcon /> },
-        { path: '/settings', label: 'Administration', icon: <AdminIcon /> },
-      ];
-    case UserRole.HR_ADMIN:
-    case UserRole.HEAD:
-      return [
-        ...base,
-        { path: '/employees', label: 'HR & People', icon: <PeopleIcon /> },
-        { path: '/staff-attendance', label: 'Staff Attendance', icon: <AttendanceIcon /> },
-        { path: '/guard-payroll', label: 'Payroll', icon: <PayrollIcon /> },
-        { path: '/attendance', label: 'Operations', icon: <OpsIcon />, badge: opsAlerts || undefined },
-        { path: '/reports', label: 'Reporting & Analytics', icon: <ReportsIcon /> },
-        { path: '/settings', label: 'Administration', icon: <AdminIcon /> },
-      ];
-    case UserRole.FINANCE_OFFICER:
-      return [
-        ...base,
-        { path: '/employees', label: 'HR & People', icon: <PeopleIcon /> },
-        { path: '/staff-payroll', label: 'Payroll', icon: <PayrollIcon /> },
-        { path: '/attendance', label: 'Operations', icon: <OpsIcon /> },
-        { path: '/finance', label: 'Finance', icon: <FinanceIcon /> },
-        { path: '/reports', label: 'Reporting & Analytics', icon: <ReportsIcon /> },
-        { path: '/settings', label: 'Administration', icon: <AdminIcon /> },
-      ];
-    case UserRole.OPERATIONS:
-      return [
-        ...base,
-        { path: '/guards', label: 'HR & People', icon: <PeopleIcon /> },
-        { path: '/sites', label: 'Sites', icon: <OpsIcon /> },
-        { path: '/attendance', label: 'Operations', icon: <OpsIcon />, badge: opsAlerts || undefined },
-        { path: '/reports', label: 'Reporting & Analytics', icon: <ReportsIcon /> },
-      ];
-    case UserRole.GUARD:
-      return [
-        { path: '/my-shift', label: 'My Shift', icon: <DashboardIcon /> },
-        { path: '/my-hours', label: 'My Hours', icon: <AttendanceIcon /> },
-        { path: '/my-sites', label: 'My Sites', icon: <OpsIcon /> },
-        { path: '/my-payroll', label: 'My Payroll', icon: <PayrollIcon /> },
-        { path: '/my-profile', label: 'My Profile', icon: <PeopleIcon /> },
-      ];
-    default:
-      return base;
-  }
-}
 
 const lockedModules = [
   { label: 'Sales & CRM', icon: <SalesIcon /> },
@@ -135,15 +73,95 @@ const lockedModules = [
   { label: 'Documents', icon: <DocsIcon /> },
 ];
 
+const SIDEBAR_COLORS: Record<string, { activeBg: string; activeText: string; childActiveBg: string; childActiveText: string }> = {
+  '/':           { activeBg: 'bg-slate-500/15',   activeText: 'text-slate-400',   childActiveBg: 'bg-slate-500/15',   childActiveText: 'text-slate-400' },
+  '/employees':  { activeBg: 'bg-violet-500/15',  activeText: 'text-violet-400',  childActiveBg: 'bg-violet-500/15',  childActiveText: 'text-violet-400' },
+  '/attendance': { activeBg: 'bg-blue-500/15',    activeText: 'text-blue-400',    childActiveBg: 'bg-blue-500/15',    childActiveText: 'text-blue-400' },
+  '/guard-payroll': { activeBg: 'bg-amber-500/15', activeText: 'text-amber-400',  childActiveBg: 'bg-amber-500/15',  childActiveText: 'text-amber-400' },
+  '/finance':    { activeBg: 'bg-emerald-500/15', activeText: 'text-emerald-400', childActiveBg: 'bg-emerald-500/15', childActiveText: 'text-emerald-400' },
+  '/reports':    { activeBg: 'bg-indigo-500/15',  activeText: 'text-indigo-400',  childActiveBg: 'bg-indigo-500/15',  childActiveText: 'text-indigo-400' },
+  '/settings':   { activeBg: 'bg-rose-500/15',    activeText: 'text-rose-400',    childActiveBg: 'bg-rose-500/15',    childActiveText: 'text-rose-400' },
+};
+
+function getSidebarColors(path: string) {
+  if (SIDEBAR_COLORS[path]) return SIDEBAR_COLORS[path];
+  if (path.startsWith('/employees') || path.startsWith('/staff-attendance') || path.startsWith('/contracts')) return SIDEBAR_COLORS['/employees'];
+  if (path.startsWith('/attendance') || path.startsWith('/rotations') || path === '/guards') return SIDEBAR_COLORS['/attendance'];
+  if (path.startsWith('/guard-payroll') || path.startsWith('/staff-payroll') || path === '/guard-payroll/review') return SIDEBAR_COLORS['/guard-payroll'];
+  if (path.startsWith('/finance') || path.startsWith('/admin/payroll-config')) return SIDEBAR_COLORS['/finance'];
+  if (path.startsWith('/reports')) return SIDEBAR_COLORS['/reports'];
+  if (path.startsWith('/settings')) return SIDEBAR_COLORS['/settings'];
+  return SIDEBAR_COLORS['/'];
+}
+
+function getNavItems(opsAlerts: number): NavItem[] {
+  return [
+    { path: '/', label: 'Dashboard', icon: <DashboardIcon /> },
+    {
+      path: '/employees',
+      label: 'HR & People',
+      icon: <PeopleIcon />,
+      children: [
+        { path: '/employees', label: 'Employees' },
+        { path: '/staff-attendance', label: 'Staff Attendance' },
+      ],
+    },
+    { path: '/sites', label: 'Sites', icon: <SitesIcon /> },
+    {
+      path: '/attendance',
+      label: 'Operations',
+      icon: <OpsIcon />,
+      badge: opsAlerts || undefined,
+      children: [
+        { path: '/attendance', label: 'Guard Attendance' },
+        { path: '/guards', label: 'Guards' },
+        { path: '/rotations', label: 'Rotations' },
+      ],
+    },
+    {
+      path: '/guard-payroll',
+      label: 'Payroll',
+      icon: <PayrollIcon />,
+      children: [
+        { path: '/guard-payroll', label: 'Guard Payroll' },
+        { path: '/staff-payroll', label: 'Staff Payroll' },
+      ],
+    },
+    { path: '/finance', label: 'Finance', icon: <FinanceIcon /> },
+    { path: '/reports', label: 'Reports', icon: <ReportsIcon /> },
+    { path: '/settings', label: 'Administration', icon: <AdminIcon /> },
+    { path: '/admin/payroll-config', label: 'Payroll Config', icon: <PayrollIcon /> },
+  ];
+}
+
+function getGuardNavItems(): NavItem[] {
+  return [
+    { path: '/my-shift', label: 'My Shift', icon: <DashboardIcon /> },
+    { path: '/my-hours', label: 'My Hours', icon: <AttendanceIcon /> },
+    { path: '/my-sites', label: 'My Sites', icon: <SitesIcon /> },
+    { path: '/my-payroll', label: 'My Payroll', icon: <PayrollIcon /> },
+    { path: '/my-profile', label: 'My Profile', icon: <PeopleIcon /> },
+  ];
+}
+
 export default function Sidebar() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [payrollOpen, setPayrollOpen] = useState(false);
+  const [hrOpen, setHrOpen] = useState(false);
+  const [opsOpen, setOpsOpen] = useState(false);
+
   if (!user) return null;
 
-  const navItems = getNavItems(user.role as UserRole, 0);
+  const isGuard = user.role === UserRole.GUARD;
+  const navItems = isGuard ? getGuardNavItems() : getNavItems(0);
+  const isPayrollActive = location.pathname.startsWith('/guard-payroll') || location.pathname.startsWith('/staff-payroll');
+  const isHrActive = location.pathname.startsWith('/employees') || location.pathname.startsWith('/staff-attendance');
+  const isOpsActive = location.pathname.startsWith('/attendance') || location.pathname.startsWith('/rotations') || location.pathname === '/guards';
 
   return (
-    <aside className="w-64 bg-[#0f172a] text-gray-300 flex flex-col min-h-screen select-none sidebar-scrollbar overflow-y-auto">
+    <aside className="fixed top-0 left-0 bottom-0 w-64 bg-[#0f172a] text-gray-300 flex flex-col select-none sidebar-scrollbar overflow-y-auto z-40">
       {/* Logo */}
       <div className="px-5 py-5 flex items-center gap-3 border-b border-gray-700/50 flex-shrink-0">
         <ShieldIcon />
@@ -154,49 +172,106 @@ export default function Sidebar() {
       </div>
 
       {/* Primary Nav */}
-      <nav className="py-3 px-3 space-y-0.5 flex-shrink-0">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            end={item.path === '/'}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
-                isActive
-                  ? 'bg-blue-600/20 text-blue-400'
-                  : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
-              }`
-            }
-          >
-            <span className="flex-shrink-0">{item.icon}</span>
-            <span className="flex-1 truncate">{item.label}</span>
-            {item.badge && item.badge > 0 && (
-              <span className="flex-shrink-0 min-w-[20px] h-5 flex items-center justify-center px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
-                {item.badge > 99 ? '99+' : item.badge}
-              </span>
-            )}
-          </NavLink>
-        ))}
+      <nav className="py-3 px-3 flex-1 space-y-0.5">
+        {navItems.map((item) => {
+          const colors = getSidebarColors(item.path);
+
+          if (item.children) {
+            const isHrItem = item.path === '/employees';
+            const isPayrollItem = item.path === '/guard-payroll';
+            const isOpsItem = item.path === '/attendance' && item.children;
+            const isOpen = isHrItem ? (hrOpen || isHrActive) : isPayrollItem ? (payrollOpen || isPayrollActive) : isOpsItem ? (opsOpen || isOpsActive) : false;
+            const setIsOpen = isHrItem ? setHrOpen : isPayrollItem ? setPayrollOpen : isOpsItem ? setOpsOpen : () => {};
+            const isActive = isHrItem ? isHrActive : isPayrollItem ? isPayrollActive : isOpsItem ? isOpsActive : false;
+
+            return (
+              <div key={item.path}>
+                <button
+                  onClick={() => setIsOpen(!isOpen)}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+                    isActive
+                      ? `${colors.activeBg} ${colors.activeText}`
+                      : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                  }`}
+                >
+                  <span className="flex-shrink-0">{item.icon}</span>
+                  <span className="flex-1 text-left truncate">{item.label}</span>
+                  <span className={`flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+                    <ChevronDown />
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-700/50 pl-3">
+                    {item.children.map((child) => {
+                      const childFullPath = child.path;
+                      const currentFull = location.pathname + location.search;
+                      const isChildActive = currentFull === childFullPath || currentFull.startsWith(childFullPath + '&');
+                      return (
+                        <NavLink
+                          key={child.path}
+                          to={child.path}
+                          end
+                          className={`block px-3 py-2 rounded-lg text-sm transition-all duration-150 ${
+                            isChildActive
+                              ? `${colors.childActiveBg} ${colors.childActiveText} font-medium`
+                              : 'text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                          }`}
+                        >
+                          {child.label}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              end={item.path === '/'}
+              className={({ isActive: linkIsActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+                  linkIsActive
+                    ? `${colors.activeBg} ${colors.activeText}`
+                    : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
+                }`
+              }
+            >
+              <span className="flex-shrink-0">{item.icon}</span>
+              <span className="flex-1 truncate">{item.label}</span>
+              {item.badge && item.badge > 0 && (
+                <span className="flex-shrink-0 min-w-[20px] h-5 flex items-center justify-center px-1.5 rounded-full bg-red-500 text-white text-[10px] font-bold">
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Coming Soon Modules */}
-      <div className="px-3 pb-2 flex-shrink-0">
-        <p className="px-3 py-2 text-[10px] font-semibold text-gray-600 uppercase tracking-widest">Coming Soon</p>
-        <div className="space-y-0.5">
-          {lockedModules.map((mod) => (
-            <div
-              key={mod.label}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 cursor-default opacity-50"
-            >
-              <span className="flex-shrink-0 grayscale">{mod.icon}</span>
-              <span className="flex-1 truncate">{mod.label}</span>
-            </div>
-          ))}
+      {!isGuard && (
+        <div className="px-3 pb-2 flex-shrink-0">
+          <p className="px-3 py-2 text-[10px] font-semibold text-gray-600 uppercase tracking-widest">Coming Soon</p>
+          <div className="space-y-0.5">
+            {lockedModules.map((mod) => (
+              <div
+                key={mod.label}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-600 cursor-default opacity-50"
+              >
+                <span className="flex-shrink-0 grayscale">{mod.icon}</span>
+                <span className="flex-1 truncate">{mod.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* User Footer */}
-      <div className="p-3 border-t border-gray-700/50">
+      <div className="p-3 border-t border-gray-700/50 flex-shrink-0">
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             {user.firstName?.[0]}{user.lastName?.[0]}

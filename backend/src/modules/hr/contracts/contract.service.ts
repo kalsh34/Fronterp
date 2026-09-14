@@ -1,4 +1,6 @@
 import { Contract, IContract } from '../../../models/Contract';
+import { Employee } from '../../../models/Employee';
+import { EmployeeStatus } from '../../../types';
 import { ApiError } from '../../../common/ApiError';
 import { AuditService } from '../../../core/audit/AuditService';
 import { eventBus } from '../../../core/events/EventBus';
@@ -31,6 +33,8 @@ export class ContractService {
 
     const contract = await Contract.create(data);
 
+    await Employee.findByIdAndUpdate(data.employeeId, { status: EmployeeStatus.CONTRACTED });
+
     if (auditCtx) {
       AuditService.log({
         userId: auditCtx.userId,
@@ -55,6 +59,13 @@ export class ContractService {
     const contract = await Contract.findByIdAndUpdate(id, data, { new: true, runValidators: true });
     if (!contract) throw ApiError.notFound('Contract not found');
 
+    if (data.status === 'TERMINATED' && old.status !== 'TERMINATED') {
+      const hasOtherActive = await Contract.countDocuments({ employeeId: old.employeeId, status: 'ACTIVE', _id: { $ne: id } });
+      if (hasOtherActive === 0) {
+        await Employee.findByIdAndUpdate(old.employeeId, { status: EmployeeStatus.ACTIVE });
+      }
+    }
+
     if (auditCtx) {
       AuditService.log({
         userId: auditCtx.userId,
@@ -78,6 +89,13 @@ export class ContractService {
     const snapshot = contract.toObject();
 
     await Contract.findByIdAndDelete(id);
+
+    if (snapshot.status === 'ACTIVE') {
+      const hasOtherActive = await Contract.countDocuments({ employeeId: snapshot.employeeId, status: 'ACTIVE' });
+      if (hasOtherActive === 0) {
+        await Employee.findByIdAndUpdate(snapshot.employeeId, { status: EmployeeStatus.ACTIVE });
+      }
+    }
 
     if (auditCtx) {
       AuditService.log({

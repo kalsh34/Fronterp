@@ -1,11 +1,10 @@
 import { GuardPayrollRecord, IGuardPayrollRecord } from '../../../models/GuardPayrollRecord';
 import { PayrollPeriod, IPayrollPeriod } from '../../../models/PayrollPeriod';
-import { PayrollRate } from '../../../models/PayrollRate';
 import { PayrollApproval } from '../../../models/PayrollApproval';
 import { PayrollCalculationService } from '../finance/payrollCalculation.service';
 import { PayrollJournalService } from '../../finance-accounting/payrollJournal.service';
 import { ApiError } from '../../../common/ApiError';
-import { PayrollRecordStatus, PensionTaxBase } from '../../../types';
+import { PayrollRecordStatus } from '../../../types';
 import { AuditService } from '../../../core/audit/AuditService';
 import { eventBus } from '../../../core/events/EventBus';
 
@@ -61,54 +60,49 @@ export class GuardPayrollService {
     return records;
   }
 
-  static async enterRates(
+  static async enterOt(
     recordId: string,
-    data: { normalRate: number; otRate: number; holidayRate: number },
+    data: { regularOtHours?: number; holidayOtHours?: number },
     userId: string,
     auditCtx?: { ip?: string; ua?: string }
   ): Promise<IGuardPayrollRecord> {
     const record = await GuardPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
-    if (record.status !== PayrollRecordStatus.SUBMITTED && record.status !== PayrollRecordStatus.RETURNED) {
-      throw ApiError.badRequest('Record must be SUBMITTED or RETURNED');
+    if (record.status !== PayrollRecordStatus.DRAFT && record.status !== PayrollRecordStatus.RETURNED) {
+      throw ApiError.badRequest('Record must be DRAFT or RETURNED');
     }
 
-    const oldRates = { normalRate: record.normalRate, otRate: record.otRate, holidayRate: record.holidayRate };
-    record.normalRate = data.normalRate;
-    record.otRate = data.otRate;
-    record.holidayRate = data.holidayRate;
-    record.rateEnteredBy = userId as any;
-    record.rateEnteredAt = new Date();
-    record.status = PayrollRecordStatus.RATE_ENTERED;
+    const old = { regularOtHours: record.regularOtHours, holidayOtHours: record.holidayOtHours };
+    if (data.regularOtHours !== undefined) record.regularOtHours = data.regularOtHours;
+    if (data.holidayOtHours !== undefined) record.holidayOtHours = data.holidayOtHours;
     await record.save();
 
     AuditService.log({
       userId,
-      action: 'GUARD_PAYROLL_ENTER_RATES',
+      action: 'GUARD_PAYROLL_ENTER_OT',
       entity: 'GuardPayrollRecord',
       entityId: recordId,
-      oldValues: oldRates,
+      oldValues: old,
       newValues: data,
       ipAddress: auditCtx?.ip,
       userAgent: auditCtx?.ua,
     });
-    eventBus.emit('hr.guardPayroll.ratesEntered', { recordId });
+    eventBus.emit('hr.guardPayroll.otEntered', { recordId });
 
     return record;
   }
 
   static async calculate(
     recordId: string,
-    pensionTaxBase: PensionTaxBase = PensionTaxBase.NORMAL_SALARY_ONLY,
     auditCtx?: { userId: string; ip?: string; ua?: string }
   ): Promise<IGuardPayrollRecord> {
     const record = await GuardPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
-    if (record.status !== PayrollRecordStatus.RATE_ENTERED) {
-      throw ApiError.badRequest('Record must be RATE_ENTERED');
+    if (record.status !== PayrollRecordStatus.DRAFT && record.status !== PayrollRecordStatus.RETURNED) {
+      throw ApiError.badRequest('Record must be DRAFT or RETURNED');
     }
 
-    const calculated = await PayrollCalculationService.calculateGuardPayroll(recordId, pensionTaxBase);
+    const calculated = await PayrollCalculationService.calculateGuardPayroll(recordId);
 
     if (auditCtx) {
       AuditService.log({
@@ -129,8 +123,8 @@ export class GuardPayrollService {
   static async submit(recordId: string, userId: string, auditCtx?: { ip?: string; ua?: string }): Promise<IGuardPayrollRecord> {
     const record = await GuardPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
-    if (record.status !== PayrollRecordStatus.DRAFT && record.status !== PayrollRecordStatus.RETURNED) {
-      throw ApiError.badRequest('Record must be DRAFT or RETURNED');
+    if (record.status !== PayrollRecordStatus.CALCULATED && record.status !== PayrollRecordStatus.RETURNED) {
+      throw ApiError.badRequest('Record must be CALCULATED or RETURNED');
     }
 
     record.status = PayrollRecordStatus.SUBMITTED;
@@ -161,8 +155,8 @@ export class GuardPayrollService {
   static async check(recordId: string, userId: string, auditCtx?: { ip?: string; ua?: string }): Promise<IGuardPayrollRecord> {
     const record = await GuardPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
-    if (record.status !== PayrollRecordStatus.CALCULATED) {
-      throw ApiError.badRequest('Record must be CALCULATED');
+    if (record.status !== PayrollRecordStatus.SUBMITTED) {
+      throw ApiError.badRequest('Record must be SUBMITTED');
     }
 
     record.status = PayrollRecordStatus.CHECKED;
@@ -222,19 +216,36 @@ export class GuardPayrollService {
     return record;
   }
 
-  static async markReadyForPayment(recordId: string): Promise<IGuardPayrollRecord> {
+  static async initiatePayment(recordId: string, userId: string, auditCtx?: { ip?: string; ua?: string }): Promise<IGuardPayrollRecord> {
     const record = await GuardPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
     if (record.status !== PayrollRecordStatus.APPROVED) {
       throw ApiError.badRequest('Record must be APPROVED');
     }
 
-    record.status = PayrollRecordStatus.READY_FOR_PAYMENT;
+    record.status = PayrollRecordStatus.PAYMENT_PROCESSING;
     await record.save();
+
+    await PayrollApproval.create({
+      payrollRecordId: record._id,
+      payrollType: 'GUARD',
+      action: 'PAYMENT_PROCESSING',
+      performedBy: userId,
+    });
+
+    AuditService.log({
+      userId,
+      action: 'GUARD_PAYROLL_INITIATE_PAYMENT',
+      entity: 'GuardPayrollRecord',
+      entityId: recordId,
+      ipAddress: auditCtx?.ip,
+      userAgent: auditCtx?.ua,
+    });
+
     return record;
   }
 
-  static async pay(
+  static async confirmPaid(
     recordId: string,
     data: { paymentMethod: string; bankReference?: string; paymentDate: Date },
     userId: string,
@@ -242,8 +253,8 @@ export class GuardPayrollService {
   ): Promise<IGuardPayrollRecord> {
     const record = await GuardPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
-    if (record.status !== PayrollRecordStatus.READY_FOR_PAYMENT && record.status !== PayrollRecordStatus.APPROVED) {
-      throw ApiError.badRequest('Record must be READY_FOR_PAYMENT or APPROVED');
+    if (record.status !== PayrollRecordStatus.PAYMENT_PROCESSING) {
+      throw ApiError.badRequest('Record must be PAYMENT_PROCESSING');
     }
 
     record.status = PayrollRecordStatus.PAID;
@@ -286,6 +297,9 @@ export class GuardPayrollService {
   static async returnForCorrection(recordId: string, userId: string, reason: string, auditCtx?: { ip?: string; ua?: string }): Promise<IGuardPayrollRecord> {
     const record = await GuardPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
+    if (record.status !== PayrollRecordStatus.CHECKED && record.status !== PayrollRecordStatus.APPROVED) {
+      throw ApiError.badRequest('Record must be CHECKED or APPROVED');
+    }
 
     record.status = PayrollRecordStatus.RETURNED;
     record.returnedBy = userId as any;

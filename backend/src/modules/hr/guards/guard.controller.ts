@@ -82,4 +82,15 @@ export class GuardController {
       res.json({ success: true, data: assignment });
     } catch (error) { next(error); }
   }
+
+  static async setHomeSite(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const employee = await GuardService.setHomeSite(req.params.employeeId, req.body.homeSiteId, {
+        userId: req.user?.userId || '',
+        ip: req.ip,
+        ua: req.get('user-agent'),
+      });
+      res.json({ success: true, data: employee });
+    } catch (error) { next(error); }
+  }
 }

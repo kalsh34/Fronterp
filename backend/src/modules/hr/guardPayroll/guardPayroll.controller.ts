@@ -37,9 +37,9 @@ export class GuardPayrollController {
     } catch (error) { next(error); }
   }
 
-  static async enterRates(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  static async enterOt(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const record = await GuardPayrollService.enterRates(req.params.id, req.body, req.user?.userId || '', {
+      const record = await GuardPayrollService.enterOt(req.params.id, req.body, req.user?.userId || '', {
         ip: req.ip, ua: req.get('user-agent'),
       });
       res.json({ success: true, data: record });
@@ -48,7 +48,7 @@ export class GuardPayrollController {
 
   static async calculate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const record = await GuardPayrollService.calculate(req.params.id, req.body.pensionTaxBase, {
+      const record = await GuardPayrollService.calculate(req.params.id, {
         userId: req.user?.userId || '',
         ip: req.ip,
         ua: req.get('user-agent'),
@@ -84,9 +84,18 @@ export class GuardPayrollController {
     } catch (error) { next(error); }
   }
 
-  static async pay(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  static async initiatePayment(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const record = await GuardPayrollService.pay(req.params.id, req.body, req.user?.userId || '', {
+      const record = await GuardPayrollService.initiatePayment(req.params.id, req.user?.userId || '', {
+        ip: req.ip, ua: req.get('user-agent'),
+      });
+      res.json({ success: true, data: record });
+    } catch (error) { next(error); }
+  }
+
+  static async confirmPaid(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const record = await GuardPayrollService.confirmPaid(req.params.id, req.body, req.user?.userId || '', {
         ip: req.ip, ua: req.get('user-agent'),
       });
       res.json({ success: true, data: record });

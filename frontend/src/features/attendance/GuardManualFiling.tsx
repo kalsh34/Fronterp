@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import api from '../../lib/api';
-import { PageHeader, LoadingSpinner, Card, Badge, Button } from '../../components/ui';
 import QuickLogPanel from './QuickLogPanel';
 
 interface Guard {
@@ -71,9 +70,7 @@ export default function GuardManualFiling() {
   const [search, setSearch] = useState('');
 
   const daysInMonth = getDaysInMonth(year, month);
-
   const isLocked = period?.status === 'LOCKED' || period?.status === 'CLOSED';
-
   const key = (guardId: string, day: number) => `${guardId}-${day}`;
 
   const load = useCallback(async () => {
@@ -85,15 +82,18 @@ export default function GuardManualFiling() {
       ]);
 
       const allGuards = (guardsRes.data.data || guardsRes.data || [])
-        .filter((g: any) => g.currentAssignments?.length > 0)
+        .filter((g: any) => g.employee.status === 'CONTRACTED')
         .flatMap((g: any) =>
-          (g.currentAssignments || []).map((a: any) => ({
+          (g.currentAssignments?.length > 0
+            ? g.currentAssignments
+            : [{ siteId: null, siteName: 'Unassigned', role: 'GUARD' }]
+          ).map((a: any) => ({
             employeeId: g.employee._id,
             employeeCode: g.employee.employeeCode,
             firstName: g.employee.firstName,
             lastName: g.employee.lastName,
-            siteName: typeof a.siteId === 'object' ? a.siteId.siteName : 'Unknown',
-            siteId: typeof a.siteId === 'object' ? a.siteId._id : a.siteId,
+            siteName: (typeof a.siteId === 'object' && a.siteId !== null) ? a.siteId.siteName : (a.siteName || 'Unassigned'),
+            siteId: (typeof a.siteId === 'object' && a.siteId !== null) ? a.siteId._id : a.siteId,
             assignmentRole: a.role || 'GUARD',
           }))
         );
@@ -227,39 +227,63 @@ export default function GuardManualFiling() {
   const nextMonth = () => { if (month === 12) { setMonth(1); setYear(year + 1); } else { setMonth(month + 1); } };
 
   return (
-    <div className="p-6">
-      <PageHeader
-        title="Guard Attendance Filing"
-        subtitle="File guard hours from paper site logs (hours-based, 0-24 per day)"
-        action={
+    <div className="space-y-5">
+      {/* Page Header */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Guard Attendance Filing</h2>
+            <p className="text-sm text-gray-500 mt-0.5">File guard hours from paper site logs (hours-based, 0-24 per day)</p>
+          </div>
           <div className="flex items-center gap-3">
             {isLocked ? (
               <>
-                <Badge variant="danger">Period Locked</Badge>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  Period Locked
+                </span>
                 <span className="text-xs text-red-600">Read-only</span>
               </>
             ) : (
-              <Button onClick={handleSubmitAll} disabled={saving || isLocked}>
+              <button
+                onClick={handleSubmitAll}
+                disabled={saving || isLocked}
+                className="h-10 px-5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-200 flex items-center gap-2"
+              >
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
                 {saving ? 'Submitting...' : 'Submit All Hours'}
-              </Button>
+              </button>
             )}
           </div>
-        }
-      />
-
-      {!isLocked && (
-        <div className="mb-6">
-          <QuickLogPanel onLogged={load} />
         </div>
+      </div>
+
+      {/* Quick Log Panel */}
+      {!isLocked && (
+        <QuickLogPanel onLogged={load} />
       )}
 
-      <div className="flex items-center justify-between mb-4">
+      {/* Month Nav + Search */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={prevMonth}>&larr; Prev</Button>
-          <h2 className="text-lg font-semibold text-gray-900">{MONTH_NAMES[month - 1]} {year}</h2>
-          <Button variant="ghost" size="sm" onClick={nextMonth}>Next &rarr;</Button>
+          <button onClick={prevMonth} className="h-9 px-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <h2 className="text-lg font-bold text-gray-900">{MONTH_NAMES[month - 1]} {year}</h2>
+          <button onClick={nextMonth} className="h-9 px-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          </button>
           {period && (
-            <span className={`text-xs px-2 py-0.5 rounded-full ${period.status === 'LOCKED' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+            <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-semibold ${
+              period.status === 'LOCKED' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${period.status === 'LOCKED' ? 'bg-red-500' : 'bg-emerald-500'}`} />
               {period.status}
             </span>
           )}
@@ -273,7 +297,7 @@ export default function GuardManualFiling() {
             placeholder="Search guard name or code..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
           />
           {search && (
             <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">&times;</button>
@@ -281,30 +305,36 @@ export default function GuardManualFiling() {
         </div>
       </div>
 
+      {/* Attendance Grid */}
       {loading ? (
-        <LoadingSpinner text="Loading guard attendance..." />
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+        </div>
       ) : Object.keys(filteredGrouped).length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <svg className="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <p className="text-sm">No guards with site assignments found.</p>
+        <div className="text-center py-16">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-gray-500">No guards with site assignments found.</p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {Object.entries(filteredGrouped).map(([siteName, siteGuards]) => (
-            <Card key={siteName} padding={false} className="overflow-hidden">
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+            <div key={siteName} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-50/50 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold text-gray-900">{siteName}</h3>
+                  <div className="w-2 h-6 rounded-full bg-indigo-500" />
+                  <h3 className="text-sm font-bold text-gray-900">{siteName}</h3>
                   <span className="text-xs text-gray-400">({siteGuards.length} guard{siteGuards.length !== 1 ? 's' : ''})</span>
                 </div>
                 {!isLocked && (
-                  <div className="flex gap-1">
-                    <button onClick={() => handleBulkFill(siteName, 12)} className="px-2 py-1 text-[10px] bg-white border border-gray-200 rounded hover:bg-gray-100 text-gray-600">
+                  <div className="flex gap-1.5">
+                    <button onClick={() => handleBulkFill(siteName, 12)} className="px-3 py-1 text-[10px] bg-white border border-gray-200 rounded-lg hover:bg-gray-100 text-gray-600 font-medium transition-colors">
                       Fill 12h
                     </button>
-                    <button onClick={() => handleBulkFill(siteName, 24)} className="px-2 py-1 text-[10px] bg-white border border-gray-200 rounded hover:bg-gray-100 text-gray-600">
+                    <button onClick={() => handleBulkFill(siteName, 24)} className="px-3 py-1 text-[10px] bg-white border border-gray-200 rounded-lg hover:bg-gray-100 text-gray-600 font-medium transition-colors">
                       Fill 24h
                     </button>
                   </div>
@@ -313,13 +343,13 @@ export default function GuardManualFiling() {
               <div className="overflow-x-auto">
                 <table className="text-[11px] border-collapse min-w-[900px]">
                   <thead>
-                    <tr className="bg-gray-50">
-                      <th className="text-left px-3 py-2 border font-medium sticky left-0 bg-gray-50 z-10 min-w-[140px]">Guard</th>
+                    <tr className="bg-gray-50/50">
+                      <th className="text-left px-3 py-2 border font-medium sticky left-0 bg-gray-50/50 z-10 min-w-[140px]">Guard</th>
                       {Array.from({ length: daysInMonth }, (_, i) => {
                         const dayOfWeek = new Date(year, month - 1, i + 1).getDay();
                         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                         return (
-                          <th key={i} className={`px-1 py-2 border text-center font-medium min-w-[38px] ${isWeekend ? 'bg-gray-100' : ''}`}>
+                          <th key={i} className={`px-1 py-2 border text-center font-medium min-w-[38px] ${isWeekend ? 'bg-gray-100/50' : ''}`}>
                             {i + 1}
                             <div className="text-[9px] text-gray-400 font-normal">
                               {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][dayOfWeek]}
@@ -327,7 +357,7 @@ export default function GuardManualFiling() {
                           </th>
                         );
                       })}
-                      <th className="px-2 py-2 border font-medium text-center bg-gray-50 min-w-[40px]">Total</th>
+                      <th className="px-2 py-2 border font-medium text-center bg-gray-50/50 min-w-[40px]">Total</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -337,7 +367,7 @@ export default function GuardManualFiling() {
                         total += entries[key(guard.employeeId, d)]?.hoursWorked || 0;
                       }
                       return (
-                        <tr key={guard.employeeId} className="hover:bg-gray-50">
+                        <tr key={guard.employeeId} className="hover:bg-gray-50/50">
                           <td className="px-3 py-1 border sticky left-0 bg-white z-10">
                             <div className="font-medium text-xs text-gray-900">{guard.firstName} {guard.lastName}</div>
                             <div className="text-[9px] text-gray-400">{guard.employeeCode}</div>
@@ -353,10 +383,10 @@ export default function GuardManualFiling() {
                               return r.guardId === guard.employeeId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === day;
                             });
                             return (
-                              <td key={day} className={`px-0.5 py-0.5 border ${isWeekend ? 'bg-gray-50' : ''}`}>
+                              <td key={day} className={`px-0.5 py-0.5 border ${isWeekend ? 'bg-gray-50/50' : ''}`}>
                                 {isFiled && !isLocked ? (
                                   <div
-                                    className="w-full h-7 flex items-center justify-center text-[10px] font-medium bg-green-50 text-green-700 border border-green-200 rounded cursor-pointer"
+                                    className="w-full h-7 flex items-center justify-center text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg cursor-pointer hover:bg-emerald-100 transition-colors"
                                     title={`Filed: ${entry.hoursWorked}h${entry.isHoliday ? ' (Holiday)' : ''}${entry.notes ? '\n' + entry.notes : ''}`}
                                     onClick={() => {
                                       if (confirm(`View filed entry for ${guard.firstName} ${guard.lastName} on ${formatDateShort(year, month, day)}.\nHours: ${entry.hoursWorked}h${entry.isHoliday ? '\nHoliday: Yes' : ''}${entry.notes ? '\nNotes: ' + entry.notes : ''}\n\nEdit this entry?`)) {
@@ -393,14 +423,14 @@ export default function GuardManualFiling() {
                                       const val = parseFloat(e.target.value);
                                       setEntry(guard.employeeId, day, 'hoursWorked', isNaN(val) ? 0 : val);
                                     }}
-                                    className="w-full h-7 text-center text-[10px] border-0 bg-transparent focus:ring-1 focus:ring-blue-400 rounded disabled:opacity-50"
+                                    className="w-full h-7 text-center text-[10px] border-0 bg-transparent focus:ring-1 focus:ring-indigo-400 rounded-lg disabled:opacity-50 transition-all"
                                     title={`${guard.firstName} — ${formatDateShort(year, month, day)}`}
                                   />
                                 )}
                               </td>
                             );
                           })}
-                          <td className="px-2 py-1.5 border text-center font-bold text-xs bg-gray-50">
+                          <td className="px-2 py-1.5 border text-center font-bold text-xs bg-gray-50/50">
                             {total.toFixed(1)}
                           </td>
                         </tr>
@@ -409,20 +439,21 @@ export default function GuardManualFiling() {
                   </tbody>
                 </table>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}
 
+      {/* Save Result Toast */}
       {saveResult && (
-        <div className="fixed bottom-6 right-6 bg-white rounded-xl shadow-2xl border p-4 max-w-sm z-50">
+        <div className="fixed bottom-6 right-6 bg-white rounded-2xl shadow-2xl border border-gray-100 p-5 max-w-sm z-50">
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-semibold text-gray-900">Submission Result</h4>
+            <h4 className="text-sm font-bold text-gray-900">Submission Result</h4>
             <button onClick={() => setSaveResult(null)} className="text-gray-400 hover:text-gray-600">&times;</button>
           </div>
-          <div className="flex gap-3 text-xs">
-            <span className="text-emerald-600 font-medium">{saveResult.created} created</span>
-            <span className="text-amber-600 font-medium">{saveResult.skipped} skipped</span>
+          <div className="flex gap-4 text-xs">
+            <span className="text-emerald-600 font-semibold">{saveResult.created} created</span>
+            <span className="text-amber-600 font-semibold">{saveResult.skipped} skipped</span>
           </div>
           {saveResult.details.filter((d) => d.status === 'skipped').length > 0 && (
             <div className="mt-2 text-[10px] text-gray-500 max-h-24 overflow-y-auto">

@@ -82,6 +82,10 @@ export default function StaffAttendancePage() {
   const [summaries, setSummaries] = useState<StaffSummary[]>([]);
   const [periods, setPeriods] = useState<PeriodInfo[]>([]);
 
+  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
+  const [bulkDay, setBulkDay] = useState<number | null>(null);
+  const [bulkSaving, setBulkSaving] = useState(false);
+
   const isHR = user?.role === UserRole.HR_ADMIN || user?.role === UserRole.FINANCE_OFFICER;
   const isFinance = user?.role === UserRole.FINANCE_OFFICER;
   const isAdmin = user?.role === UserRole.SUPER_ADMIN;
@@ -114,7 +118,7 @@ export default function StaffAttendancePage() {
     } catch (e) { console.error(e); }
   }, []);
 
-  useEffect(() => { loadGrid(); loadSummary(); }, [loadGrid, loadSummary]);
+  useEffect(() => { loadGrid(); loadSummary(); setSelectedEmployees(new Set()); setBulkDay(null); }, [loadGrid, loadSummary]);
   useEffect(() => { if (view === 'periods') loadPeriods(); }, [view, loadPeriods]);
 
   const filteredGrid = grid.filter((row) => {
@@ -174,6 +178,42 @@ export default function StaffAttendancePage() {
     } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
     finally { setSaving(false); }
   };
+
+  const handleBulkApplyStatus = async (status: StaffAttendanceStatus) => {
+    if (isLocked || !bulkDay || selectedEmployees.size === 0) return;
+    setBulkSaving(true);
+    try {
+      await Promise.all(
+        Array.from(selectedEmployees).map((employeeId) =>
+          api.post('/staff-attendance/day', { employeeId, year, month, dayOfMonth: bulkDay, status })
+        )
+      );
+      await loadGrid();
+      await loadSummary();
+    } catch (e: any) { alert(e.response?.data?.message || 'Failed to apply status'); }
+    finally { setBulkSaving(false); }
+  };
+
+  const toggleEmployeeSelection = (employeeId: string) => {
+    setSelectedEmployees((prev) => {
+      const next = new Set(prev);
+      if (next.has(employeeId)) next.delete(employeeId);
+      else next.add(employeeId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const allIds = filteredGrid.map((r) => r.employee._id);
+    setSelectedEmployees((prev) => {
+      if (allIds.length > 0 && allIds.every((id) => prev.has(id))) {
+        return new Set();
+      }
+      return new Set(allIds);
+    });
+  };
+
+  const allSelected = filteredGrid.length > 0 && filteredGrid.every((r) => selectedEmployees.has(r.employee._id));
 
   const handleLock = async () => {
     if (!lockReason.trim()) return alert('Please enter a reason');
@@ -373,6 +413,35 @@ export default function StaffAttendancePage() {
         {search && <p className="text-xs text-gray-500 mt-1">{view === 'periods' ? `${periods.length} periods` : `Showing ${view === 'grid' ? filteredGrid.length : filteredSummary.length} of ${view === 'grid' ? grid.length : summaries.length} staff`}</p>}
       </div>
 
+      {/* Bulk Action Toolbar */}
+      {!loading && view === 'grid' && canManage && !isLocked && selectedEmployees.size > 0 && (
+        <div className="mb-3 flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <span className="text-sm font-medium text-blue-800">
+            {selectedEmployees.size} staff selected
+          </span>
+          {bulkDay ? (
+            <>
+              <span className="text-xs text-blue-600">for Day {bulkDay}</span>
+              <button onClick={() => setBulkDay(null)} className="text-xs text-blue-500 hover:text-blue-700 underline">clear day</button>
+            </>
+          ) : (
+            <span className="text-xs text-blue-500 italic">Click a day number in the header to select a target day</span>
+          )}
+          <div className="flex-1" />
+          {STATUS_OPTIONS.filter((s) => s.value !== StaffAttendanceStatus.WEEKEND).map((s) => (
+            <button
+              key={s.value}
+              onClick={() => handleBulkApplyStatus(s.value)}
+              disabled={!bulkDay || bulkSaving}
+              className={`px-2.5 py-1 rounded text-xs font-medium ${s.color} hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity`}
+              title={bulkDay ? `Mark selected as ${s.title} for day ${bulkDay}` : 'Select a day first'}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading && <LoadingSpinner text="Loading attendance data..." />}
 
       {!loading && view === 'grid' && (
@@ -381,14 +450,36 @@ export default function StaffAttendancePage() {
             <table className="text-xs border-collapse">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="text-left px-3 py-2 border font-medium sticky left-0 bg-gray-50 z-10 min-w-[140px]">Staff</th>
+                  {canManage && !isLocked && (
+                    <th className="px-2 py-2 border sticky left-0 bg-gray-50 z-20 w-8">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </th>
+                  )}
+                  <th className="text-left px-3 py-2 border font-medium sticky left-0 bg-gray-50 z-10 min-w-[140px]">
+                    {canManage && !isLocked ? '' : ''}
+                    Staff
+                  </th>
                   {Array.from({ length: daysInMonth }, (_, i) => {
-                    const dayOfWeek = new Date(year, month - 1, i + 1).getDay();
+                    const dayNum = i + 1;
+                    const dayOfWeek = new Date(year, month - 1, dayNum).getDay();
                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    const isSelected = bulkDay === dayNum;
                     return (
-                      <th key={i} className={`px-2 py-2 border text-center font-medium min-w-[36px] ${isWeekend ? 'bg-gray-200' : ''}`}>
-                        {i + 1}
-                        <div className="text-[10px] text-gray-400 font-normal">
+                      <th
+                        key={i}
+                        onClick={() => { if (canManage && !isLocked) setBulkDay(isSelected ? null : dayNum); }}
+                        className={`px-2 py-2 border text-center font-medium min-w-[36px] ${
+                          isWeekend ? 'bg-gray-200' : ''
+                        } ${isSelected ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : canManage && !isLocked ? 'cursor-pointer hover:bg-blue-50' : ''}`}
+                        title={canManage && !isLocked ? (isSelected ? `Day ${dayNum} selected — click to deselect` : `Click to select day ${dayNum} for bulk action`) : ''}
+                      >
+                        {dayNum}
+                        <div className={`text-[10px] font-normal ${isSelected ? 'text-blue-600' : 'text-gray-400'}`}>
                           {['Su','Mo','Tu','We','Th','Fr','Sa'][dayOfWeek]}
                         </div>
                       </th>
@@ -409,8 +500,19 @@ export default function StaffAttendancePage() {
                     else if (d.status === 'PAID_LEAVE') counts.PAID_LEAVE++;
                     else if (d.status === 'HALF_DAY') counts.HALF_DAY++;
                   });
+                  const isChecked = selectedEmployees.has(row.employee._id);
                   return (
-                    <tr key={row.employee._id} className="hover:bg-gray-50">
+                    <tr key={row.employee._id} className={`hover:bg-gray-50 ${isChecked ? 'bg-blue-50/50' : ''}`}>
+                      {canManage && !isLocked && (
+                        <td className="px-2 py-1.5 border sticky left-0 bg-white z-10 w-8 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleEmployeeSelection(row.employee._id)}
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="px-3 py-1.5 border sticky left-0 bg-white z-10">
                         <div className="font-medium text-sm">{row.employee.firstName} {row.employee.lastName}</div>
                         <div className="text-[10px] text-gray-400">{row.employee.employeeCode}</div>
@@ -470,13 +572,14 @@ export default function StaffAttendancePage() {
                   <th className="text-center px-3 py-3 text-xs font-semibold text-orange-700 uppercase tracking-wider">Unpaid</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-yellow-700 uppercase tracking-wider">Sick</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-purple-700 uppercase tracking-wider">Half Day</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-gray-700 uppercase tracking-wider">Weekend</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-blue-500 uppercase tracking-wider">Holiday</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-green-800 uppercase tracking-wider bg-green-50">Payable Days</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredSummary.length === 0 ? (
-                  <tr><td colSpan={11} className="px-4 py-8 text-center text-gray-500">{search ? 'No matching staff' : 'No data'}</td></tr>
+                  <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-500">{search ? 'No matching staff' : 'No data'}</td></tr>
                 ) : filteredSummary.map((s) => (
                   <tr key={s.employee._id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-left">
@@ -490,6 +593,7 @@ export default function StaffAttendancePage() {
                     <td className="px-3 py-3 text-center font-medium text-orange-600">{s.counts.UNPAID_LEAVE}</td>
                     <td className="px-3 py-3 text-center font-medium text-yellow-600">{s.counts.SICK_LEAVE}</td>
                     <td className="px-3 py-3 text-center font-medium text-purple-600">{s.counts.HALF_DAY}</td>
+                    <td className="px-3 py-3 text-center font-medium text-gray-600">{s.counts.WEEKEND}</td>
                     <td className="px-3 py-3 text-center font-medium text-blue-500">{s.counts.HOLIDAY}</td>
                     <td className="px-3 py-3 text-center bg-green-50">
                       <span className="text-lg font-bold text-green-700">{s.payableDays}</span>
@@ -503,10 +607,10 @@ export default function StaffAttendancePage() {
           <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h3 className="text-sm font-semibold text-blue-800 mb-2">Payroll Formula</h3>
             <p className="text-sm text-blue-700 font-mono">
-              payable_days = PRESENT + HOLIDAY + PAID_LEAVE + SICK_LEAVE + (HALF_DAY × 0.5)
+              payable_days = PRESENT + HOLIDAY + PAID_LEAVE + SICK_LEAVE + WEEKEND + (HALF_DAY × 0.5)
             </p>
             <p className="text-xs text-blue-600 mt-2">
-              ABSENT and UNPAID_LEAVE do not count toward payable days.
+              ABSENT and UNPAID_LEAVE do not count toward payable days. WEEKEND counts as payable.
             </p>
           </div>
         </div>

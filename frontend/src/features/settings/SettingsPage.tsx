@@ -15,13 +15,14 @@ interface User {
 }
 
 const ROLE_LABEL: Record<string, string> = {
-  [UserRole.SUPER_ADMIN]: 'CEO',
+  [UserRole.SUPER_ADMIN]: 'Super Admin',
   [UserRole.SYSTEM_ADMIN]: 'System Admin',
   [UserRole.HR_ADMIN]: 'HR Director',
   [UserRole.FINANCE_OFFICER]: 'CFO',
   [UserRole.OPERATIONS]: 'Ops Manager',
   [UserRole.GUARD]: 'Guard',
   [UserRole.HEAD]: 'Head',
+  [UserRole.CEO]: 'CEO',
 };
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
@@ -32,16 +33,18 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
   [UserRole.OPERATIONS]: 'bg-violet-100 text-violet-700',
   [UserRole.GUARD]: 'bg-gray-100 text-gray-600',
   [UserRole.HEAD]: 'bg-teal-100 text-teal-700',
+  [UserRole.CEO]: 'bg-rose-100 text-rose-700',
 };
 
 const DEPARTMENT_MAP: Record<string, string> = {
-  [UserRole.SUPER_ADMIN]: 'Executive Management',
+  [UserRole.SUPER_ADMIN]: 'System Administration',
   [UserRole.SYSTEM_ADMIN]: 'IT & Systems',
   [UserRole.HR_ADMIN]: 'HR & Recruitment',
   [UserRole.FINANCE_OFFICER]: 'Finance & Accounting',
   [UserRole.OPERATIONS]: 'Operations',
   [UserRole.GUARD]: 'Field Operations',
   [UserRole.HEAD]: 'Management',
+  [UserRole.CEO]: 'Executive Management',
 };
 
 const SECURITY_MATRIX = [
@@ -77,6 +80,7 @@ function formatLastLogin(date?: string) {
 
 const TAB_ITEMS = [
   { key: 'users', label: 'Users' },
+  { key: 'organization', label: 'Organization' },
   { key: 'roles', label: 'Roles & Permissions' },
   { key: 'audit', label: 'Audit Log' },
   { key: 'system', label: 'System Settings' },
@@ -315,8 +319,11 @@ export function SettingsPage() {
         </div>
       )}
 
+      {/* Organization Tab */}
+      {activeTab === 'organization' && <OrganizationTab />}
+
       {/* Other Tabs - Placeholder */}
-      {activeTab !== 'users' && (
+      {activeTab !== 'users' && activeTab !== 'organization' && (
         <div className="bg-white rounded-xl border border-gray-200 p-16 text-center">
           <svg className="mx-auto h-12 w-12 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -330,6 +337,156 @@ export function SettingsPage() {
       {showProvisionModal && (
         <ProvisionModal onClose={() => setShowProvisionModal(false)} />
       )}
+    </div>
+  );
+}
+
+function OrganizationTab() {
+  const [departments, setDepartments] = useState<{ _id: string; name: string; active: boolean }[]>([]);
+  const [positions, setPositions] = useState<{ _id: string; name: string; departmentId?: { _id: string; name: string }; active: boolean }[]>([]);
+  const [newDept, setNewDept] = useState('');
+  const [newPos, setNewPos] = useState('');
+  const [newPosDept, setNewPosDept] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  const loadData = () => {
+    setLoading(true);
+    Promise.all([
+      api.get('/departments').catch(() => ({ data: { data: [] } })),
+      api.get('/positions').catch(() => ({ data: { data: [] } })),
+    ]).then(([deptRes, posRes]) => {
+      setDepartments(deptRes.data.data || []);
+      setPositions(posRes.data.data || []);
+    }).finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const addDepartment = async () => {
+    if (!newDept.trim()) return;
+    try {
+      await api.post('/departments', { name: newDept.trim() });
+      setNewDept('');
+      loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to add department');
+    }
+  };
+
+  const deleteDepartment = async (id: string) => {
+    if (!confirm('Delete this department?')) return;
+    await api.delete(`/departments/${id}`);
+    loadData();
+  };
+
+  const addPosition = async () => {
+    if (!newPos.trim()) return;
+    try {
+      const payload: any = { name: newPos.trim() };
+      if (newPosDept) payload.departmentId = newPosDept;
+      await api.post('/positions', payload);
+      setNewPos('');
+      setNewPosDept('');
+      loadData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to add position');
+    }
+  };
+
+  const deletePosition = async (id: string) => {
+    if (!confirm('Delete this position?')) return;
+    await api.delete(`/positions/${id}`);
+    loadData();
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 gap-6">
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-base font-semibold text-gray-900 mb-4">Departments</h3>
+        <div className="flex gap-2 mb-4">
+          <input
+            type="text"
+            value={newDept}
+            onChange={(e) => setNewDept(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addDepartment()}
+            placeholder="New department name"
+            className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+          />
+          <button onClick={addDepartment} className="h-9 px-4 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+            Add
+          </button>
+        </div>
+        <div className="space-y-1.5 max-h-80 overflow-y-auto">
+          {departments.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">No departments yet.</p>
+          ) : departments.map((d) => (
+            <div key={d._id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 group">
+              <span className="text-sm text-gray-700">{d.name}</span>
+              <button onClick={() => deleteDepartment(d._id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="text-base font-semibold text-gray-900 mb-4">Positions</h3>
+        <div className="space-y-2 mb-4">
+          <input
+            type="text"
+            value={newPos}
+            onChange={(e) => setNewPos(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addPosition()}
+            placeholder="New position name"
+            className="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+          />
+          <div className="flex gap-2">
+            <select
+              value={newPosDept}
+              onChange={(e) => setNewPosDept(e.target.value)}
+              className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+            >
+              <option value="">No department (optional)</option>
+              {departments.map((d) => (
+                <option key={d._id} value={d._id}>{d.name}</option>
+              ))}
+            </select>
+            <button onClick={addPosition} className="h-9 px-4 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors">
+              Add
+            </button>
+          </div>
+        </div>
+        <div className="space-y-1.5 max-h-80 overflow-y-auto">
+          {positions.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-4">No positions yet.</p>
+          ) : positions.map((p) => (
+            <div key={p._id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 group">
+              <div>
+                <span className="text-sm text-gray-700">{p.name}</span>
+                {p.departmentId && (
+                  <span className="text-xs text-gray-400 ml-2">({p.departmentId.name})</span>
+                )}
+              </div>
+              <button onClick={() => deletePosition(p._id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ require('ts-node').register({ transpileOnly: true, project: './tsconfig.json' })
 
 async function main() {
   try {
-    console.log('Starting Vital Payroll Backend...');
+    console.log('Starting Vital Security Backend...');
     
     const { config } = require('./src/config/env');
     console.log('Config loaded:', { port: config.port, mongoUri: config.mongoUri });

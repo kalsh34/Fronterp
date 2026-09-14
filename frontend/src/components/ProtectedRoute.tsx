@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import AccessDenied from './AccessDenied';
 
 export default function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { isAuthenticated, user } = useAuthStore();
@@ -9,7 +10,7 @@ export default function ProtectedRoute({ children, roles }: { children: React.Re
   }
 
   if (roles && user && !roles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+    return <AccessDenied />;
   }
 
   return <>{children}</>;

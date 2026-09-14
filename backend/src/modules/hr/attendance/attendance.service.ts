@@ -4,9 +4,10 @@ import { User } from '../../../models/User';
 import { Site } from '../../../models/Site';
 import { Employee } from '../../../models/Employee';
 import { PrimarySiteAssignment } from '../../../models/PrimarySiteAssignment';
+import { ShiftAssignment } from '../../../models/ShiftAssignment';
 import { PayrollPeriod } from '../../../models/PayrollPeriod';
 import { ApiError } from '../../../common/ApiError';
-import { AttendanceSource, UserRole, PayrollPeriodStatus } from '../../../types';
+import { AttendanceSource, UserRole, PayrollPeriodStatus, EmployeeStatus } from '../../../types';
 import { AuditService } from '../../../core/audit/AuditService';
 import { eventBus } from '../../../core/events/EventBus';
 import mongoose from 'mongoose';
@@ -215,7 +216,7 @@ export class AttendanceService {
     today.setHours(0, 0, 0, 0);
 
     const site = await Site.findById(siteId);
-    if (!site || site.requiredGuardCount === 0) return { understaffed: false, overstaffed: false, onDuty: 0, required: 0 };
+    if (!site || site.agreedManpower === 0) return { understaffed: false, overstaffed: false, onDuty: 0, required: 0 };
 
     const onDuty = await AttendanceRecord.countDocuments({
       siteId,
@@ -223,8 +224,8 @@ export class AttendanceService {
       clockOut: null,
     });
 
-    const understaffed = onDuty < site.requiredGuardCount;
-    const overstaffed = onDuty > site.requiredGuardCount;
+    const understaffed = onDuty < site.agreedManpower;
+    const overstaffed = onDuty > site.agreedManpower;
 
     if (understaffed) {
       eventBus.emit('hr.attendance.coverageAlert', {
@@ -232,7 +233,7 @@ export class AttendanceService {
         siteName: site.siteName,
         status: 'UNDERSTAFFED',
         onDuty,
-        required: site.requiredGuardCount,
+        required: site.agreedManpower,
       });
     } else if (overstaffed) {
       eventBus.emit('hr.attendance.coverageAlert', {
@@ -240,11 +241,11 @@ export class AttendanceService {
         siteName: site.siteName,
         status: 'OVERSTAFFED',
         onDuty,
-        required: site.requiredGuardCount,
+        required: site.agreedManpower,
       });
     }
 
-    return { understaffed, overstaffed, onDuty, required: site.requiredGuardCount };
+    return { understaffed, overstaffed, onDuty, required: site.agreedManpower };
   }
 
   static async getActiveShift(guardId: string): Promise<IAttendanceRecord | null> {
@@ -356,36 +357,34 @@ export class AttendanceService {
     const guard = await Employee.findById(data.guardId);
     if (!guard) throw ApiError.notFound('Guard not found');
     if (guard.category !== 'GUARD') throw ApiError.badRequest('Employee is not a guard');
-
-    const assignment = await PrimarySiteAssignment.findOne({
-      guardId: data.guardId,
-      siteId: data.siteId,
-      isCurrent: true,
-    });
-    const anyAssignment = await PrimarySiteAssignment.findOne({
-      guardId: data.guardId,
-      isCurrent: true,
-    });
-    if (!anyAssignment) {
-      throw ApiError.badRequest(
-        'Guard has no active site assignment. Assign the guard to a site before filing attendance.'
-      );
+    if (guard.status !== EmployeeStatus.CONTRACTED) {
+      throw ApiError.badRequest('Guard must have an active contract before attendance can be filed');
     }
 
     const entryDate = new Date(data.date);
     entryDate.setHours(0, 0, 0, 0);
+
+    const shiftAssignment = await ShiftAssignment.findOne({
+      guardId: data.guardId,
+      siteId: data.siteId,
+      status: 'ACTIVE',
+      startDate: { $lte: entryDate },
+      $or: [
+        { endDate: { $gte: entryDate } },
+        { endDate: { $exists: false } },
+        { endDate: null },
+      ],
+    });
+    if (!shiftAssignment) {
+      throw ApiError.badRequest(
+        `No shift assignment found for this guard at this site on ${entryDate.toISOString().split('T')[0]} — assign a shift first.`
+      );
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (entryDate > today) {
       throw ApiError.badRequest('Cannot file attendance for a future date');
-    }
-
-    if (!assignment) {
-      if (!data.notes || data.notes.trim().length === 0) {
-        throw ApiError.badRequest(
-          'Notes are required when filing attendance at a site the guard is not assigned to'
-        );
-      }
     }
 
     const existing = await AttendanceRecord.findOne({

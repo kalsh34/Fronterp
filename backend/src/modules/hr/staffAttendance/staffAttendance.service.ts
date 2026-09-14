@@ -92,7 +92,7 @@ export class StaffAttendanceService {
       throw ApiError.forbidden('This period is locked.');
     }
 
-    const staff = await Employee.find({ category: EmployeeCategory.OFFICE_STAFF, status: 'ACTIVE' });
+    const staff = await Employee.find({ category: EmployeeCategory.OFFICE_STAFF, status: { $in: ['ACTIVE', 'CONTRACTED'] } });
     const results: IStaffAttendance[] = [];
 
     for (const emp of staff) {
@@ -123,7 +123,7 @@ export class StaffAttendanceService {
   static async getGrid(year: number, month: number) {
     const period = await this.getOrCreatePeriod(year, month);
     const daysInMonth = new Date(year, month, 0).getDate();
-    const staff = await Employee.find({ category: EmployeeCategory.OFFICE_STAFF, status: 'ACTIVE' }).sort({ employeeCode: 1 });
+    const staff = await Employee.find({ category: EmployeeCategory.OFFICE_STAFF, status: { $in: ['ACTIVE', 'CONTRACTED'] } }).sort({ employeeCode: 1 });
 
     const records = await StaffAttendance.find({ payrollPeriodId: period._id });
     const recordMap = new Map<string, StaffAttendanceStatus>();
@@ -150,7 +150,7 @@ export class StaffAttendanceService {
   static async getMonthlySummary(year: number, month: number) {
     const period = await this.getOrCreatePeriod(year, month);
     const daysInMonth = new Date(year, month, 0).getDate();
-    const staff = await Employee.find({ category: EmployeeCategory.OFFICE_STAFF, status: 'ACTIVE' }).sort({ employeeCode: 1 });
+    const staff = await Employee.find({ category: EmployeeCategory.OFFICE_STAFF, status: { $in: ['ACTIVE', 'CONTRACTED'] } }).sort({ employeeCode: 1 });
     const records = await StaffAttendance.find({ payrollPeriodId: period._id });
 
     const summaryMap = new Map<string, Record<string, number>>();
@@ -170,7 +170,7 @@ export class StaffAttendanceService {
 
     const summaries = staff.map((emp) => {
       const counts = summaryMap.get(emp._id.toString())!;
-      const payableDays = counts.PRESENT + counts.HOLIDAY + counts.PAID_LEAVE + counts.SICK_LEAVE + (counts.HALF_DAY * 0.5);
+      const payableDays = counts.PRESENT + counts.HOLIDAY + counts.PAID_LEAVE + counts.SICK_LEAVE + counts.WEEKEND + (counts.HALF_DAY * 0.5);
       return {
         employee: emp,
         counts,

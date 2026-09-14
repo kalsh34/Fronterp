@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../lib/api';
+import { EmployeeCategory } from '../../types';
 
 interface Employee {
   _id: string;
@@ -9,39 +10,52 @@ interface Employee {
   lastName: string;
   department?: string;
   position?: string;
+  category?: string;
 }
 
 interface Contract {
   _id: string;
   employeeId: string | { _id: string; firstName: string; lastName: string; employeeCode: string };
+  salaryStructureId?: string | { _id: string; name: string };
   contractStartDate: string;
   contractEndDate?: string;
-  workingSchedule: string;
-  salaryStructureType: string;
   department?: string;
-  salaryStructure?: string;
+  grade?: string;
   jobPosition?: string;
   contractType: string;
   wage: number;
-  monthlyAdvantagesInCash: number;
-  allowances: {
-    hra: number;
-    da: number;
-    travelAllowance: number;
-    mealAllowance: number;
-    medicalAllowance: number;
-    otherAllowance: number;
-  };
+  responsibilityAllowance: number;
+  teleAllowance: number;
+  taxableTransport: number;
+  nonTaxableAllowance: number;
+  transportAllowance: number;
+  pensionEnrolled: boolean;
   notes?: string;
   status: string;
 }
 
-const emptyAllowances = { hra: 0, da: 0, travelAllowance: 0, mealAllowance: 0, medicalAllowance: 0, otherAllowance: 0 };
+interface SalaryStructure {
+  _id: string;
+  name: string;
+  employeeType: string;
+  earnings: { componentCode: string; label: string; calculationType: string; defaultRate: number; taxable: boolean; required: boolean }[];
+  otMultiplier: number;
+  holidayMultiplier: number;
+}
+
+const GRADE_OPTIONS = [
+  { value: 'Grade A', label: 'Grade A', range: 'ETB 80,000 – 120,000', description: 'Senior Management / Executive' },
+  { value: 'Grade B', label: 'Grade B', range: 'ETB 50,000 – 79,999', description: 'Middle Management / Department Heads' },
+  { value: 'Grade C', label: 'Grade C', range: 'ETB 30,000 – 49,999', description: 'Junior Management / Officers' },
+  { value: 'Grade D', label: 'Grade D', range: 'ETB 15,000 – 29,999', description: 'Support Staff / Assistants' },
+  { value: 'Grade E', label: 'Grade E', range: 'ETB 8,000 – 14,999', description: 'Operational / Field Staff' },
+];
 
 export default function ContractForm() {
   const navigate = useNavigate();
   const { employeeId } = useParams<{ employeeId: string }>();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [salaryStructures, setSalaryStructures] = useState<SalaryStructure[]>([]);
   const [existingContract, setExistingContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -49,19 +63,48 @@ export default function ContractForm() {
 
   const [form, setForm] = useState({
     employeeId: employeeId || '',
+    salaryStructureId: '',
     contractStartDate: '',
     contractEndDate: '',
-    workingSchedule: 'Monday-Friday (9AM-6PM)',
-    salaryStructureType: 'Basic',
     department: '',
-    salaryStructure: '',
+    grade: '',
     jobPosition: '',
     contractType: 'Full-Time',
     wage: 0,
-    monthlyAdvantagesInCash: 0,
-    allowances: { ...emptyAllowances },
+    responsibilityAllowance: 0,
+    teleAllowance: 0,
+    taxableTransport: 0,
+    nonTaxableAllowance: 0,
+    transportAllowance: 0,
+    pensionEnrolled: true,
     notes: '',
   });
+
+  const selectedEmployee = employees.find(e => e._id === form.employeeId);
+  const isGuard = selectedEmployee?.category === EmployeeCategory.GUARD;
+
+  const handleStructureChange = (structureId: string) => {
+    setForm(prev => ({ ...prev, salaryStructureId: structureId }));
+    if (!structureId) return;
+    const structure = salaryStructures.find(s => s._id === structureId);
+    if (!structure) return;
+
+    const wageEarn = structure.earnings.find(e => e.componentCode === 'BASIC');
+    const respEarn = structure.earnings.find(e => e.componentCode === 'RESPONSIBILITY_ALLOWANCE');
+    const teleEarn = structure.earnings.find(e => e.componentCode === 'TELE_ALLOWANCE');
+    const taxTransEarn = structure.earnings.find(e => e.componentCode === 'TAXABLE_TRANSPORT');
+    const nonTaxTransEarn = structure.earnings.find(e => e.componentCode === 'NON_TAXABLE_ALLOWANCE');
+
+    setForm(prev => ({
+      ...prev,
+      salaryStructureId: structureId,
+      wage: wageEarn?.defaultRate || prev.wage,
+      responsibilityAllowance: respEarn?.defaultRate || prev.responsibilityAllowance,
+      teleAllowance: teleEarn?.defaultRate || prev.teleAllowance,
+      taxableTransport: taxTransEarn?.defaultRate || prev.taxableTransport,
+      nonTaxableAllowance: nonTaxTransEarn?.defaultRate || prev.nonTaxableAllowance,
+    }));
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -69,6 +112,11 @@ export default function ContractForm() {
       try {
         const empRes = await api.get('/employees', { params: { limit: 200 } });
         setEmployees(empRes.data.data || []);
+
+        try {
+          const structRes = await api.get('/salary-structures', { params: { status: 'current' } });
+          setSalaryStructures(structRes.data.data || []);
+        } catch { /* ignore */ }
 
         if (employeeId) {
           setForm((prev) => ({ ...prev, employeeId }));
@@ -79,17 +127,20 @@ export default function ContractForm() {
               setExistingContract(c);
               setForm({
                 employeeId: employeeId,
+                salaryStructureId: typeof c.salaryStructureId === 'string' ? c.salaryStructureId : c.salaryStructureId?._id || '',
                 contractStartDate: c.contractStartDate ? c.contractStartDate.split('T')[0] : '',
                 contractEndDate: c.contractEndDate ? c.contractEndDate.split('T')[0] : '',
-                workingSchedule: c.workingSchedule || 'Monday-Friday (9AM-6PM)',
-                salaryStructureType: c.salaryStructureType || 'Basic',
                 department: c.department || '',
-                salaryStructure: c.salaryStructure || '',
+                grade: c.grade || '',
                 jobPosition: c.jobPosition || '',
                 contractType: c.contractType || 'Full-Time',
                 wage: c.wage || 0,
-                monthlyAdvantagesInCash: c.monthlyAdvantagesInCash || 0,
-                allowances: c.allowances || { ...emptyAllowances },
+                responsibilityAllowance: c.responsibilityAllowance || 0,
+                teleAllowance: c.teleAllowance || 0,
+                taxableTransport: c.taxableTransport || 0,
+                nonTaxableAllowance: c.nonTaxableAllowance || 0,
+                transportAllowance: c.transportAllowance || 0,
+                pensionEnrolled: c.pensionEnrolled !== false,
                 notes: c.notes || '',
               });
             }
@@ -115,16 +166,14 @@ export default function ContractForm() {
     try {
       const payload = {
         ...form,
+        salaryStructureId: form.salaryStructureId || undefined,
         wage: Number(form.wage),
-        monthlyAdvantagesInCash: Number(form.monthlyAdvantagesInCash),
-        allowances: {
-          hra: Number(form.allowances.hra),
-          da: Number(form.allowances.da),
-          travelAllowance: Number(form.allowances.travelAllowance),
-          mealAllowance: Number(form.allowances.mealAllowance),
-          medicalAllowance: Number(form.allowances.medicalAllowance),
-          otherAllowance: Number(form.allowances.otherAllowance),
-        },
+        responsibilityAllowance: Number(form.responsibilityAllowance),
+        teleAllowance: Number(form.teleAllowance),
+        taxableTransport: Number(form.taxableTransport),
+        nonTaxableAllowance: Number(form.nonTaxableAllowance),
+        transportAllowance: Number(form.transportAllowance),
+        pensionEnrolled: form.pensionEnrolled,
       };
 
       if (isUpdate && existingContract) {
@@ -138,13 +187,6 @@ export default function ContractForm() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const updateAllowance = (key: string, value: number) => {
-    setForm((prev) => ({
-      ...prev,
-      allowances: { ...prev.allowances, [key]: value },
-    }));
   };
 
   if (loading) {
@@ -219,9 +261,25 @@ export default function ContractForm() {
                 <option value="">Search employee...</option>
                 {employees.map((emp) => (
                   <option key={emp._id} value={emp._id}>
-                    {emp.firstName} {emp.lastName} ({emp.employeeCode})
+                    {emp.firstName} {emp.lastName} ({emp.employeeCode}) — {emp.category === EmployeeCategory.GUARD ? 'Guard' : 'Staff'}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* Contract Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Contract Type *</label>
+              <select
+                value={form.contractType}
+                onChange={(e) => setForm({ ...form, contractType: e.target.value })}
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              >
+                <option value="Full-Time">Full-Time</option>
+                <option value="Part-Time">Part-Time</option>
+                <option value="Contract">Contract</option>
+                <option value="Temporary">Temporary</option>
+                <option value="Internship">Internship</option>
               </select>
             </div>
 
@@ -237,47 +295,18 @@ export default function ContractForm() {
               />
             </div>
 
-            {/* Contract End Date */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Contract End Date</label>
-              <input
-                type="date"
-                value={form.contractEndDate}
-                onChange={(e) => setForm({ ...form, contractEndDate: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-              />
-            </div>
-
-            {/* Working Schedule */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Working Schedule *</label>
-              <select
-                value={form.workingSchedule}
-                onChange={(e) => setForm({ ...form, workingSchedule: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-              >
-                <option value="Monday-Friday (9AM-6PM)">Monday-Friday (9AM-6PM)</option>
-                <option value="Monday-Friday (8AM-5PM)">Monday-Friday (8AM-5PM)</option>
-                <option value="Monday-Saturday (9AM-6PM)">Monday-Saturday (9AM-6PM)</option>
-                <option value="Shift-Based (24/7)">Shift-Based (24/7)</option>
-                <option value="Flexible">Flexible</option>
-              </select>
-            </div>
-
-            {/* Salary Structure Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Salary Structure Type *</label>
-              <select
-                value={form.salaryStructureType}
-                onChange={(e) => setForm({ ...form, salaryStructureType: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-              >
-                <option value="Basic">Basic</option>
-                <option value="Standard">Standard</option>
-                <option value="Executive">Executive</option>
-                <option value="Custom">Custom</option>
-              </select>
-            </div>
+            {/* Contract End Date — hidden for Full-Time */}
+            {form.contractType !== 'Full-Time' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Contract End Date</label>
+                <input
+                  type="date"
+                  value={form.contractEndDate}
+                  onChange={(e) => setForm({ ...form, contractEndDate: e.target.value })}
+                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                />
+              </div>
+            )}
 
             {/* Department */}
             <div>
@@ -293,22 +322,6 @@ export default function ContractForm() {
                 <option value="Finance">Finance</option>
                 <option value="Administration">Administration</option>
                 <option value="Security">Security</option>
-              </select>
-            </div>
-
-            {/* Salary Structure */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Salary Structure</label>
-              <select
-                value={form.salaryStructure}
-                onChange={(e) => setForm({ ...form, salaryStructure: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-              >
-                <option value="">Select structure</option>
-                <option value="Grade A">Grade A</option>
-                <option value="Grade B">Grade B</option>
-                <option value="Grade C">Grade C</option>
-                <option value="Grade D">Grade D</option>
               </select>
             </div>
 
@@ -329,22 +342,43 @@ export default function ContractForm() {
                 <option value="Admin Officer">Admin Officer</option>
               </select>
             </div>
+          </div>
+        </div>
 
-            {/* Contract Type */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Contract Type *</label>
-              <select
-                value={form.contractType}
-                onChange={(e) => setForm({ ...form, contractType: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+        {/* Salary Grade */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-1 h-5 bg-blue-600 rounded-full" />
+            <h2 className="text-base font-semibold text-gray-900">Salary Grade</h2>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            {GRADE_OPTIONS.map((grade) => (
+              <label
+                key={grade.value}
+                className={`flex items-center gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  form.grade === grade.value
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
               >
-                <option value="Full-Time">Full-Time</option>
-                <option value="Part-Time">Part-Time</option>
-                <option value="Contract">Contract</option>
-                <option value="Temporary">Temporary</option>
-                <option value="Internship">Internship</option>
-              </select>
-            </div>
+                <input
+                  type="radio"
+                  name="grade"
+                  value={grade.value}
+                  checked={form.grade === grade.value}
+                  onChange={(e) => setForm({ ...form, grade: e.target.value })}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-semibold text-gray-900">{grade.label}</span>
+                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">{grade.range}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">{grade.description}</p>
+                </div>
+              </label>
+            ))}
           </div>
         </div>
 
@@ -355,67 +389,103 @@ export default function ContractForm() {
             <h2 className="text-base font-semibold text-gray-900">Salary Information</h2>
           </div>
 
-          {/* Wage + Monthly Advantages */}
-          <div className="grid grid-cols-2 gap-5 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Wage *</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
-                <input
-                  type="number"
-                  value={form.wage || ''}
-                  onChange={(e) => setForm({ ...form, wage: parseFloat(e.target.value) || 0 })}
-                  required
-                  placeholder="0.00"
-                  className="w-full h-10 pl-8 pr-16 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-                />
-                <span className="absolute right-3 top-2.5 text-xs text-gray-400">/ month</span>
-              </div>
+          {/* Salary Structure Selector */}
+          {salaryStructures.length > 0 && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Salary Structure</label>
+              <select
+                value={form.salaryStructureId}
+                onChange={(e) => handleStructureChange(e.target.value)}
+                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              >
+                <option value="">No structure — manual entry</option>
+                {salaryStructures
+                  .filter(s => isGuard ? s.employeeType === 'GUARD' : s.employeeType === 'STAFF')
+                  .map(s => (
+                    <option key={s._id} value={s._id}>{s.name}</option>
+                  ))}
+              </select>
+              {form.salaryStructureId && (
+                <p className="text-xs text-blue-600 mt-1.5">Earnings pre-filled from structure. Adjust below if needed.</p>
+              )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Monthly Advantages in Cash</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
-                <input
-                  type="number"
-                  value={form.monthlyAdvantagesInCash || ''}
-                  onChange={(e) => setForm({ ...form, monthlyAdvantagesInCash: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.00"
-                  className="w-full h-10 pl-8 pr-16 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-                />
-                <span className="absolute right-3 top-2.5 text-xs text-gray-400">/ month</span>
-              </div>
-            </div>
+          )}
+
+          {/* Salary */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Basic Salary (ETB) *</label>
+            <input
+              type="number"
+              value={form.wage || ''}
+              onChange={(e) => setForm({ ...form, wage: parseFloat(e.target.value) || 0 })}
+              required
+              placeholder="0.00"
+              className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+            />
           </div>
 
           {/* Allowances */}
           <div>
             <h3 className="text-sm font-medium text-gray-700 mb-4">Allowances</h3>
-            <div className="grid grid-cols-2 gap-5">
-              {[
-                { key: 'hra', label: 'HRA' },
-                { key: 'da', label: 'DA' },
-                { key: 'travelAllowance', label: 'Travel Allowance' },
-                { key: 'mealAllowance', label: 'Meal Allowance' },
-                { key: 'medicalAllowance', label: 'Medical Allowance' },
-                { key: 'otherAllowance', label: 'Other Allowance' },
-              ].map(({ key, label }) => (
-                <div key={key}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-sm text-gray-400">$</span>
-                    <input
-                      type="number"
-                      value={(form.allowances as any)[key] || ''}
-                      onChange={(e) => updateAllowance(key, parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                      className="w-full h-10 pl-8 pr-16 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
-                    />
-                    <span className="absolute right-3 top-2.5 text-xs text-gray-400">/ month</span>
-                  </div>
+
+            {isGuard ? (
+              /* Guard: only Transport Allowance */
+              <div className="max-w-sm">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Transport Allowance (ETB)</label>
+                <input
+                  type="number"
+                  value={form.transportAllowance || ''}
+                  onChange={(e) => setForm({ ...form, transportAllowance: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
+                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                />
+                <p className="text-xs text-gray-400 mt-1.5">Guards receive only transport allowance</p>
+              </div>
+            ) : (
+              /* Office Staff: all four allowances */
+              <div className="grid grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Responsibility Allowance (ETB)</label>
+                  <input
+                    type="number"
+                    value={form.responsibilityAllowance || ''}
+                    onChange={(e) => setForm({ ...form, responsibilityAllowance: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                    className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Tele Allowance (ETB)</label>
+                  <input
+                    type="number"
+                    value={form.teleAllowance || ''}
+                    onChange={(e) => setForm({ ...form, teleAllowance: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                    className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Taxable Transport (ETB)</label>
+                  <input
+                    type="number"
+                    value={form.taxableTransport || ''}
+                    onChange={(e) => setForm({ ...form, taxableTransport: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                    className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Non-Taxable Allowance (ETB)</label>
+                  <input
+                    type="number"
+                    value={form.nonTaxableAllowance || ''}
+                    onChange={(e) => setForm({ ...form, nonTaxableAllowance: parseFloat(e.target.value) || 0 })}
+                    placeholder="0.00"
+                    className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -423,7 +493,34 @@ export default function ContractForm() {
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex items-center gap-2 mb-6">
             <div className="w-1 h-5 bg-blue-600 rounded-full" />
-            <h2 className="text-base font-semibold text-gray-900">Additional Details</h2>
+            <h2 className="text-base font-semibold text-gray-900">Pension & Additional Details</h2>
+          </div>
+
+          {/* Pension Enrollment Toggle */}
+          <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div>
+                <p className="text-sm font-medium text-gray-900">Employee participates in pension scheme</p>
+                <p className="text-xs text-gray-500 mt-0.5">When enabled, both employee (7%) and employer (11%) pension contributions are deducted.</p>
+              </div>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={form.pensionEnrolled}
+                  onChange={(e) => setForm({ ...form, pensionEnrolled: e.target.checked })}
+                  className="sr-only"
+                />
+                <div className={`w-11 h-6 rounded-full transition-colors ${form.pensionEnrolled ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                  <div className={`w-5 h-5 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${form.pensionEnrolled ? 'translate-x-5.5 ml-0.5' : 'translate-x-0.5'}`} />
+                </div>
+              </div>
+            </label>
+            {!form.pensionEnrolled && (
+              <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                Pension opt-out: no employee or employer contributions will be made.
+              </p>
+            )}
           </div>
 
           <div>

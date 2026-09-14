@@ -31,20 +31,20 @@ export class OfficePayrollController {
 
   static async generate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const records = await PayrollCalculationService.generateStaffPayrollRecords(req.params.periodId);
+      const result = await PayrollCalculationService.generateStaffPayrollRecords(req.params.periodId);
       if (req.user) {
         AuditService.log({
           userId: req.user.userId,
           action: 'OFFICE_PAYROLL_GENERATE',
           entity: 'StaffPayrollRecord',
           entityId: req.params.periodId,
-          newValues: { count: records.length },
+          newValues: { count: result.records.length, skippedCount: result.skipped.length },
           ipAddress: req.ip,
           userAgent: req.get('user-agent'),
         });
       }
-      eventBus.emit('hr.officePayroll.recordsGenerated', { periodId: req.params.periodId, count: records.length });
-      res.status(201).json({ success: true, data: records });
+      eventBus.emit('hr.officePayroll.recordsGenerated', { periodId: req.params.periodId, count: result.records.length });
+      res.status(201).json({ success: true, data: result.records, skipped: result.skipped });
     } catch (error) { next(error); }
   }
 
@@ -54,6 +54,15 @@ export class OfficePayrollController {
         userId: req.user?.userId || '',
         ip: req.ip,
         ua: req.get('user-agent'),
+      });
+      res.json({ success: true, data: record });
+    } catch (error) { next(error); }
+  }
+
+  static async enterOt(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const record = await StaffPayrollService.enterOt(req.params.id, req.body, req.user?.userId || '', {
+        ip: req.ip, ua: req.get('user-agent'),
       });
       res.json({ success: true, data: record });
     } catch (error) { next(error); }
@@ -97,9 +106,18 @@ export class OfficePayrollController {
     } catch (error) { next(error); }
   }
 
-  static async pay(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  static async initiatePayment(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const record = await StaffPayrollService.pay(req.params.id, req.body, req.user?.userId || '', {
+      const record = await StaffPayrollService.initiatePayment(req.params.id, req.user?.userId || '', {
+        ip: req.ip, ua: req.get('user-agent'),
+      });
+      res.json({ success: true, data: record });
+    } catch (error) { next(error); }
+  }
+
+  static async confirmPaid(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const record = await StaffPayrollService.confirmPaid(req.params.id, req.body, req.user?.userId || '', {
         ip: req.ip, ua: req.get('user-agent'),
       });
       res.json({ success: true, data: record });

@@ -11,6 +11,7 @@ import { PensionRule } from './models/PensionRule';
 import { PayrollPeriod } from './models/PayrollPeriod';
 import { SalaryComponent } from './models/SalaryComponent';
 import { PayrollFormulaVersion } from './models/PayrollFormulaVersion';
+import { SalaryStructure } from './models/SalaryStructure';
 import { UserRole, EmployeeCategory, GuardPosition, EmploymentType, PayrollPeriodStatus } from './types';
 
 dotenv.config();
@@ -47,6 +48,7 @@ async function seed() {
     await upsertUser({ email: 'finance@vitalpayroll.com', firstName: 'Fin', lastName: 'Officer', role: UserRole.FINANCE_OFFICER });
     await upsertUser({ email: 'ops@vitalpayroll.com', firstName: 'Ops', lastName: 'Manager', role: UserRole.OPERATIONS });
     await upsertUser({ email: 'head@vitalpayroll.com', firstName: 'Head', lastName: 'Officer', role: UserRole.HEAD });
+    await upsertUser({ email: 'ceo@vitalpayroll.com', firstName: 'Chief', lastName: 'Executive', role: UserRole.CEO });
 
     // --- Guard Employee + User ---
     let guardEmp = await Employee.findOne({ employeeCode: 'VSP-100' });
@@ -142,20 +144,87 @@ async function seed() {
     }
     console.log('[SEED] Salary components seeded');
 
-    // --- Default Payroll Formula (v1) ---
-    if (!(await PayrollFormulaVersion.findOne({ isCurrent: true }))) {
+    // --- Default Payroll Formula (v2 — BONUS removed from gross/taxable) ---
+    const existingFormula = await PayrollFormulaVersion.findOne({ isCurrent: true });
+    if (existingFormula) {
+      // Mark old formula as no longer current
+      existingFormula.isCurrent = false;
+      await existingFormula.save();
+      console.log(`[SEED] Marked formula v${existingFormula.version} as not current`);
+    }
+    {
       const admin = await User.findOne({ role: UserRole.SUPER_ADMIN });
       await PayrollFormulaVersion.create({
-        version: 1,
+        version: 2,
         isCurrent: true,
         effectiveFrom: new Date('2024-01-01'),
-        grossComponentCodes: ['BASIC', 'RESPONSIBILITY_ALLOWANCE', 'TELE_ALLOWANCE', 'NON_TAXABLE_ALLOWANCE', 'TAXABLE_TRANSPORT', 'OT', 'BONUS'],
+        grossComponentCodes: ['BASIC', 'RESPONSIBILITY_ALLOWANCE', 'TELE_ALLOWANCE', 'NON_TAXABLE_ALLOWANCE', 'OT'],
         taxableComponentCodes: ['BASIC', 'RESPONSIBILITY_ALLOWANCE', 'TELE_ALLOWANCE', 'TAXABLE_TRANSPORT', 'OT'],
         pensionBaseComponentCodes: ['BASIC'],
         deductionComponentCodes: ['INCOME_TAX', 'EMPLOYEE_PENSION', 'PENALTY', 'LOAN', 'OTHER_DEDUCTIONS'],
         createdById: admin?._id || new mongoose.Types.ObjectId(),
       });
-      console.log('[SEED] Default payroll formula v1 created');
+      console.log('[SEED] Default payroll formula v2 created (BONUS removed from gross/taxable)');
+    }
+
+    // --- Default Salary Structures ---
+    const existingStaffStructure = await SalaryStructure.findOne({ employeeType: 'STAFF', isCurrent: true });
+    if (!existingStaffStructure) {
+      const admin = await User.findOne({ role: UserRole.SUPER_ADMIN });
+      await SalaryStructure.create({
+        name: 'Office Staff Standard',
+        employeeType: 'STAFF',
+        payBasis: 'MONTHLY',
+        version: 1,
+        isCurrent: true,
+        effectiveFrom: new Date('2024-01-01'),
+        otMultiplier: 1.5,
+        holidayMultiplier: 2.0,
+        earnings: [
+          { componentCode: 'BASIC', label: 'Basic Salary', calculationType: 'FIXED_AMOUNT', defaultRate: 0, taxable: true, required: true },
+          { componentCode: 'RESPONSIBILITY_ALLOWANCE', label: 'Responsibility Allowance', calculationType: 'FIXED_AMOUNT', defaultRate: 0, taxable: true, required: false },
+          { componentCode: 'TELE_ALLOWANCE', label: 'Tele Allowance', calculationType: 'FIXED_AMOUNT', defaultRate: 0, taxable: true, required: false },
+          { componentCode: 'TAXABLE_TRANSPORT', label: 'Taxable Transport', calculationType: 'FIXED_AMOUNT', defaultRate: 0, taxable: true, required: false },
+          { componentCode: 'NON_TAXABLE_ALLOWANCE', label: 'Non-Taxable Allowance', calculationType: 'FIXED_AMOUNT', defaultRate: 0, taxable: false, required: false },
+          { componentCode: 'OT', label: 'Overtime', calculationType: 'HOURLY_RATE', defaultRate: 0, taxable: true, required: false },
+        ],
+        deductions: [
+          { componentCode: 'INCOME_TAX', label: 'Income Tax', calculationType: 'FORMULA', defaultValue: 0, enabled: true },
+          { componentCode: 'EMPLOYEE_PENSION', label: 'Employee Pension (7%)', calculationType: 'FORMULA', defaultValue: 0, enabled: true },
+          { componentCode: 'LOAN', label: 'Loan Deduction', calculationType: 'FIXED_AMOUNT', defaultValue: 0, enabled: true },
+          { componentCode: 'PENALTY', label: 'Penalty', calculationType: 'FIXED_AMOUNT', defaultValue: 0, enabled: true },
+          { componentCode: 'OTHER_DEDUCTIONS', label: 'Other Deductions', calculationType: 'FIXED_AMOUNT', defaultRate: 0, enabled: true },
+        ],
+        createdById: admin?._id || new mongoose.Types.ObjectId(),
+      });
+      console.log('[SEED] Default staff salary structure created');
+    }
+
+    const existingGuardStructure = await SalaryStructure.findOne({ employeeType: 'GUARD', isCurrent: true });
+    if (!existingGuardStructure) {
+      const admin = await User.findOne({ role: UserRole.SUPER_ADMIN });
+      await SalaryStructure.create({
+        name: 'Guard Standard',
+        employeeType: 'GUARD',
+        payBasis: 'HOURLY',
+        version: 1,
+        isCurrent: true,
+        effectiveFrom: new Date('2024-01-01'),
+        otMultiplier: 1.5,
+        holidayMultiplier: 2.0,
+        earnings: [
+          { componentCode: 'BASIC', label: 'Basic Salary (Monthly)', calculationType: 'FIXED_AMOUNT', defaultRate: 10800, taxable: true, required: true },
+          { componentCode: 'RESPONSIBILITY_ALLOWANCE', label: 'Responsibility Allowance', calculationType: 'FIXED_AMOUNT', defaultRate: 0, taxable: true, required: false },
+          { componentCode: 'TRANSPORT_ALLOWANCE', label: 'Transport Allowance', calculationType: 'FIXED_AMOUNT', defaultRate: 0, taxable: false, required: false },
+        ],
+        deductions: [
+          { componentCode: 'INCOME_TAX', label: 'Income Tax', calculationType: 'FORMULA', defaultValue: 0, enabled: true },
+          { componentCode: 'EMPLOYEE_PENSION', label: 'Employee Pension (7%)', calculationType: 'FORMULA', defaultValue: 0, enabled: true },
+          { componentCode: 'LOAN', label: 'Loan Deduction', calculationType: 'FIXED_AMOUNT', defaultValue: 0, enabled: true },
+        ],
+        createdById: admin?._id || new mongoose.Types.ObjectId(),
+      });
+      console.log('[SEED] Default guard salary structure created');
     }
 
     // --- Payroll Period ---

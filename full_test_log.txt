@@ -26,7 +26,7 @@ SUCCESS: Backend process 1156 is running
 
 Testing health endpoint...
 SUCCESS: Health check returned 200
-Response: {"success":true,"message":"Vital Payroll API is running","timestamp":"2026-08-17T06:02:56.352Z"}
+Response: {"success":true,"message":"Vital Security API is running","timestamp":"2026-08-17T06:02:56.352Z"}
 
 ==========================================
 STEP 2: Seed Data
