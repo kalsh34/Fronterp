@@ -4,7 +4,7 @@ import { PayrollRecordStatus } from '../types';
 export interface IGuardPayrollRecord extends Document {
   payrollPeriodId: mongoose.Types.ObjectId;
   guardId: mongoose.Types.ObjectId;
-  primarySiteId: mongoose.Types.ObjectId;
+  primarySiteId?: mongoose.Types.ObjectId;
   standardMonthlyHours: number;
 
   normalHours: number;
@@ -17,6 +17,7 @@ export interface IGuardPayrollRecord extends Document {
   normalRate: number;
   otRate: number;
   holidayRate: number;
+  holidayOtRate: number;
 
   normalSalary: number;
   workedSalary: number;
@@ -64,7 +65,7 @@ const guardPayrollRecordSchema = new Schema<IGuardPayrollRecord>(
   {
     payrollPeriodId: { type: Schema.Types.ObjectId, ref: 'PayrollPeriod', required: true },
     guardId: { type: Schema.Types.ObjectId, ref: 'Employee', required: true },
-    primarySiteId: { type: Schema.Types.ObjectId, ref: 'Site', required: true },
+    primarySiteId: { type: Schema.Types.ObjectId, ref: 'Site', default: null },
     standardMonthlyHours: { type: Number, required: true },
 
     normalHours: { type: Number, default: 0 },
@@ -77,6 +78,7 @@ const guardPayrollRecordSchema = new Schema<IGuardPayrollRecord>(
     normalRate: { type: Number, default: 0 },
     otRate: { type: Number, default: 0 },
     holidayRate: { type: Number, default: 0 },
+    holidayOtRate: { type: Number, default: 0 },
 
     normalSalary: { type: Number, default: 0 },
     workedSalary: { type: Number, default: 0 },

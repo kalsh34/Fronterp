@@ -234,7 +234,8 @@ async function seed() {
       await PayrollPeriod.create({
         year: now.getFullYear(), month: now.getMonth() + 1, monthName: monthNames[now.getMonth()],
         startDate: new Date(now.getFullYear(), now.getMonth(), 1),
-        endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+        // End of the LAST day (23:59:59.999) so attendance on the final day is included
+        endDate: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
         status: PayrollPeriodStatus.OPEN,
       });
       console.log(`[SEED] Period: ${monthNames[now.getMonth()]} ${now.getFullYear()} (OPEN)`);

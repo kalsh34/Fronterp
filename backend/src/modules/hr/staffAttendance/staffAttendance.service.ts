@@ -243,7 +243,8 @@ export class StaffAttendanceService {
       period = await PayrollPeriod.create({
         year, month, monthName: monthNames[month - 1],
         startDate: new Date(year, month - 1, 1),
-        endDate: new Date(year, month, 0),
+        // End of the LAST day (23:59:59.999) so attendance on the final day is included
+        endDate: new Date(year, month, 0, 23, 59, 59, 999),
         status: PayrollPeriodStatus.OPEN,
       });
     }

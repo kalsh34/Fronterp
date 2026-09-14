@@ -41,7 +41,14 @@ export class GuardPayrollService {
   static async generateRecords(payrollPeriodId: string, auditCtx?: { userId: string; ip?: string; ua?: string }) {
     const period = await PayrollPeriod.findById(payrollPeriodId);
     if (!period) throw ApiError.notFound('Payroll period not found');
-    if (period.status !== 'OPEN') throw ApiError.badRequest('Period must be OPEN');
+    // Developer decision: guard payroll (like staff payroll) may only be generated
+    // once the period is LOCKED. This removes the OPEN-vs-LOCKED conflict between
+    // the two payroll modules.
+    if (period.status !== 'LOCKED') {
+      throw ApiError.badRequest(
+        'Period must be LOCKED before generating guard payroll. Please lock the period first.'
+      );
+    }
 
     const records = await PayrollCalculationService.generateGuardPayrollRecords(payrollPeriodId);
 

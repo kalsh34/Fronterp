@@ -10,10 +10,20 @@ import { StaffPayrollRecord, IStaffPayrollRecord } from '../../../models/StaffPa
 import { PayrollFormulaVersion, IPayrollFormulaVersion } from '../../../models/PayrollFormulaVersion';
 import { SalaryStructure, ISalaryStructure } from '../../../models/SalaryStructure';
 import { ApiError } from '../../../common/ApiError';
-import { PensionTaxBase, PayrollRecordStatus } from '../../../types';
+import { PensionTaxBase, PayrollRecordStatus, LoanStatus } from '../../../types';
 import { config } from '../../../config/env';
 
 const GUARD_MONTHLY_HOURS = 720;
+
+/**
+ * Guard pension base (developer decision: pension on the salary actually earned).
+ * GROSS_PAY base -> full gross pay; NORMAL_SALARY_ONLY (default) -> the worked basic salary.
+ */
+async function pensionBaseForGuard(grossPay: number, workedSalary: number): Promise<number> {
+  const rule = await PensionRule.findOne({ isCurrent: true, effectiveFrom: { $lte: new Date() } });
+  if (!rule) return workedSalary;
+  return rule.pensionTaxBase === PensionTaxBase.GROSS_PAY ? grossPay : workedSalary;
+}
 
 export class PayrollCalculationService {
   static async calculateIncomeTax(taxableSalary: number, effectiveDate: Date = new Date()): Promise<number> {
@@ -69,7 +79,10 @@ export class PayrollCalculationService {
 
   /**
    * Resolve the effective earning rate for a guard component.
-   * Priority: Contract.wage (for BASIC) → Structure defaultRate → PayrollRate fallback.
+   * Priority: Contract.wage (monthly, divided by standard hours)
+   *           → PrimarySiteAssignment.hourlyRate (already an HOURLY rate, used directly)
+   *           → Structure BASIC defaultRate (monthly, divided by standard hours)
+   *           → PayrollRate fallback (absolute hourly rates).
    */
   static async resolveGuardRates(guardId: any, assignment: any): Promise<{
     normalRate: number;
@@ -89,45 +102,40 @@ export class PayrollCalculationService {
     let holidayMultiplier = 2.0;
     let holidayOtMultiplier = 2.5;
 
-    if (activeContract) {
-      const structure = activeContract.salaryStructureId
-        ? await SalaryStructure.findById(activeContract.salaryStructureId)
-        : await this.getActiveSalaryStructure('GUARD');
+    const structure = await this.getActiveSalaryStructure('GUARD');
+    if (structure) {
+      otMultiplier = structure.otMultiplier || 1.5;
+      holidayMultiplier = structure.holidayMultiplier || 2.0;
+      holidayOtMultiplier = structure.holidayOtMultiplier || 2.5;
+    }
 
-      if (activeContract.wage > 0) {
-        normalRate = Math.round((activeContract.wage / GUARD_MONTHLY_HOURS) * 100) / 100;
-      } else if (structure) {
-        const basicEarning = structure.earnings.find((e) => e.componentCode === 'BASIC');
-        if (basicEarning && basicEarning.defaultRate > 0) {
-          normalRate = Math.round((basicEarning.defaultRate / GUARD_MONTHLY_HOURS) * 100) / 100;
-        }
-      }
+    // 1) Contract monthly wage
+    if (activeContract && activeContract.wage > 0) {
+      normalRate = Math.round((activeContract.wage / GUARD_MONTHLY_HOURS) * 100) / 100;
+    }
 
-      if (structure) {
-        otMultiplier = structure.otMultiplier || 1.5;
-        holidayMultiplier = structure.holidayMultiplier || 2.0;
-        holidayOtMultiplier = structure.holidayOtMultiplier || 2.5;
-      }
-    } else {
-      const structure = await this.getActiveSalaryStructure('GUARD');
-      if (structure) {
-        const basicEarning = structure.earnings.find((e) => e.componentCode === 'BASIC');
-        if (basicEarning && basicEarning.defaultRate > 0) {
-          normalRate = Math.round((basicEarning.defaultRate / GUARD_MONTHLY_HOURS) * 100) / 100;
-        }
-        otMultiplier = structure.otMultiplier || 1.5;
-        holidayMultiplier = structure.holidayMultiplier || 2.0;
-        holidayOtMultiplier = structure.holidayOtMultiplier || 2.5;
+    // 2) Per-site assignment hourly rate (must affect payroll)
+    if (normalRate === 0 && assignment && typeof assignment.hourlyRate === 'number' && assignment.hourlyRate > 0) {
+      normalRate = Math.round(assignment.hourlyRate * 100) / 100;
+    }
+
+    // 3) Salary structure default monthly BASIC
+    if (normalRate === 0 && structure) {
+      const basicEarning = structure.earnings.find((e) => e.componentCode === 'BASIC');
+      if (basicEarning && basicEarning.defaultRate > 0) {
+        normalRate = Math.round((basicEarning.defaultRate / GUARD_MONTHLY_HOURS) * 100) / 100;
       }
     }
 
+    // 4) PayrollRate fallback (absolute hourly rates for a period)
     if (normalRate === 0) {
-      const fallback = await PayrollRate.findOne({});
+      const fallback = await PayrollRate.findOne({}).sort({ createdAt: -1 });
       if (fallback) {
         normalRate = fallback.normalRate;
         otRate = fallback.otRate;
         holidayRate = fallback.holidayRate;
-    return { normalRate, otRate, holidayRate, holidayOtRate: 0, standardMonthlyHours: GUARD_MONTHLY_HOURS };
+        holidayOtRate = Math.round((fallback.normalRate * holidayOtMultiplier) * 100) / 100;
+        return { normalRate, otRate, holidayRate, holidayOtRate, standardMonthlyHours: GUARD_MONTHLY_HOURS };
       }
     }
 
@@ -149,16 +157,24 @@ export class PayrollCalculationService {
     const normalSalary = record.standardMonthlyHours * record.normalRate;
     const workedSalary = record.normalHours * record.normalRate;
     const regularOtPay = record.regularOtHours * record.otRate;
-    const holidayOtPay = record.holidayOtHours * record.normalRate * 2.5;
+    // Holiday OT uses the resolved (configurable) holiday-OT rate from the salary structure
+    const holidayOtRate = record.holidayOtRate && record.holidayOtRate > 0
+      ? record.holidayOtRate
+      : Math.round((record.normalRate * 2.5) * 100) / 100;
+    const holidayOtPay = record.holidayOtHours * holidayOtRate;
     const holidayPay = record.holidayHours * record.holidayRate;
     const grossPay = workedSalary + regularOtPay + holidayOtPay + holidayPay + record.secondaryShiftPay;
 
-    const pension = await this.calculatePension(normalSalary);
+    // Pension base (per developer decision): the salary actually earned.
+    // GROSS_PAY base includes OT/holiday pay; NORMAL_SALARY_ONLY uses the worked basic salary only.
+    const pension = await this.calculatePension(
+      await pensionBaseForGuard(grossPay, workedSalary)
+    );
     const incomeTax = await this.calculateIncomeTax(grossPay);
 
     const baseComponent = pension.pensionTaxBase === PensionTaxBase.GROSS_PAY
       ? grossPay
-      : normalSalary;
+      : workedSalary;
 
     record.normalSalary = Math.round(normalSalary * 100) / 100;
     record.workedSalary = Math.round(workedSalary * 100) / 100;
@@ -173,7 +189,6 @@ export class PayrollCalculationService {
     record.totalDeductions = Math.round((incomeTax + pension.employeePension + record.loanDeduction) * 100) / 100;
     record.netPay = Math.round((grossPay - record.totalDeductions) * 100) / 100;
     record.status = PayrollRecordStatus.CALCULATED;
-    record.calculatedBy = record.calculatedBy;
     record.calculatedAt = new Date();
     await record.save();
 
@@ -192,10 +207,35 @@ export class PayrollCalculationService {
     });
     const pensionEnrolled = activeContract?.pensionEnrolled !== false;
 
+    // --- Compute OT pay FIRST so overtime is included in gross/taxable/net ---
+    // "Don't wipe it" rule: if HR entered a manual overtime amount (no OT hours), keep it.
+    const manualOvertime = record.regularOtHours === 0 && record.holidayOtHours === 0 && record.overtime > 0;
+
+    const basicSalary = this.getComponentValue(record, 'BASIC');
+    const hourlyRate = basicSalary / 192;
+    let otMultiplier = 1.5;
+    let holidayOtMultiplier = 2.5;
+    if (activeContract?.salaryStructureId) {
+      const otStructure = await SalaryStructure.findById(activeContract.salaryStructureId);
+      if (otStructure) {
+        otMultiplier = otStructure.otMultiplier || 1.5;
+        holidayOtMultiplier = otStructure.holidayOtMultiplier || 2.5;
+      }
+    }
+
+    if (!manualOvertime) {
+      const regularOtPay = Math.round((record.regularOtHours * hourlyRate * otMultiplier) * 100) / 100;
+      const holidayOtPay = Math.round((record.holidayOtHours * hourlyRate * holidayOtMultiplier) * 100) / 100;
+      record.regularOtPay = regularOtPay;
+      record.holidayOtPay = holidayOtPay;
+      record.overtime = Math.round((regularOtPay + holidayOtPay) * 100) / 100;
+    }
+
     let grossSalary = 0;
     let taxableSalary = 0;
     let pensionBase = 0;
     let deductionCodes: string[] = [];
+    let otCountedInGross = false;
 
     if (activeContract?.salaryStructureId) {
       const structure = await SalaryStructure.findById(activeContract.salaryStructureId);
@@ -204,6 +244,7 @@ export class PayrollCalculationService {
           const value = this.getComponentValue(record, earning.componentCode);
           grossSalary += value;
           if (earning.taxable) taxableSalary += value;
+          if (earning.componentCode === 'OT') otCountedInGross = true;
         }
 
         const basicEarning = structure.earnings.find((e) => e.componentCode === 'BASIC');
@@ -217,17 +258,28 @@ export class PayrollCalculationService {
       }
     }
 
+    // Make sure overtime is part of gross/taxable even when the structure has no OT component
+    if (!otCountedInGross && record.overtime > 0) {
+      grossSalary += record.overtime;
+      taxableSalary += record.overtime;
+    }
+
     if (grossSalary === 0) {
       const formula = await this.getCurrentFormula();
 
       for (const code of formula.grossComponentCodes) {
         grossSalary += this.getComponentValue(record, code);
+        if (code === 'OT') otCountedInGross = true;
       }
       for (const code of formula.taxableComponentCodes) {
         taxableSalary += this.getComponentValue(record, code);
       }
       for (const code of formula.pensionBaseComponentCodes) {
         pensionBase += this.getComponentValue(record, code);
+      }
+      if (!otCountedInGross && record.overtime > 0) {
+        grossSalary += record.overtime;
+        taxableSalary += record.overtime;
       }
       deductionCodes = formula.deductionComponentCodes;
       record.formulaVersionId = formula._id;
@@ -237,23 +289,6 @@ export class PayrollCalculationService {
       ? await this.calculatePension(pensionBase)
       : { employeePension: 0, employerPension: 0 };
     const incomeTax = await this.calculateIncomeTax(taxableSalary);
-
-    const basicSalary = this.getComponentValue(record, 'BASIC');
-    const hourlyRate = basicSalary / 192;
-    let otMultiplier = 1.5;
-    let holidayOtMultiplier = 2.5;
-    if (activeContract?.salaryStructureId) {
-      const structure = await SalaryStructure.findById(activeContract.salaryStructureId);
-      if (structure) {
-        otMultiplier = structure.otMultiplier || 1.5;
-        holidayOtMultiplier = structure.holidayOtMultiplier || 2.5;
-      }
-    }
-    const regularOtPay = Math.round((record.regularOtHours * hourlyRate * otMultiplier) * 100) / 100;
-    const holidayOtPay = Math.round((record.holidayOtHours * hourlyRate * holidayOtMultiplier) * 100) / 100;
-    record.regularOtPay = regularOtPay;
-    record.holidayOtPay = holidayOtPay;
-    record.overtime = regularOtPay + holidayOtPay;
 
     let totalDeductions = incomeTax + pension.employeePension;
     for (const code of deductionCodes) {
@@ -277,23 +312,95 @@ export class PayrollCalculationService {
     return record;
   }
 
+  /**
+   * Total loan deduction for an employee as of a date.
+   * Respects: loan status ACTIVE, startDate, optional endDate, and remaining balance
+   * (never deducts more than what is still owed).
+   */
+  static async getActiveLoanDeduction(employeeId: any, asOf: Date): Promise<number> {
+    const loans = await Loan.find({
+      employeeId,
+      status: 'ACTIVE',
+      startDate: { $lte: asOf },
+      $or: [
+        { endDate: { $exists: false } },
+        { endDate: null },
+        { endDate: { $gte: asOf } },
+      ],
+    });
+    let total = 0;
+    loans.forEach((l) => {
+      const balance = typeof l.balance === 'number' ? l.balance : l.monthlyDeduction;
+      total += Math.min(l.monthlyDeduction, Math.max(0, balance));
+    });
+    return Math.round(total * 100) / 100;
+  }
+
+  /**
+   * Apply a loan repayment across the employee's active loans (oldest first):
+   * increments paidAmount, decrements balance, and marks loans PAID_OFF when settled.
+   */
+  static async applyLoanRepayment(employeeId: any, amount: number, asOf: Date): Promise<void> {
+    if (!amount || amount <= 0) return;
+    const loans = await Loan.find({
+      employeeId,
+      status: 'ACTIVE',
+      startDate: { $lte: asOf },
+      $or: [
+        { endDate: { $exists: false } },
+        { endDate: null },
+        { endDate: { $gte: asOf } },
+      ],
+    }).sort({ startDate: 1 });
+
+    let remaining = amount;
+    for (const loan of loans) {
+      if (remaining <= 0) break;
+      const balance = typeof loan.balance === 'number' ? loan.balance : loan.monthlyDeduction;
+      const applied = Math.min(remaining, Math.max(0, balance));
+      if (applied <= 0) continue;
+      loan.paidAmount = Math.round(((loan.paidAmount || 0) + applied) * 100) / 100;
+      loan.balance = Math.round((balance - applied) * 100) / 100;
+      if (loan.balance <= 0) {
+        loan.balance = 0;
+        loan.status = LoanStatus.PAID_OFF;
+      }
+      await loan.save();
+      remaining = Math.round((remaining - applied) * 100) / 100;
+    }
+  }
+
   static async generateGuardPayrollRecords(payrollPeriodId: string): Promise<IGuardPayrollRecord[]> {
+    const { Employee } = await import('../../../models/Employee');
+    const period = await (await import('../../../models/PayrollPeriod')).PayrollPeriod.findById(payrollPeriodId);
+    if (!period) throw ApiError.notFound('Payroll period not found');
+
+    // Generate for ALL active guards (developer decision: every guard gets a payroll
+    // record, even without a current site assignment — Finance can override those).
+    const guards = await Employee.find({
+      category: 'GUARD',
+      status: { $in: ['ACTIVE', 'CONTRACTED'] },
+    });
+
     const assignments = await PrimarySiteAssignment.find({ isCurrent: true });
+    const assignmentByGuard = new Map<string, any>();
+    assignments.forEach((a) => {
+      assignmentByGuard.set(a.guardId.toString(), a);
+    });
 
     const records: IGuardPayrollRecord[] = [];
 
-    for (const assignment of assignments) {
+    for (const guard of guards) {
       const existing = await GuardPayrollRecord.findOne({
         payrollPeriodId,
-        guardId: assignment.guardId,
+        guardId: guard._id,
       });
       if (existing) continue;
 
-      const period = await (await import('../../../models/PayrollPeriod')).PayrollPeriod.findById(payrollPeriodId);
-      if (!period) continue;
+      const assignment = assignmentByGuard.get((guard._id as any).toString());
 
       const attendance = await AttendanceRecord.find({
-        guardId: assignment.guardId,
+        guardId: guard._id,
         date: { $gte: period.startDate, $lte: period.endDate },
       });
 
@@ -305,25 +412,20 @@ export class PayrollCalculationService {
       });
 
       const secondaryShifts = await SecondaryShiftEntry.find({
-        guardId: assignment.guardId,
+        guardId: guard._id,
         payrollPeriodId,
       });
       let secondaryShiftPay = 0;
       secondaryShifts.forEach((s) => { secondaryShiftPay += s.totalPay; });
 
-      const activeLoans = await Loan.find({
-        employeeId: assignment.guardId,
-        status: 'ACTIVE',
-      });
-      let loanDeduction = 0;
-      activeLoans.forEach((l) => { loanDeduction += l.monthlyDeduction; });
+      const loanDeduction = await this.getActiveLoanDeduction(guard._id, period.endDate || new Date());
 
-      const rates = await this.resolveGuardRates(assignment.guardId, assignment);
+      const rates = await this.resolveGuardRates(guard._id, assignment);
 
       const record = await GuardPayrollRecord.create({
         payrollPeriodId,
-        guardId: assignment.guardId,
-        primarySiteId: assignment.siteId,
+        guardId: guard._id,
+        primarySiteId: assignment ? assignment.siteId : null,
         standardMonthlyHours: rates.standardMonthlyHours,
         normalHours,
         otHours: 0,
@@ -332,9 +434,13 @@ export class PayrollCalculationService {
         normalRate: rates.normalRate,
         otRate: rates.otRate,
         holidayRate: rates.holidayRate,
+        holidayOtRate: rates.holidayOtRate,
         loanDeduction,
         status: PayrollRecordStatus.DRAFT,
       });
+
+      // Loan bookkeeping: apply this month's repayment to the loan balances
+      await this.applyLoanRepayment(guard._id, loanDeduction, period.endDate || new Date());
 
       records.push(record);
     }
@@ -420,9 +526,7 @@ export class PayrollCalculationService {
       const attendanceDeduction = deductibleDays * dailyRate;
       const basicSalary = Math.round((baseSalary - attendanceDeduction) * 100) / 100;
 
-      const activeLoans = await Loan.find({ employeeId: employee._id, status: 'ACTIVE' });
-      let loanDeduction = 0;
-      activeLoans.forEach((l) => { loanDeduction += l.monthlyDeduction; });
+      const loanDeduction = await this.getActiveLoanDeduction(employee._id, period.endDate || new Date());
 
       const record = await StaffPayrollRecord.create({
         payrollPeriodId,
@@ -438,6 +542,9 @@ export class PayrollCalculationService {
         attendanceDataMissing,
         status: PayrollRecordStatus.DRAFT,
       });
+
+      // Loan bookkeeping: apply this month's repayment to the loan balances
+      await this.applyLoanRepayment(employee._id, loanDeduction, period.endDate || new Date());
 
       records.push(record);
     }

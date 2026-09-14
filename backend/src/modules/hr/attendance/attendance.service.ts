@@ -12,8 +12,6 @@ import { AuditService } from '../../../core/audit/AuditService';
 import { eventBus } from '../../../core/events/EventBus';
 import mongoose from 'mongoose';
 
-const FORTY_EIGHT_HOURS_MS = 48 * 60 * 60 * 1000;
-
 export class AttendanceService {
   static async clockIn(
     data: { guardId: string; siteId: string; isHoliday?: boolean },
@@ -29,21 +27,11 @@ export class AttendanceService {
     });
     if (activeShift) throw ApiError.conflict('You already have an active shift. Please clock out first.');
 
-    const declaration = await AttendanceRecord.findOne({
-      declaredRelieverId: data.guardId,
-      declaredRelieverSiteId: data.siteId,
-      clockOut: { $ne: null },
-    }).sort({ clockOut: -1 });
+    // NOTE: the former 48-hour "relief" rule was REMOVED per developer decision.
+    // It blocked the incoming reliever from clocking in after a handover, leaving
+    // sites unguarded. A guard may now relieve a site immediately.
 
-    if (declaration) {
-      const elapsed = Date.now() - declaration.clockOut!.getTime();
-      if (elapsed < FORTY_EIGHT_HOURS_MS) {
-        const hoursLeft = ((FORTY_EIGHT_HOURS_MS - elapsed) / (1000 * 60 * 60)).toFixed(1);
-        throw ApiError.badRequest(
-          `Predecessor clocked out less than 48 hours ago. Cannot clock in as relief. ${hoursLeft} hours remaining.`
-        );
-      }
-    } else {
+    {
       const onDutyCount = await AttendanceRecord.countDocuments({
         siteId: data.siteId,
         date: today,

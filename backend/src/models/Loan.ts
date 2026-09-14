@@ -9,6 +9,7 @@ export interface ILoan extends Document {
   monthlyDeduction: number;
   status: LoanStatus;
   startDate: Date;
+  endDate?: Date;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -23,6 +24,7 @@ const loanSchema = new Schema<ILoan>(
     monthlyDeduction: { type: Number, required: true },
     status: { type: String, enum: Object.values(LoanStatus), default: LoanStatus.ACTIVE },
     startDate: { type: Date, required: true },
+    endDate: { type: Date },
     notes: { type: String },
   },
   { timestamps: true }
