@@ -10,10 +10,10 @@ function Val($label, $val) { Write-Host "  $label = $val" -ForegroundColor Yello
 Log "STEP 1: Authenticate as SUPER_ADMIN"
 $loginBody = @{ email = "admin@vitalpayroll.com"; password = "password123" } | ConvertTo-Json
 $loginRes = Invoke-RestMethod -Uri "$base/auth/login" -Method POST -Body $loginBody -Headers $headers
-$token = $loginRes.token
+$token = $loginRes.data.token
 $headers["Authorization"] = "Bearer $token"
 OK "Logged in. Token acquired."
-Val "User" "$($loginRes.user.firstName) $($loginRes.user.lastName) ($($loginRes.user.role))"
+Val "User" "$($loginRes.data.user.firstName) $($loginRes.data.user.lastName) ($($loginRes.data.user.role))"
 
 Log "STEP 2: Fetch seeded data"
 # Salary Structures

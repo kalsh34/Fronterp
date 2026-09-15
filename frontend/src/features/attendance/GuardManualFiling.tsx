@@ -76,9 +76,9 @@ export default function GuardManualFiling() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [guardsRes, periodRes] = await Promise.all([
+      const [guardsRes, periodsRes] = await Promise.all([
         api.get('/guards'),
-        api.get(`/staff-attendance/summary?year=${year}&month=${month}`).catch(() => ({ data: { data: null } })),
+        api.get('/finance/periods').catch(() => null),
       ]);
 
       const allGuards = (guardsRes.data.data || guardsRes.data || [])
@@ -100,8 +100,19 @@ export default function GuardManualFiling() {
 
       setGuards(allGuards);
 
-      const p = periodRes.data.data;
-      setPeriod(p ? { status: p.status, year: p.year, month: p.month, monthName: p.monthName } : null);
+      // Lock state comes from the payroll period (same source the backend enforces).
+      // Fall back to the staff-attendance summary for roles without period-read permission.
+      let p: PeriodInfo | null = null;
+      const periodList = periodsRes?.data?.data || [];
+      const match = periodList.find((x: any) => x.year === year && x.month === month);
+      if (match) {
+        p = { status: match.status, year: match.year, month: match.month, monthName: match.monthName };
+      } else {
+        const staffRes = await api.get(`/staff-attendance/summary?year=${year}&month=${month}`).catch(() => ({ data: { data: null } }));
+        const sp = staffRes.data.data;
+        if (sp) p = { status: sp.status, year: sp.year, month: sp.month, monthName: sp.monthName };
+      }
+      setPeriod(p);
 
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
       const endDate = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
@@ -171,29 +182,44 @@ export default function GuardManualFiling() {
 
   const handleSubmitAll = async () => {
     const bulkEntries: any[] = [];
+    const clientSkipped: { guardId: string; date: string; status: string; reason?: string }[] = [];
     Object.entries(entries).forEach(([k, entry]) => {
       if (entry.hoursWorked > 0) {
         const [guardId, dayStr] = [k.substring(0, k.lastIndexOf('-')), parseInt(k.substring(k.lastIndexOf('-') + 1))];
         const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(dayStr).padStart(2, '0')}`;
         const guard = guards.find((g) => g.employeeId === guardId);
-        if (guard) {
-          bulkEntries.push({ guardId, date: dateStr, hoursWorked: entry.hoursWorked, isHoliday: entry.isHoliday, notes: entry.notes || undefined });
+        if (guard?.siteId) {
+          bulkEntries.push({ guardId, siteId: guard.siteId, date: dateStr, hoursWorked: entry.hoursWorked, isHoliday: entry.isHoliday, notes: entry.notes || undefined });
+        } else if (guard) {
+          clientSkipped.push({ guardId: `${guard.firstName} ${guard.lastName} (${guard.employeeCode})`, date: dateStr, status: 'skipped', reason: 'Guard has no site assignment' });
         }
       }
     });
 
-    if (bulkEntries.length === 0) {
+    if (bulkEntries.length === 0 && clientSkipped.length === 0) {
       alert('No hours to submit. Enter hours in at least one day cell.');
       return;
     }
 
-    if (!confirm(`Submit ${bulkEntries.length} attendance entries? Entries for existing dates will be skipped.`)) return;
+    if (bulkEntries.length > 0 && !confirm(`Submit ${bulkEntries.length} attendance entries? Entries for existing dates will be skipped.`)) return;
 
     setSaving(true);
     try {
-      const siteId = guards[0]?.siteId || '';
-      const res = await api.post('/attendance/manual-entry/bulk', { siteId, entries: bulkEntries });
-      setSaveResult(res.data.data);
+      if (bulkEntries.length === 0) {
+        setSaveResult({ created: 0, skipped: clientSkipped.length, details: clientSkipped });
+        return;
+      }
+      const fallbackSiteId = bulkEntries[0]?.siteId || '';
+      const res = await api.post('/attendance/manual-entry/bulk', { siteId: fallbackSiteId, entries: bulkEntries });
+      const data = res.data.data || {};
+      const serverSkipped = (data.results || [])
+        .filter((r: any) => r.status === 'skipped')
+        .map((r: any) => ({ guardId: r.guardId, date: r.date, status: 'skipped' as const, reason: r.reason }));
+      setSaveResult({
+        created: data.summary?.created ?? 0,
+        skipped: (data.summary?.skipped ?? 0) + clientSkipped.length,
+        details: [...clientSkipped, ...serverSkipped],
+      });
       await load();
     } catch (e: any) {
       alert(e.response?.data?.message || 'Failed to submit attendance');
@@ -317,7 +343,8 @@ export default function GuardManualFiling() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           </div>
-          <p className="text-sm font-medium text-gray-500">No guards with site assignments found.</p>
+          <p className="text-sm font-medium text-gray-500">No contracted guards with site assignments found.</p>
+          <p className="text-xs text-gray-400 mt-1">Guards need CONTRACTED status and an active shift assignment before hours can be filed.</p>
         </div>
       ) : (
         <div className="space-y-5">

@@ -9,10 +9,12 @@ import { Site } from './models/Site';
 import { TaxBracket } from './models/TaxBracket';
 import { PensionRule } from './models/PensionRule';
 import { PayrollPeriod } from './models/PayrollPeriod';
+import { ShiftTemplate } from './models/ShiftTemplate';
+import { ShiftAssignment } from './models/ShiftAssignment';
 import { SalaryComponent } from './models/SalaryComponent';
 import { PayrollFormulaVersion } from './models/PayrollFormulaVersion';
 import { SalaryStructure } from './models/SalaryStructure';
-import { UserRole, EmployeeCategory, GuardPosition, EmploymentType, PayrollPeriodStatus } from './types';
+import { UserRole, EmployeeCategory, EmployeeStatus, GuardPosition, EmploymentType, PayrollPeriodStatus, ShiftAssignmentSource } from './types';
 
 dotenv.config();
 
@@ -51,15 +53,21 @@ async function seed() {
     await upsertUser({ email: 'ceo@vitalpayroll.com', firstName: 'Chief', lastName: 'Executive', role: UserRole.CEO });
 
     // --- Guard Employee + User ---
+    // Guards must be CONTRACTED or guard attendance filing rejects them.
     let guardEmp = await Employee.findOne({ employeeCode: 'VSP-100' });
     if (!guardEmp) {
       guardEmp = await Employee.create({
         employeeCode: 'VSP-100', firstName: 'Abebe', lastName: 'Kebede',
-        category: EmployeeCategory.GUARD, hireDate: new Date('2023-06-15'), phone: '0911223344',
+        category: EmployeeCategory.GUARD, status: EmployeeStatus.CONTRACTED,
+        hireDate: new Date('2023-06-15'), phone: '0911223344',
         guardInfo: { employmentType: EmploymentType.PERMANENT, idCardNumber: 'ID-001' },
       });
       await GuardProfile.create({ employeeId: guardEmp._id, position: GuardPosition.GUARD, employmentType: 'PERMANENT' });
-      console.log('[SEED] Guard employee: VSP-100 Abebe Kebede');
+      console.log('[SEED] Guard employee: VSP-100 Abebe Kebede (CONTRACTED)');
+    } else if (guardEmp.status !== EmployeeStatus.CONTRACTED) {
+      guardEmp.status = EmployeeStatus.CONTRACTED;
+      await guardEmp.save();
+      console.log('[SEED] Guard VSP-100 status -> CONTRACTED');
     }
     await upsertUser({ email: 'guard@vitalpayroll.com', firstName: 'Abebe', lastName: 'Kebede', role: UserRole.GUARD, employeeId: guardEmp._id });
 
@@ -96,6 +104,37 @@ async function seed() {
       if (hqSite && !(await PrimarySiteAssignment.findOne({ guardId: guardEmp._id, isCurrent: true }))) {
         await PrimarySiteAssignment.create({ guardId: guardEmp._id, siteId: hqSite._id, standardMonthlyHours: 208, hourlyRate: 26.63, effectiveFrom: new Date('2024-01-01'), isCurrent: true });
         console.log('[SEED] Guard VSP-100 -> VSP-HQ (208 hrs, 26.63 ETB/hr)');
+      }
+
+      // --- Shift assignment (required before guard attendance can be filed) ---
+      if (hqSite) {
+        let template = await ShiftTemplate.findOne({ name: 'Standard Day (06:00-18:00)' });
+        if (!template) {
+          template = await ShiftTemplate.create({
+            name: 'Standard Day (06:00-18:00)',
+            description: 'Default 12h day shift for seeded guard',
+            shiftType: 'DAY',
+            startTime: '06:00',
+            endTime: '18:00',
+            maxGuards: 50,
+            minGuards: 1,
+            daysOfWeek: [],
+          });
+          console.log('[SEED] Shift template: Standard Day (06:00-18:00)');
+        }
+        const admin = await User.findOne({ role: UserRole.SUPER_ADMIN });
+        if (!(await ShiftAssignment.findOne({ guardId: guardEmp._id, siteId: hqSite._id, status: 'ACTIVE' }))) {
+          await ShiftAssignment.create({
+            guardId: guardEmp._id,
+            siteId: hqSite._id,
+            shiftTemplateId: template._id,
+            startDate: new Date('2024-01-01'),
+            status: 'ACTIVE',
+            source: ShiftAssignmentSource.MANUAL,
+            assignedById: admin?._id || guardEmp._id,
+          });
+          console.log('[SEED] Shift assignment: VSP-100 -> VSP-HQ (ACTIVE, from 2024-01-01)');
+        }
       }
     }
 
@@ -152,6 +191,8 @@ async function seed() {
       await existingFormula.save();
       console.log(`[SEED] Marked formula v${existingFormula.version} as not current`);
     }
+    // Remove stale non-current v2 docs so reruns don't hit the unique version index
+    await PayrollFormulaVersion.deleteMany({ version: 2, isCurrent: false });
     {
       const admin = await User.findOne({ role: UserRole.SUPER_ADMIN });
       await PayrollFormulaVersion.create({

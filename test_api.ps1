@@ -13,7 +13,7 @@ Start-Sleep -Seconds 2
 
 # Start backend
 Write-Host "`n=== Starting backend ==="
-$backendProc = Start-Process -FilePath "node" -ArgumentList "dev.js" -WorkingDirectory "C:\Users\Kal\Desktop\junkie\Vitalpayroll\backend" -PassThru
+$backendProc = Start-Process -FilePath "node" -ArgumentList "dev.js" -WorkingDirectory "C:\Users\dagmaros\Desktop\kal_erp\backend" -PassThru
 Write-Host "Backend PID: $($backendProc.Id)"
 
 # Wait for server to start

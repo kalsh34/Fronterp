@@ -443,6 +443,7 @@ export class AttendanceService {
         guardId: string;
         date: string;
         hoursWorked: number;
+        siteId?: string;
         isHoliday?: boolean;
         notes?: string;
       }[];
@@ -475,7 +476,7 @@ export class AttendanceService {
             guardId: entry.guardId,
             date: entry.date,
             hoursWorked: entry.hoursWorked,
-            siteId: data.siteId,
+            siteId: entry.siteId || data.siteId,
             isHoliday: entry.isHoliday,
             notes: entry.notes,
           },

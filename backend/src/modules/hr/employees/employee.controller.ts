@@ -53,6 +53,25 @@ export class EmployeeController {
     } catch (error) { next(error); }
   }
 
+  static async changeStatus(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const employee = await EmployeeService.changeStatus(req.params.id, req.body, {
+        userId: req.user?.userId || '',
+        ip: req.ip,
+        ua: req.get('user-agent'),
+      });
+      res.json({ success: true, data: employee });
+    } catch (error) { next(error); }
+  }
+
+  static async analytics(req: QueryRequest, res: Response, next: NextFunction) {
+    try {
+      const months = parseInt(req.query.months as string) || 6;
+      const result = await EmployeeService.getAnalytics(months);
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
+
   static async delete(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       await EmployeeService.delete(req.params.id, {

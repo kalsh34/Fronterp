@@ -25,6 +25,13 @@ export interface IEmployee extends Document {
   accountNumber?: string;
   salary?: number;
   transportAllowance?: number;
+  statusHistory?: {
+    from: EmployeeStatus;
+    to: EmployeeStatus;
+    reason: string;
+    changedBy?: mongoose.Types.ObjectId;
+    changedAt: Date;
+  }[];
   guardInfo?: {
     employmentType: EmploymentType;
     idCardNumber?: string;
@@ -63,6 +70,13 @@ const employeeSchema = new Schema<IEmployee>(
     accountNumber: { type: String, trim: true },
     salary: { type: Number, default: 0 },
     transportAllowance: { type: Number, default: 0 },
+    statusHistory: [{
+      from: { type: String, enum: Object.values(EmployeeStatus), required: true },
+      to: { type: String, enum: Object.values(EmployeeStatus), required: true },
+      reason: { type: String, required: true, trim: true },
+      changedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+      changedAt: { type: Date, default: Date.now },
+    }],
     guardInfo: {
       employmentType: { type: String, enum: Object.values(EmploymentType) },
       idCardNumber: { type: String, trim: true },

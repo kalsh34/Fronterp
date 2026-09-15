@@ -25,6 +25,28 @@ interface Employee {
     employmentType?: string;
     idCardNumber?: string;
   };
+  statusHistory?: {
+    from: string;
+    to: string;
+    reason: string;
+    changedBy?: string;
+    changedAt: string;
+  }[];
+}
+
+interface TrendMonth {
+  year: number; month: number; monthName: string;
+  active: number; inactive: number; onLeave: number;
+  newHires: number; deactivated: number;
+}
+
+interface EmployeeAnalytics {
+  total: number;
+  byStatus: Record<string, number>;
+  byCategory: Record<string, { total: number; active: number; inactive: number }>;
+  activeTotal: number;
+  inactiveTotal: number;
+  trend: TrendMonth[];
 }
 
 const statusColors: Record<string, string> = {
@@ -95,10 +117,18 @@ export default function EmployeeList() {
   const [activeTab, setActiveTab] = useState(0);
 
   const [stats, setStats] = useState({ total: 0, guards: 0, staff: 0, onLeave: 0, newThisMonth: 0 });
+  const [analytics, setAnalytics] = useState<EmployeeAnalytics | null>(null);
 
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<Employee | null>(null);
+  const [newStatus, setNewStatus] = useState('');
+  const [statusReason, setStatusReason] = useState('');
+  const [statusError, setStatusError] = useState('');
+  const [changingStatus, setChangingStatus] = useState(false);
 
   useEffect(() => { fetchEmployees(); }, [page, search, roleFilter, statusFilter]);
 
@@ -113,18 +143,18 @@ export default function EmployeeList() {
       setEmployees(res.data.data);
       setTotalPages(res.data.pagination.totalPages);
 
-      const allRes = await api.get('/employees', { params: { limit: 1 } });
-      const allEmps = allRes.data.pagination?.total || 0;
-      const guardRes = await api.get('/employees', { params: { limit: 1, category: 'GUARD' } }).catch(() => ({ data: { pagination: { total: 0 } } }));
-      const staffRes = await api.get('/employees', { params: { limit: 1, category: 'OFFICE_STAFF' } }).catch(() => ({ data: { pagination: { total: 0 } } }));
-      const leaveRes = await api.get('/employees', { params: { limit: 1, status: 'ON_LEAVE' } }).catch(() => ({ data: { pagination: { total: 0 } } }));
-      setStats({
-        total: allEmps,
-        guards: guardRes.data.pagination?.total || 0,
-        staff: staffRes.data.pagination?.total || 0,
-        onLeave: leaveRes.data.pagination?.total || 0,
-        newThisMonth: 0,
-      });
+      const analyticsRes = await api.get('/employees/analytics/summary', { params: { months: 6 } }).catch(() => null);
+      const a: EmployeeAnalytics | null = analyticsRes?.data?.data || null;
+      setAnalytics(a);
+      if (a) {
+        setStats({
+          total: a.total,
+          guards: a.byCategory?.GUARD?.total || 0,
+          staff: a.byCategory?.OFFICE_STAFF?.total || 0,
+          onLeave: a.byStatus?.ON_LEAVE || 0,
+          newThisMonth: a.trend?.length > 0 ? a.trend[a.trend.length - 1].newHires : 0,
+        });
+      }
     } catch (error) {
       console.error('Error fetching employees:', error);
     } finally {
@@ -132,7 +162,35 @@ export default function EmployeeList() {
     }
   };
 
-  const statusOptions = ['ACTIVE', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'];
+  const openStatusModal = (emp: Employee) => {
+    setStatusTarget(emp);
+    setNewStatus('');
+    setStatusReason('');
+    setStatusError('');
+    setShowStatusModal(true);
+  };
+
+  const handleStatusChange = async () => {
+    if (!statusTarget) return;
+    if (!newStatus) { setStatusError('Select the new status'); return; }
+    if (statusReason.trim().length < 3) { setStatusError('A reason (minimum 3 characters) is required'); return; }
+    setChangingStatus(true);
+    setStatusError('');
+    try {
+      const res = await api.put(`/employees/${statusTarget._id}/status`, { status: newStatus, reason: statusReason.trim() });
+      const updated = res.data.data as Employee;
+      setShowStatusModal(false);
+      setStatusTarget(null);
+      if (selectedEmployee && selectedEmployee._id === updated._id) setSelectedEmployee(updated);
+      fetchEmployees();
+    } catch (e: any) {
+      setStatusError(e.response?.data?.message || 'Failed to change status');
+    } finally {
+      setChangingStatus(false);
+    }
+  };
+
+  const statusOptions = ['ACTIVE', 'CONTRACTED', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'];
 
   const handleView = async (emp: Employee) => {
     setSelectedEmployee(emp);
@@ -196,11 +254,11 @@ export default function EmployeeList() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
-          { label: 'TOTAL EMPLOYEES', value: stats.total, dot: 'bg-blue-500' },
-          { label: 'ACTIVE GUARDS', value: stats.guards, dot: 'bg-blue-500' },
-          { label: 'OFFICE STAFF', value: stats.staff, dot: 'bg-amber-500' },
-          { label: 'ON LEAVE', value: stats.onLeave, dot: 'bg-amber-500' },
-          { label: 'NEW THIS MONTH', value: stats.newThisMonth, dot: 'bg-emerald-500' },
+          { label: 'TOTAL EMPLOYEES', value: analytics?.total ?? stats.total, dot: 'bg-blue-500' },
+          { label: 'ACTIVE', value: analytics?.activeTotal ?? 0, dot: 'bg-emerald-500' },
+          { label: 'INACTIVE', value: analytics?.inactiveTotal ?? 0, dot: 'bg-rose-500' },
+          { label: 'ON LEAVE', value: analytics?.byStatus?.ON_LEAVE ?? stats.onLeave, dot: 'bg-amber-500' },
+          { label: 'NEW THIS MONTH', value: stats.newThisMonth, dot: 'bg-violet-500' },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-200 px-5 py-4">
             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{s.label}</p>
@@ -211,6 +269,62 @@ export default function EmployeeList() {
           </div>
         ))}
       </div>
+
+      {/* Workforce Trend (last 6 months) */}
+      {analytics && analytics.trend.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Workforce Trend</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Active vs inactive headcount at each month-end (last 6 months)</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Active</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-400" /> Inactive</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-400" /> On leave</span>
+            </div>
+          </div>
+          {(() => {
+            const max = Math.max(1, ...analytics.trend.map((t) => t.active + t.inactive + t.onLeave));
+            return (
+              <div className="flex items-end gap-4 sm:gap-6 h-44">
+                {analytics.trend.map((t) => {
+                  const total = t.active + t.inactive + t.onLeave;
+                  const h = (v: number) => `${Math.max(total > 0 && v > 0 ? 4 : 0, (v / max) * 100)}%`;
+                  return (
+                    <div key={`${t.year}-${t.month}`} className="flex-1 flex flex-col items-center gap-2 min-w-0">
+                      <span className="text-xs font-bold text-gray-700">{total}</span>
+                      <div
+                        className="w-full max-w-[52px] flex flex-col-reverse rounded-lg overflow-hidden bg-gray-100"
+                        style={{ height: '128px' }}
+                        title={`${t.monthName} ${t.year}: ${t.active} active, ${t.inactive} inactive, ${t.onLeave} on leave, ${t.newHires} hired, ${t.deactivated} deactivated`}
+                      >
+                        <div className="bg-emerald-500 transition-all" style={{ height: h(t.active) }} title={`Active: ${t.active}`} />
+                        <div className="bg-rose-400 transition-all" style={{ height: h(t.inactive) }} title={`Inactive: ${t.inactive}`} />
+                        <div className="bg-amber-400 transition-all" style={{ height: h(t.onLeave) }} title={`On leave: ${t.onLeave}`} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[11px] font-semibold text-gray-600">{t.monthName.slice(0, 3)}</p>
+                        <p className="text-[10px] text-emerald-600 font-medium">+{t.newHires} hired</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5 pt-4 border-t border-gray-100 text-xs">
+            <div className="text-gray-500">Guards: <span className="font-bold text-gray-900">{analytics.byCategory?.GUARD?.total || 0}</span>
+              <span className="text-gray-400"> ({analytics.byCategory?.GUARD?.active || 0} active / {analytics.byCategory?.GUARD?.inactive || 0} inactive)</span>
+            </div>
+            <div className="text-gray-500">Office staff: <span className="font-bold text-gray-900">{analytics.byCategory?.OFFICE_STAFF?.total || 0}</span>
+              <span className="text-gray-400"> ({analytics.byCategory?.OFFICE_STAFF?.active || 0} active / {analytics.byCategory?.OFFICE_STAFF?.inactive || 0} inactive)</span>
+            </div>
+            <div className="text-gray-500">Contracted: <span className="font-bold text-gray-900">{analytics.byStatus?.CONTRACTED || 0}</span></div>
+            <div className="text-gray-500">Terminated: <span className="font-bold text-gray-900">{analytics.byStatus?.TERMINATED || 0}</span></div>
+          </div>
+        </div>
+      )}
 
       {/* Filters + Add Button */}
       <div className="flex flex-wrap items-center gap-3">
@@ -328,9 +442,13 @@ export default function EmployeeList() {
                         <td className="px-6 py-4 text-sm text-gray-600">
                           {emp.hireDate ? new Date(emp.hireDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                         </td>
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4 text-right whitespace-nowrap">
                           <button onClick={() => handleView(emp)} className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline">
                             View
+                          </button>
+                          <span className="text-gray-200 mx-2">|</span>
+                          <button onClick={() => openStatusModal(emp)} className="text-sm font-medium text-amber-600 hover:text-amber-800 hover:underline">
+                            Status
                           </button>
                         </td>
                       </tr>
@@ -452,11 +570,40 @@ export default function EmployeeList() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                     Edit
                   </Link>
+                  <button onClick={() => openStatusModal(selectedEmployee)}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-amber-200 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                    Status
+                  </button>
                   <button onClick={handleDelete} disabled={deleting}
                     className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     {deleting ? 'Deleting...' : 'Delete'}
                   </button>
+                </div>
+
+                {/* Status History */}
+                <div className="bg-gray-50 rounded-xl p-5">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3">Status History</h3>
+                  {(selectedEmployee.statusHistory || []).length === 0 ? (
+                    <p className="text-xs text-gray-400">No status changes recorded. Current status since joining.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {[...(selectedEmployee.statusHistory || [])].reverse().map((h, i) => (
+                        <div key={i} className="flex gap-3 text-xs">
+                          <div className="flex flex-col items-center">
+                            <span className="w-2 h-2 rounded-full bg-amber-500 mt-1" />
+                            {i < (selectedEmployee.statusHistory || []).length - 1 && <span className="w-px flex-1 bg-gray-200" />}
+                          </div>
+                          <div className="pb-1">
+                            <p className="font-semibold text-gray-800">{h.from?.replace(/_/g, ' ')} → {h.to?.replace(/_/g, ' ')}</p>
+                            <p className="text-gray-500 mt-0.5">{h.reason}</p>
+                            <p className="text-gray-400 mt-0.5">{h.changedAt ? new Date(h.changedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-gray-50 rounded-xl p-5 space-y-4">
@@ -551,6 +698,64 @@ export default function EmployeeList() {
                 </Link>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Change Status Modal */}
+      {showStatusModal && statusTarget && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => { if (!changingStatus) { setShowStatusModal(false); setStatusTarget(null); } }} />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6">
+            <h3 className="text-base font-bold text-gray-900">Change Employee Status</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {statusTarget.firstName} {statusTarget.lastName} ({statusTarget.employeeCode}) — currently{' '}
+              <span className="font-semibold text-gray-700">{statusTarget.status?.replace(/_/g, ' ')}</span>
+            </p>
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">New status *</label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400"
+                >
+                  <option value="">Select status...</option>
+                  {statusOptions.filter((s) => s !== statusTarget.status).map((s) => (
+                    <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Reason *</label>
+                <textarea
+                  value={statusReason}
+                  onChange={(e) => setStatusReason(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Resigned voluntarily, end of contract, disciplinary suspension..."
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 resize-none"
+                />
+              </div>
+              {statusError && (
+                <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">{statusError}</div>
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { if (!changingStatus) { setShowStatusModal(false); setStatusTarget(null); } }}
+                  className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleStatusChange}
+                  disabled={changingStatus}
+                  className="flex-1 h-10 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {changingStatus && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  {changingStatus ? 'Saving...' : 'Change Status'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
