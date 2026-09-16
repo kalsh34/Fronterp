@@ -19,15 +19,23 @@ const GUARD_MONTHLY_HOURS = 720;
  * Guard pension base (developer decision: pension on the salary actually earned).
  * GROSS_PAY base -> full gross pay; NORMAL_SALARY_ONLY (default) -> the worked basic salary.
  */
-async function pensionBaseForGuard(grossPay: number, workedSalary: number): Promise<number> {
-  const rule = await PensionRule.findOne({ isCurrent: true, effectiveFrom: { $lte: new Date() } });
+async function pensionBaseForGuard(grossPay: number, workedSalary: number, asOf: Date = new Date()): Promise<number> {
+  const rule = await PensionRule.findOne({
+    isCurrent: true,
+    effectiveFrom: { $lte: asOf },
+    $or: [{ effectiveTo: { $exists: false } }, { effectiveTo: null }, { effectiveTo: { $gte: asOf } }],
+  }).sort({ effectiveFrom: -1 });
   if (!rule) return workedSalary;
   return rule.pensionTaxBase === PensionTaxBase.GROSS_PAY ? grossPay : workedSalary;
 }
 
 export class PayrollCalculationService {
   static async calculateIncomeTax(taxableSalary: number, effectiveDate: Date = new Date()): Promise<number> {
-    const bracket = await TaxBracket.findOne({ isCurrent: true, effectiveFrom: { $lte: effectiveDate } });
+    const bracket = await TaxBracket.findOne({
+      isCurrent: true,
+      effectiveFrom: { $lte: effectiveDate },
+      $or: [{ effectiveTo: { $exists: false } }, { effectiveTo: null }, { effectiveTo: { $gte: effectiveDate } }],
+    }).sort({ effectiveFrom: -1 });
     if (!bracket) throw ApiError.internal('No active tax bracket found');
 
     for (const b of bracket.brackets) {
@@ -40,7 +48,11 @@ export class PayrollCalculationService {
   }
 
   static async calculatePension(baseAmount: number, effectiveDate: Date = new Date()) {
-    const rule = await PensionRule.findOne({ isCurrent: true, effectiveFrom: { $lte: effectiveDate } });
+    const rule = await PensionRule.findOne({
+      isCurrent: true,
+      effectiveFrom: { $lte: effectiveDate },
+      $or: [{ effectiveTo: { $exists: false } }, { effectiveTo: null }, { effectiveTo: { $gte: effectiveDate } }],
+    }).sort({ effectiveFrom: -1 });
     if (!rule) throw ApiError.internal('No active pension rule found');
     return {
       employeePension: Math.round(baseAmount * rule.employeeRate * 100) / 100,
@@ -49,14 +61,23 @@ export class PayrollCalculationService {
     };
   }
 
-  static async getCurrentFormula(): Promise<IPayrollFormulaVersion> {
-    const formula = await PayrollFormulaVersion.findOne({ isCurrent: true });
+  static async getCurrentFormula(asOf: Date = new Date()): Promise<IPayrollFormulaVersion> {
+    const formula = await PayrollFormulaVersion.findOne({
+      isCurrent: true,
+      effectiveFrom: { $lte: asOf },
+      $or: [{ effectiveTo: { $exists: false } }, { effectiveTo: null }, { effectiveTo: { $gte: asOf } }],
+    }).sort({ effectiveFrom: -1 });
     if (!formula) throw ApiError.internal('No active payroll formula version found. Create one under Admin > Payroll Config.');
     return formula;
   }
 
-  static async getActiveSalaryStructure(employeeType: 'GUARD' | 'STAFF'): Promise<ISalaryStructure | null> {
-    return SalaryStructure.findOne({ employeeType, isCurrent: true });
+  static async getActiveSalaryStructure(employeeType: 'GUARD' | 'STAFF', asOf: Date = new Date()): Promise<ISalaryStructure | null> {
+    return SalaryStructure.findOne({
+      employeeType,
+      isCurrent: true,
+      effectiveFrom: { $lte: asOf },
+      $or: [{ effectiveTo: { $exists: false } }, { effectiveTo: null }, { effectiveTo: { $gte: asOf } }],
+    }).sort({ effectiveFrom: -1 });
   }
 
   static getComponentValue(record: any, code: string): number {
@@ -84,7 +105,7 @@ export class PayrollCalculationService {
    *           → Structure BASIC defaultRate (monthly, divided by standard hours)
    *           → PayrollRate fallback (absolute hourly rates).
    */
-  static async resolveGuardRates(guardId: any, assignment: any): Promise<{
+  static async resolveGuardRates(guardId: any, assignment: any, asOf: Date = new Date()): Promise<{
     normalRate: number;
     otRate: number;
     holidayRate: number;
@@ -102,7 +123,7 @@ export class PayrollCalculationService {
     let holidayMultiplier = 2.0;
     let holidayOtMultiplier = 2.5;
 
-    const structure = await this.getActiveSalaryStructure('GUARD');
+    const structure = await this.getActiveSalaryStructure('GUARD', asOf);
     if (structure) {
       otMultiplier = structure.otMultiplier || 1.5;
       holidayMultiplier = structure.holidayMultiplier || 2.0;
@@ -154,6 +175,13 @@ export class PayrollCalculationService {
       .populate('primarySiteId');
     if (!record) throw ApiError.notFound('Guard payroll record not found');
 
+    // Resolve time-sensitive config against the payroll period, not wall-clock time,
+    // so recalculating an old period after a rule change does not reprice history.
+    const { PayrollPeriod: GuardCalcPeriod } = await import('../../../models/PayrollPeriod');
+    const guardPeriodId = (record.payrollPeriodId as any)?._id || record.payrollPeriodId;
+    const guardPeriod = await GuardCalcPeriod.findById(guardPeriodId);
+    const guardAsOf = guardPeriod?.endDate || new Date();
+
     const normalSalary = record.standardMonthlyHours * record.normalRate;
     const workedSalary = record.normalHours * record.normalRate;
     const regularOtPay = record.regularOtHours * record.otRate;
@@ -168,9 +196,10 @@ export class PayrollCalculationService {
     // Pension base (per developer decision): the salary actually earned.
     // GROSS_PAY base includes OT/holiday pay; NORMAL_SALARY_ONLY uses the worked basic salary only.
     const pension = await this.calculatePension(
-      await pensionBaseForGuard(grossPay, workedSalary)
+      await pensionBaseForGuard(grossPay, workedSalary, guardAsOf),
+      guardAsOf
     );
-    const incomeTax = await this.calculateIncomeTax(grossPay);
+    const incomeTax = await this.calculateIncomeTax(grossPay, guardAsOf);
 
     const baseComponent = pension.pensionTaxBase === PensionTaxBase.GROSS_PAY
       ? grossPay
@@ -199,6 +228,12 @@ export class PayrollCalculationService {
     const record = await StaffPayrollRecord.findById(recordId)
       .populate('employeeId');
     if (!record) throw ApiError.notFound('Staff payroll record not found');
+
+    // Resolve time-sensitive config against the payroll period, not wall-clock time.
+    const { PayrollPeriod: StaffCalcPeriod } = await import('../../../models/PayrollPeriod');
+    const staffPeriodId = (record.payrollPeriodId as any)?._id || record.payrollPeriodId;
+    const staffPeriod = staffPeriodId ? await StaffCalcPeriod.findById(staffPeriodId) : null;
+    const staffAsOf = staffPeriod?.endDate || new Date();
 
     const { Contract } = await import('../../../models/Contract');
     const activeContract = await Contract.findOne({
@@ -241,6 +276,9 @@ export class PayrollCalculationService {
       const structure = await SalaryStructure.findById(activeContract.salaryStructureId);
       if (structure) {
         for (const earning of structure.earnings) {
+          // BONUS lives outside the formula (post-net, untaxed, unpensioned) —
+          // it must never enter gross or taxable even if a structure lists it.
+          if (earning.componentCode === 'BONUS') continue;
           const value = this.getComponentValue(record, earning.componentCode);
           grossSalary += value;
           if (earning.taxable) taxableSalary += value;
@@ -265,13 +303,15 @@ export class PayrollCalculationService {
     }
 
     if (grossSalary === 0) {
-      const formula = await this.getCurrentFormula();
+      const formula = await this.getCurrentFormula(staffAsOf);
 
       for (const code of formula.grossComponentCodes) {
+        if (code === 'BONUS') continue;
         grossSalary += this.getComponentValue(record, code);
         if (code === 'OT') otCountedInGross = true;
       }
       for (const code of formula.taxableComponentCodes) {
+        if (code === 'BONUS') continue;
         taxableSalary += this.getComponentValue(record, code);
       }
       for (const code of formula.pensionBaseComponentCodes) {
@@ -286,9 +326,9 @@ export class PayrollCalculationService {
     }
 
     const pension = pensionEnrolled
-      ? await this.calculatePension(pensionBase)
+      ? await this.calculatePension(pensionBase, staffAsOf)
       : { employeePension: 0, employerPension: 0 };
-    const incomeTax = await this.calculateIncomeTax(taxableSalary);
+    const incomeTax = await this.calculateIncomeTax(taxableSalary, staffAsOf);
 
     let totalDeductions = incomeTax + pension.employeePension;
     for (const code of deductionCodes) {
@@ -296,7 +336,11 @@ export class PayrollCalculationService {
       totalDeductions += this.getComponentValue(record, code);
     }
 
-    const netPay = grossSalary - totalDeductions;
+    // Bonus is added AFTER net pay, outside the formula: untaxed, unpensioned,
+    // never in gross or taxable. Gross/tax/taxable/pension are identical with
+    // or without a bonus; only net pay differs, by exactly the bonus amount.
+    const bonus = Number(record.bonus) || 0;
+    const netPay = grossSalary - totalDeductions + bonus;
 
     record.grossSalary = Math.round(grossSalary * 100) / 100;
     record.taxableSalary = Math.round(taxableSalary * 100) / 100;
@@ -420,7 +464,7 @@ export class PayrollCalculationService {
 
       const loanDeduction = await this.getActiveLoanDeduction(guard._id, period.endDate || new Date());
 
-      const rates = await this.resolveGuardRates(guard._id, assignment);
+      const rates = await this.resolveGuardRates(guard._id, assignment, period.endDate || new Date());
 
       const record = await GuardPayrollRecord.create({
         payrollPeriodId,
@@ -439,9 +483,9 @@ export class PayrollCalculationService {
         status: PayrollRecordStatus.DRAFT,
       });
 
-      // Loan bookkeeping: apply this month's repayment to the loan balances
-      await this.applyLoanRepayment(guard._id, loanDeduction, period.endDate || new Date());
-
+      // NOTE: the loan deduction above is only a snapshot for review. The actual
+      // Loan.balance / paidAmount mutation happens in confirmPaid (see
+      // GuardPayrollService.confirmPaid), so abandoned drafts never move money.
       records.push(record);
     }
 
@@ -471,14 +515,15 @@ export class PayrollCalculationService {
       const existing = await StaffPayrollRecord.findOne({ payrollPeriodId, employeeId: employee._id });
       if (existing) continue;
 
+      const periodEnd = period.endDate || new Date();
       const activeContract = await Contract.findOne({
         employeeId: employee._id,
         status: 'ACTIVE',
-        contractStartDate: { $lte: new Date() },
+        contractStartDate: { $lte: periodEnd },
         $or: [
           { contractEndDate: { $exists: false } },
           { contractEndDate: null },
-          { contractEndDate: { $gte: new Date() } },
+          { contractEndDate: { $gte: periodEnd } },
         ],
       });
 
@@ -543,9 +588,9 @@ export class PayrollCalculationService {
         status: PayrollRecordStatus.DRAFT,
       });
 
-      // Loan bookkeeping: apply this month's repayment to the loan balances
-      await this.applyLoanRepayment(employee._id, loanDeduction, period.endDate || new Date());
-
+      // NOTE: the loan deduction above is only a snapshot for review. The actual
+      // Loan.balance / paidAmount mutation happens in confirmPaid (see
+      // StaffPayrollService.confirmPaid), so abandoned drafts never move money.
       records.push(record);
     }
 

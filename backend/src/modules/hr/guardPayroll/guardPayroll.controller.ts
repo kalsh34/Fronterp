@@ -106,7 +106,7 @@ export class GuardPayrollController {
     try {
       const record = await GuardPayrollService.returnForCorrection(req.params.id, req.user?.userId || '', req.body.reason, {
         ip: req.ip, ua: req.get('user-agent'),
-      });
+      }, req.user?.role);
       res.json({ success: true, data: record });
     } catch (error) { next(error); }
   }

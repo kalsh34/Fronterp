@@ -3,14 +3,29 @@ import { ApiError } from '../../common/ApiError';
 import { AuditService } from '../../core/audit/AuditService';
 
 let entryCounter = 0;
+let counterSeededForPrefix = '';
 
-function generateEntryNumber(): string {
-  entryCounter++;
+// The counter is in-memory, so a server restart used to reset it to zero and
+// the next journal entries collided with existing entryNumbers (E11000), which
+// broke every confirm-paid until the counter happened to pass the old maximum.
+// Seed it once per process (per YYYYMM prefix) from the highest persisted
+// sequence so newly generated numbers always continue the series.
+async function generateEntryNumber(): Promise<string> {
   const now = new Date();
   const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, '0');
+  const prefix = `JE-${y}${m}`;
+  if (counterSeededForPrefix !== prefix) {
+    const latest = await JournalEntry.findOne({ entryNumber: new RegExp(`^${prefix}-`) })
+      .sort({ entryNumber: -1 })
+      .lean();
+    const match = latest?.entryNumber ? /-(\d+)$/.exec(latest.entryNumber) : null;
+    entryCounter = match ? parseInt(match[1], 10) : 0;
+    counterSeededForPrefix = prefix;
+  }
+  entryCounter++;
   const seq = String(entryCounter).padStart(4, '0');
-  return `JE-${y}${m}-${seq}`;
+  return `${prefix}-${seq}`;
 }
 
 export class JournalService {
@@ -38,7 +53,7 @@ export class JournalService {
     }
 
     const entry = await JournalEntry.create({
-      entryNumber: generateEntryNumber(),
+      entryNumber: await generateEntryNumber(),
       entryDate: new Date(),
       entryType: data.entryType,
       status: 'POSTED',

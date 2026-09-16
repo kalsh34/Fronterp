@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../../lib/api';
 import ContractList from '../contracts/ContractList';
 
@@ -106,7 +106,13 @@ interface PerfStats {
 
 const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+const TAB_MAP: Record<string, number> = {
+  directory: 0, onboarding: 1, guarantor: 2, contract: 3, attendance: 4, performance: 5,
+};
+
 export default function EmployeeList() {
+  const [searchParams] = useSearchParams();
+  const initialTab = TAB_MAP[searchParams.get('tab') || ''] ?? 0;
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -114,7 +120,7 @@ export default function EmployeeList() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const [stats, setStats] = useState({ total: 0, guards: 0, staff: 0, onLeave: 0, newThisMonth: 0 });
   const [analytics, setAnalytics] = useState<EmployeeAnalytics | null>(null);

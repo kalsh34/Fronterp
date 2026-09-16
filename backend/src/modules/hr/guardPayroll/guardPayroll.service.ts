@@ -3,8 +3,9 @@ import { PayrollPeriod, IPayrollPeriod } from '../../../models/PayrollPeriod';
 import { PayrollApproval } from '../../../models/PayrollApproval';
 import { PayrollCalculationService } from '../finance/payrollCalculation.service';
 import { PayrollJournalService } from '../../finance-accounting/payrollJournal.service';
+import { JournalService } from '../../finance-accounting/journal.service';
 import { ApiError } from '../../../common/ApiError';
-import { PayrollRecordStatus } from '../../../types';
+import { PayrollRecordStatus, UserRole } from '../../../types';
 import { AuditService } from '../../../core/audit/AuditService';
 import { eventBus } from '../../../core/events/EventBus';
 
@@ -264,12 +265,50 @@ export class GuardPayrollService {
       throw ApiError.badRequest('Record must be PAYMENT_PROCESSING');
     }
 
-    record.status = PayrollRecordStatus.PAID;
+    // Stage payment fields in memory only — nothing is persisted until the
+    // journal and loan side-effects below both succeed. Standalone MongoDB has
+    // no multi-document transactions, so ordering + compensation is the
+    // atomicity mechanism: journal first, loan second, PAID flip last.
     record.paymentMethod = data.paymentMethod;
     record.bankReference = data.bankReference;
     record.paymentDate = data.paymentDate;
     record.paidBy = userId as any;
     record.paidAt = new Date();
+
+    const period = await PayrollPeriod.findById(record.payrollPeriodId);
+    const periodLabel = period ? `${period.monthName} ${period.year}` : 'Unknown Period';
+
+    // 1) Journal first. Throws on imbalance/validation — the record is untouched
+    // in the DB, so a failed journal can never leave a silent PAID-with-no-entry.
+    const journalEntry = await PayrollJournalService.postGuardPayroll(record, periodLabel, userId, auditCtx);
+
+    // 2) Loan ledger mutation (moved here from generation so abandoned drafts
+    // never move money). Same basis as the generation snapshot: period end.
+    try {
+      const guardId = (record.guardId as any)?._id || record.guardId;
+      await PayrollCalculationService.applyLoanRepayment(
+        guardId,
+        record.loanDeduction,
+        period?.endDate || record.paymentDate
+      );
+    } catch (loanErr) {
+      // Compensate: void the just-posted journal so the ledger has no orphan,
+      // then surface the original failure.
+      try {
+        await JournalService.voidEntry(
+          (journalEntry._id as any).toString(),
+          'Loan repayment failed after journal posting — auto-voided to keep payment atomic',
+          userId,
+          auditCtx
+        );
+      } catch (voidErr) {
+        console.error('[GuardPayroll] Failed to void journal after loan failure:', voidErr);
+      }
+      throw loanErr;
+    }
+
+    // 3) Only now flip to PAID and persist everything together.
+    record.status = PayrollRecordStatus.PAID;
     await record.save();
 
     await PayrollApproval.create({
@@ -278,14 +317,6 @@ export class GuardPayrollService {
       action: 'PAID',
       performedBy: userId,
     });
-
-    const period = await PayrollPeriod.findById(record.payrollPeriodId);
-    const periodLabel = period ? `${period.monthName} ${period.year}` : 'Unknown Period';
-    try {
-      await PayrollJournalService.postGuardPayroll(record, periodLabel, userId, auditCtx);
-    } catch (journalErr) {
-      console.error('[GuardPayroll] Failed to post journal entry:', journalErr);
-    }
 
     AuditService.log({
       userId,
@@ -301,11 +332,26 @@ export class GuardPayrollService {
     return record;
   }
 
-  static async returnForCorrection(recordId: string, userId: string, reason: string, auditCtx?: { ip?: string; ua?: string }): Promise<IGuardPayrollRecord> {
+  static async returnForCorrection(recordId: string, userId: string, reason: string, auditCtx?: { ip?: string; ua?: string }, userRole?: string): Promise<IGuardPayrollRecord> {
     const record = await GuardPayrollRecord.findById(recordId);
     if (!record) throw ApiError.notFound('Record not found');
     if (record.status !== PayrollRecordStatus.CHECKED && record.status !== PayrollRecordStatus.APPROVED) {
       throw ApiError.badRequest('Record must be CHECKED or APPROVED');
+    }
+
+    // Separation of duties is enforced here, not just at the route gate:
+    // Finance owns the CHECKED stage, so only Finance may return from it;
+    // an APPROVED record has passed Finance, so only HEAD may return it.
+    // (SUPER_ADMIN retains both as the break-glass role.)
+    const allowedRoles = record.status === PayrollRecordStatus.CHECKED
+      ? [UserRole.FINANCE_OFFICER, UserRole.SUPER_ADMIN]
+      : [UserRole.HEAD, UserRole.SUPER_ADMIN];
+    if (!userRole || !allowedRoles.includes(userRole as UserRole)) {
+      throw ApiError.forbidden(
+        record.status === PayrollRecordStatus.CHECKED
+          ? 'Only Finance may return a CHECKED record for correction'
+          : 'Only HEAD may return an APPROVED record for correction'
+      );
     }
 
     record.status = PayrollRecordStatus.RETURNED;

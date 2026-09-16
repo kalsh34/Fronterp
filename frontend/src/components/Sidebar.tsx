@@ -103,6 +103,7 @@ function getNavItems(opsAlerts: number): NavItem[] {
       icon: <PeopleIcon />,
       children: [
         { path: '/employees', label: 'Employees' },
+        { path: '/employees?tab=onboarding', label: 'Onboarding' },
         { path: '/staff-attendance', label: 'Staff Attendance' },
       ],
     },

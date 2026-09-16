@@ -128,7 +128,7 @@ export class OfficePayrollController {
     try {
       const record = await StaffPayrollService.returnForCorrection(req.params.id, req.user?.userId || '', req.body.reason, {
         ip: req.ip, ua: req.get('user-agent'),
-      });
+      }, req.user?.role);
       res.json({ success: true, data: record });
     } catch (error) { next(error); }
   }

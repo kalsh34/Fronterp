@@ -12,6 +12,7 @@ const ACCOUNTS = {
   LOAN_PAYABLE: { code: '2300', name: 'Loan Repayment Payable' },
   OT_EXPENSE: { code: '5110', name: 'Overtime Expense' },
   HOLIDAY_EXPENSE: { code: '5120', name: 'Holiday Pay Expense' },
+  BONUS_EXPENSE: { code: '5130', name: 'Bonus Expense' },
 };
 
 export class PayrollJournalService {
@@ -159,6 +160,18 @@ export class PayrollJournalService {
         accountName: ACCOUNTS.EMPLOYER_PENSION_EXPENSE.name,
         description: `Employer pension contribution (11%) - ${periodLabel}`,
         debit: Number(record.employerPension),
+        credit: 0,
+      });
+    }
+
+    // Bonus is paid through net pay but sits outside gross: book it as its own
+    // expense debit so the entry still balances (debits == credits).
+    if ((Number(record.bonus) || 0) > 0) {
+      lines.push({
+        accountCode: ACCOUNTS.BONUS_EXPENSE.code,
+        accountName: ACCOUNTS.BONUS_EXPENSE.name,
+        description: `Bonus (post-net, untaxed) - ${periodLabel}`,
+        debit: Number(record.bonus),
         credit: 0,
       });
     }
