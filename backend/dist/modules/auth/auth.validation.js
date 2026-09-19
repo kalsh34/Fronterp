@@ -11,7 +11,9 @@ exports.registerValidation = [
     (0, express_validator_1.body)('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     (0, express_validator_1.body)('firstName').notEmpty().withMessage('First name is required'),
     (0, express_validator_1.body)('lastName').notEmpty().withMessage('Last name is required'),
-    (0, express_validator_1.body)('role').notEmpty().withMessage('Role is required'),
+    // Role is optional: the service decides it (first user on an empty DB gets
+    // the requested role; afterwards public signups are always GUARD).
+    (0, express_validator_1.body)('role').optional().isString(),
 ];
 exports.changePasswordValidation = [
     (0, express_validator_1.body)('currentPassword').notEmpty().withMessage('Current password is required'),

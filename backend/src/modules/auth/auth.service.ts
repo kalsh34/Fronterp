@@ -12,20 +12,46 @@ interface LoginResult {
 }
 
 export class AuthService {
+  /**
+   * Public registration with bootstrap safety:
+   * - If NO users exist yet (fresh database, e.g. first deploy on Render),
+   *   the first registered user gets the role they request (bootstrap admin).
+   * - Once at least one user exists, public registration can only create
+   *   low-privilege GUARD accounts regardless of the requested role.
+   *   Higher-privilege users must be created by an authenticated admin
+   *   (USER_CREATE permission) via the user-management routes.
+   */
   static async register(data: {
     email: string;
     password: string;
     firstName: string;
     lastName: string;
-    role: UserRole;
+    role?: UserRole;
   }): Promise<IUser> {
     const existing = await User.findOne({ email: data.email });
     if (existing) {
       throw ApiError.conflict('Email already registered');
     }
 
+    const userCount = await User.countDocuments();
+    let role: UserRole;
+    if (userCount === 0) {
+      // Bootstrap: first user on an empty database gets the requested role
+      // (defaults to SUPER_ADMIN when no role is provided).
+      role = data.role ?? UserRole.SUPER_ADMIN;
+    } else {
+      // Database already initialized: public signups are low-privilege only.
+      role = UserRole.GUARD;
+    }
+
     const hashedPassword = await bcrypt.hash(data.password, 12);
-    const user = await User.create({ ...data, password: hashedPassword });
+    const user = await User.create({
+      email: data.email,
+      password: hashedPassword,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      role,
+    });
     return user;
   }
 
