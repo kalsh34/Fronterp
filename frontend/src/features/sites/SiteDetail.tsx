@@ -552,6 +552,88 @@ export default function SiteDetail() {
         {/* ═══ SHIFTS TAB ═══ */}
         {activeTab === 'shifts' && (
           <div className="space-y-6">
+            {/* Rotation Schedule Grid */}
+            {rotationAssignments.length > 0 && (() => {
+              const groups: Record<string, any[]> = {};
+              rotationAssignments.forEach((a: any) => {
+                const key = new Date(a.date).toISOString().split('T')[0];
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(a);
+              });
+              const dates = Object.keys(groups).sort();
+              const guardList: { id: string; name: string }[] = [];
+              const seen = new Set<string>();
+              rotationAssignments.forEach((a: any) => {
+                const gid = a.guardId?._id || a.guardId;
+                if (gid && !seen.has(String(gid))) {
+                  seen.add(String(gid));
+                  const firstName = a.guardId?.firstName || '';
+                  const lastName = a.guardId?.lastName || '';
+                  guardList.push({ id: String(gid), name: `${firstName} ${lastName}`.trim() || 'Unknown' });
+                }
+              });
+
+              return (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100">
+                    <h2 className="text-lg font-bold text-gray-900">Generated Shift Schedule</h2>
+                    <p className="text-xs text-gray-500 mt-0.5">{dates.length} days · {guardList.length} guards · From rotation scheduling</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase w-12 border border-gray-200">#</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase w-20 border border-gray-200">Date</th>
+                          {guardList.map((g) => (
+                            <th key={g.id} className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-700 uppercase min-w-[80px] border border-gray-200">
+                              <div className="underline decoration-red-400 decoration-1 underline-offset-2">{g.name}</div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {dates.map((dateKey, di) => {
+                          const dayAssigns = groups[dateKey] || [];
+                          const dayDate = new Date(dateKey + 'T12:00:00');
+                          const isToday = dateKey === new Date().toISOString().split('T')[0];
+                          const byGuard: Record<string, any> = {};
+                          dayAssigns.forEach((a: any) => {
+                            const gid = a.guardId?._id || a.guardId;
+                            if (gid) byGuard[String(gid)] = a;
+                          });
+
+                          return (
+                            <tr key={dateKey} className={`hover:bg-gray-50/50 ${isToday ? 'bg-indigo-50/60 font-semibold' : ''}`}>
+                              <td className="px-3 py-2 font-bold text-gray-400 border border-gray-200">{di + 1}.</td>
+                              <td className={`px-3 py-2 font-medium border border-gray-200 ${isToday ? 'text-indigo-700' : 'text-gray-700'}`}>
+                                {dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </td>
+                              {guardList.map((g) => {
+                                const a = byGuard[g.id];
+                                if (!a) return <td key={g.id} className="px-3 py-2 text-center border border-gray-200"><span className="text-gray-300">-</span></td>;
+                                const isDay = a.shiftType === 'DAY';
+                                const time = a.shiftTime || (isDay ? '06:00-18:00' : '18:00-06:00');
+                                const startTime = time.split('-')[0] || (isDay ? '06:00' : '18:00');
+                                return (
+                                  <td key={g.id} className="px-3 py-2 text-center border border-gray-200">
+                                    <span className={`inline-block px-1.5 py-0.5 rounded font-bold text-[11px] ${isDay ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                                      {startTime}
+                                    </span>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Active Shift Assignments */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100">
                 <h2 className="text-lg font-bold text-gray-900">Active Shift Assignments ({activeAssignments.length})</h2>

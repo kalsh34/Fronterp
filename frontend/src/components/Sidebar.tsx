@@ -116,7 +116,7 @@ function getNavItems(opsAlerts: number): NavItem[] {
       children: [
         { path: '/attendance', label: 'Guard Attendance' },
         { path: '/guards', label: 'Guards' },
-        { path: '/rotations', label: 'Rotations' },
+        { path: '/rotations', label: 'Shift Scheduling' },
       ],
     },
     {

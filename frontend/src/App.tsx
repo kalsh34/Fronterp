@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuthStore } from './stores/authStore';
 import { UserRole } from './types';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -68,7 +69,6 @@ function AppLayout() {
           <Route path="/sites" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><SiteList /></ProtectedRoute>} />
           <Route path="/sites/new" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS]}><SiteForm /></ProtectedRoute>} />
           <Route path="/sites/:id" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><SiteDetail /></ProtectedRoute>} />
-          <Route path="/sites/:id/edit" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS]}><SiteForm /></ProtectedRoute>} />
 
           <Route path="/guards" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.OPERATIONS, UserRole.CEO]}><GuardsPage /></ProtectedRoute>} />
           <Route path="/attendance" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><AttendancePage /></ProtectedRoute>} />
@@ -97,6 +97,14 @@ function AppLayout() {
 }
 
 export default function App() {
+  const { isAuthenticated, fetchMe } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchMe();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <BrowserRouter>
       <Routes>

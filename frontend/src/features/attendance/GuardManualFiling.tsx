@@ -71,7 +71,7 @@ export default function GuardManualFiling() {
 
   const daysInMonth = getDaysInMonth(year, month);
   const isLocked = period?.status === 'LOCKED' || period?.status === 'CLOSED';
-  const key = (guardId: string, day: number) => `${guardId}-${day}`;
+  const key = (guardId: string, siteId: string, day: number) => `${guardId}__${siteId}__${day}`;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -138,12 +138,12 @@ export default function GuardManualFiling() {
         for (let d = 1; d <= daysInMonth; d++) {
           const existing = records.find((r: FiledRecord) => {
             const rDate = new Date(r.date);
-            return r.guardId === g.employeeId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === d;
+            return r.guardId === g.employeeId && r.siteId === g.siteId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === d;
           });
           if (existing) {
-            initial[key(g.employeeId, d)] = { hoursWorked: existing.totalHours, isHoliday: existing.isHoliday, notes: existing.notes || '' };
+            initial[key(g.employeeId, g.siteId, d)] = { hoursWorked: existing.totalHours, isHoliday: existing.isHoliday, notes: existing.notes || '' };
           } else {
-            initial[key(g.employeeId, d)] = { hoursWorked: 0, isHoliday: false, notes: '' };
+            initial[key(g.employeeId, g.siteId, d)] = { hoursWorked: 0, isHoliday: false, notes: '' };
           }
         }
       });
@@ -176,8 +176,8 @@ export default function GuardManualFiling() {
     return acc;
   }, {});
 
-  const setEntry = (guardId: string, day: number, field: keyof DayEntry, value: any) => {
-    setEntries((prev) => ({ ...prev, [key(guardId, day)]: { ...prev[key(guardId, day)], [field]: value } }));
+  const setEntry = (guardId: string, siteId: string, day: number, field: keyof DayEntry, value: any) => {
+    setEntries((prev) => ({ ...prev, [key(guardId, siteId, day)]: { ...prev[key(guardId, siteId, day)], [field]: value } }));
   };
 
   const handleSubmitAll = async () => {
@@ -185,13 +185,18 @@ export default function GuardManualFiling() {
     const clientSkipped: { guardId: string; date: string; status: string; reason?: string }[] = [];
     Object.entries(entries).forEach(([k, entry]) => {
       if (entry.hoursWorked > 0) {
-        const [guardId, dayStr] = [k.substring(0, k.lastIndexOf('-')), parseInt(k.substring(k.lastIndexOf('-') + 1))];
-        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(dayStr).padStart(2, '0')}`;
-        const guard = guards.find((g) => g.employeeId === guardId);
-        if (guard?.siteId) {
-          bulkEntries.push({ guardId, siteId: guard.siteId, date: dateStr, hoursWorked: entry.hoursWorked, isHoliday: entry.isHoliday, notes: entry.notes || undefined });
-        } else if (guard) {
-          clientSkipped.push({ guardId: `${guard.firstName} ${guard.lastName} (${guard.employeeCode})`, date: dateStr, status: 'skipped', reason: 'Guard has no site assignment' });
+        const parts = k.split('__');
+        const guardId = parts[0];
+        const siteId = parts[1];
+        const dayStr = parts[2];
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(parseInt(dayStr)).padStart(2, '0')}`;
+        if (siteId) {
+          bulkEntries.push({ guardId, siteId, date: dateStr, hoursWorked: entry.hoursWorked, isHoliday: entry.isHoliday, notes: entry.notes || undefined });
+        } else {
+          const guard = guards.find((g) => g.employeeId === guardId);
+          if (guard) {
+            clientSkipped.push({ guardId: `${guard.firstName} ${guard.lastName} (${guard.employeeCode})`, date: dateStr, status: 'skipped', reason: 'Guard has no site assignment' });
+          }
         }
       }
     });
@@ -238,10 +243,10 @@ export default function GuardManualFiling() {
         for (let d = 1; d <= daysInMonth; d++) {
           const existing = filedRecords.find((r) => {
             const rDate = new Date(r.date);
-            return r.guardId === g.employeeId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === d;
+            return r.guardId === g.employeeId && r.siteId === g.siteId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === d;
           });
           if (!existing) {
-            updated[key(g.employeeId, d)] = { hoursWorked: hours, isHoliday: false, notes: '' };
+            updated[key(g.employeeId, g.siteId, d)] = { hoursWorked: hours, isHoliday: false, notes: '' };
           }
         }
       });
@@ -391,23 +396,23 @@ export default function GuardManualFiling() {
                     {siteGuards.map((guard) => {
                       let total = 0;
                       for (let d = 1; d <= daysInMonth; d++) {
-                        total += entries[key(guard.employeeId, d)]?.hoursWorked || 0;
+                        total += entries[key(guard.employeeId, guard.siteId, d)]?.hoursWorked || 0;
                       }
                       return (
-                        <tr key={guard.employeeId} className="hover:bg-gray-50/50">
+                        <tr key={`${guard.employeeId}-${guard.siteId}`} className="hover:bg-gray-50/50">
                           <td className="px-3 py-1 border sticky left-0 bg-white z-10">
                             <div className="font-medium text-xs text-gray-900">{guard.firstName} {guard.lastName}</div>
                             <div className="text-[9px] text-gray-400">{guard.employeeCode}</div>
                           </td>
                           {Array.from({ length: daysInMonth }, (_, i) => {
                             const day = i + 1;
-                            const k = key(guard.employeeId, day);
+                            const k = key(guard.employeeId, guard.siteId, day);
                             const entry = entries[k] || { hoursWorked: 0, isHoliday: false, notes: '' };
                             const dayOfWeek = new Date(year, month - 1, day).getDay();
                             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                             const isFiled = filedRecords.some((r) => {
                               const rDate = new Date(r.date);
-                              return r.guardId === guard.employeeId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === day;
+                              return r.guardId === guard.employeeId && r.siteId === guard.siteId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === day;
                             });
                             return (
                               <td key={day} className={`px-0.5 py-0.5 border ${isWeekend ? 'bg-gray-50/50' : ''}`}>
@@ -423,7 +428,7 @@ export default function GuardManualFiling() {
                                           if (!isNaN(h) && h >= 0 && h <= 24) {
                                             const existingRecord = filedRecords.find((r) => {
                                               const rDate = new Date(r.date);
-                                              return r.guardId === guard.employeeId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === day;
+                                              return r.guardId === guard.employeeId && r.siteId === guard.siteId && rDate.getFullYear() === year && rDate.getMonth() === month - 1 && rDate.getDate() === day;
                                             });
                                             if (existingRecord) {
                                               api.put(`/attendance/manual-entry/${existingRecord._id}`, { hoursWorked: h, reason: 'Operator correction' })
@@ -448,7 +453,7 @@ export default function GuardManualFiling() {
                                     disabled={isLocked}
                                     onChange={(e) => {
                                       const val = parseFloat(e.target.value);
-                                      setEntry(guard.employeeId, day, 'hoursWorked', isNaN(val) ? 0 : val);
+                                      setEntry(guard.employeeId, guard.siteId, day, 'hoursWorked', isNaN(val) ? 0 : val);
                                     }}
                                     className="w-full h-7 text-center text-[10px] border-0 bg-transparent focus:ring-1 focus:ring-indigo-400 rounded-lg disabled:opacity-50 transition-all"
                                     title={`${guard.firstName} — ${formatDateShort(year, month, day)}`}
@@ -468,6 +473,52 @@ export default function GuardManualFiling() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Payroll Summary — Total hours per guard across ALL sites */}
+      {!loading && guards.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-5 py-3 bg-gradient-to-r from-indigo-50 to-indigo-50/50 border-b border-gray-100 flex items-center gap-2">
+            <div className="w-2 h-6 rounded-full bg-indigo-500" />
+            <h3 className="text-sm font-bold text-gray-900">Payroll Summary — Total Hours Across All Sites</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="text-[11px] border-collapse min-w-[500px]">
+              <thead>
+                <tr className="bg-gray-50/50">
+                  <th className="text-left px-3 py-2 border font-medium">Guard</th>
+                  <th className="text-left px-3 py-2 border font-medium">Employee Code</th>
+                  <th className="text-right px-3 py-2 border font-medium">Total Hours</th>
+                  <th className="text-left px-3 py-2 border font-medium">Sites</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  const guardTotals: Record<string, { name: string; code: string; hours: number; sites: Set<string> }> = {};
+                  guards.forEach((g) => {
+                    if (!guardTotals[g.employeeId]) {
+                      guardTotals[g.employeeId] = { name: `${g.firstName} ${g.lastName}`, code: g.employeeCode, hours: 0, sites: new Set() };
+                    }
+                    for (let d = 1; d <= daysInMonth; d++) {
+                      guardTotals[g.employeeId].hours += entries[key(g.employeeId, g.siteId, d)]?.hoursWorked || 0;
+                    }
+                    guardTotals[g.employeeId].sites.add(g.siteName);
+                  });
+                  return Object.values(guardTotals)
+                    .sort((a, b) => b.hours - a.hours)
+                    .map((g, i) => (
+                      <tr key={i} className="hover:bg-gray-50/50">
+                        <td className="px-3 py-1.5 border font-medium text-xs">{g.name}</td>
+                        <td className="px-3 py-1.5 border text-gray-500">{g.code}</td>
+                        <td className="px-3 py-1.5 border text-right font-bold text-xs">{g.hours.toFixed(1)}h</td>
+                        <td className="px-3 py-1.5 border text-[10px] text-gray-500">{Array.from(g.sites).join(', ')}</td>
+                      </tr>
+                    ));
+                })()}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

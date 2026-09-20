@@ -371,7 +371,7 @@ export default function EmployeeList() {
         <div className="flex-1" />
 
         <button
-          onClick={() => { window.open('/api/employees/export', '_blank'); }}
+          onClick={() => { window.open(`${import.meta.env.VITE_API_URL || 'https://erpback-tnsv.onrender.com'}/api/employees/export`, '_blank'); }}
           className="h-10 px-5 flex items-center gap-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
@@ -785,8 +785,8 @@ function OnboardingTab() {
     setLoading(true);
     try {
       const [candRes, statsRes] = await Promise.all([
-        api.get('/api/candidates', { params: stageFilter !== 'all' ? { stage: stageFilter } : {} }),
-        api.get('/api/candidates/stats'),
+        api.get('/candidates', { params: stageFilter !== 'all' ? { stage: stageFilter } : {} }),
+        api.get('/candidates/stats'),
       ]);
       setCandidates(candRes.data.data || []);
       setStats(statsRes.data.data || { byStage: {}, total: 0 });
@@ -798,7 +798,7 @@ function OnboardingTab() {
 
   const handleAddCandidate = async () => {
     try {
-      await api.post('/api/candidates', newCandidate);
+      await api.post('/candidates', newCandidate);
       setShowAddModal(false);
       setNewCandidate({ firstName: '', lastName: '', email: '', phone: '', position: '', department: '' });
       fetchData();
@@ -807,7 +807,7 @@ function OnboardingTab() {
 
   const handleAdvanceStage = async (id: string, nextStage: string) => {
     try {
-      await api.put(`/api/candidates/${id}/stage`, { stage: nextStage });
+      await api.put(`/candidates/${id}/stage`, { stage: nextStage });
       fetchData();
     } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
   };
@@ -816,7 +816,7 @@ function OnboardingTab() {
     const reason = prompt('Rejection reason:');
     if (!reason) return;
     try {
-      await api.put(`/api/candidates/${id}/reject`, { reason });
+      await api.put(`/candidates/${id}/reject`, { reason });
       fetchData();
     } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }
   };
@@ -1368,10 +1368,10 @@ function PerformanceTab() {
     setLoading(true);
     try {
       const [recRes, statsRes, topRes, dueRes] = await Promise.all([
-        api.get('/api/performance'),
-        api.get('/api/performance/stats'),
-        api.get('/api/performance/top-performers'),
-        api.get('/api/performance/reviews-due'),
+        api.get('/performance'),
+        api.get('/performance/stats'),
+        api.get('/performance/top-performers'),
+        api.get('/performance/reviews-due'),
       ]);
       setRecords(recRes.data.data || []);
       setStats(statsRes.data.data || { avgScore: 0, topDepartment: '—', openFlags: 0, reviewsDue: 0 });
@@ -1392,7 +1392,7 @@ function PerformanceTab() {
 
   const handleAddPerformance = async () => {
     try {
-      await api.post('/api/performance', perfForm);
+      await api.post('/performance', perfForm);
       setShowAddModal(false);
       fetchData();
     } catch (e: any) { alert(e.response?.data?.message || 'Failed'); }

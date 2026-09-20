@@ -1,8 +1,14 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
+export const getApiBaseUrl = () => {
+  const configured = import.meta.env.VITE_API_URL as string | undefined;
+  const fallback = import.meta.env.DEV ? 'http://localhost:5000' : 'https://erpback-tnsv.onrender.com';
+  return ((configured || fallback).replace(/\/$/, '') + '/api');
+};
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: getApiBaseUrl(),
   headers: { 'Content-Type': 'application/json' },
 });
 

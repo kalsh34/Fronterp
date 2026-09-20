@@ -5,6 +5,20 @@ import { UserRole } from '../../types';
 import { PageHeader, LoadingSpinner } from '../../components/ui';
 import { Button } from '../../components/ui';
 
+const PRINT_STYLES = `
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 12px; }
+  .no-print { display: none !important; }
+  table { page-break-inside: auto; border-collapse: collapse !important; }
+  tr { page-break-inside: avoid; }
+  th, td { border: 1px solid #d1d5db !important; padding: 4px 8px !important; }
+  .print-title { font-size: 16px; font-weight: bold; margin-bottom: 4px; }
+  .print-subtitle { font-size: 11px; color: #6b7280; margin-bottom: 8px; }
+}
+`;
+
 interface Site { _id: string; siteName: string; siteCode: string; }
 interface GuardData { employee: { _id: string; firstName: string; lastName: string; employeeCode: string; status: string }; profile: any; currentAssignments: any[]; }
 interface GuardPoolEntry { guardId: any; status: string; order: number; }
@@ -14,43 +28,139 @@ interface Rotation {
   siteId: Site | string;
   guardPool: GuardPoolEntry[];
   floaterPool: any[];
+  shiftMode?: 'STANDARD_12H' | 'SINGLE_24H';
   dayShiftCount: number; nightShiftCount: number;
-  dayStartTime: string; nightEndTime: string;
+  dayStartTime: string; dayEndTime?: string; nightStartTime?: string; nightEndTime: string;
   startDate: string; status: string;
   lastGeneratedDate?: string; leaveCoverages: any[];
 }
 
-const SLOT_COLORS: Record<string, string> = {
-  DAY: 'bg-yellow-400 text-yellow-900', NIGHT: 'bg-indigo-500 text-white', REST: 'bg-gray-200 text-gray-600',
-};
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-700', ACTIVE: 'bg-green-100 text-green-700', PAUSED: 'bg-amber-100 text-amber-700', ARCHIVED: 'bg-blue-100 text-blue-700',
 };
 
 function computeDayAssignments(rot: Rotation, date: Date) {
-  const guards = rot.guardPool.filter((g: any) => g.status === 'ACTIVE').sort((a: any, b: any) => a.order - b.order);
+  const guards = rot.guardPool.filter((g: any) => g.status === 'ACTIVE').sort((a: any, b: any) => {
+    const aKey = String(a.guardId?._id || a.guardId || '');
+    const bKey = String(b.guardId?._id || b.guardId || '');
+    return aKey.localeCompare(bKey);
+  });
   const poolSize = guards.length;
-  const slotCountPerDay = rot.dayShiftCount + rot.nightShiftCount;
+  const slotCountPerDay = rot.shiftMode === 'SINGLE_24H' ? Math.max(1, rot.dayShiftCount) : rot.dayShiftCount + rot.nightShiftCount;
   if (poolSize === 0 || slotCountPerDay === 0) return [];
 
   const startDate = new Date(rot.startDate);
   startDate.setHours(0, 0, 0, 0);
   const dayOffset = Math.max(0, Math.floor((date.getTime() - startDate.getTime()) / 86400000));
-  const offset = (dayOffset * slotCountPerDay) % poolSize;
+  const startIndex = dayOffset % poolSize;
+  const orderedPool = guards.map((_, index) => guards[(index + startIndex) % poolSize]);
 
-  const assignments: { guard: any; slot: string; shiftTime: string; poolIndex: number }[] = [];
-  for (let i = 0; i < slotCountPerDay; i++) {
-    const guardIndex = (offset + i) % poolSize;
-    const g = guards[guardIndex];
-    const slot = i < rot.dayShiftCount ? 'DAY' : 'NIGHT';
-    const shiftTime = slot === 'DAY' ? rot.dayStartTime : rot.nightEndTime;
-    assignments.push({ guard: g.guardId, slot, shiftTime, poolIndex: guardIndex });
+  const assignments: { guard: any; slot: 'DAY' | 'NIGHT'; shiftTime: string; poolIndex: number }[] = [];
+  const assignList = rot.shiftMode === 'SINGLE_24H'
+    ? [{ slot: 'DAY' as const, count: Math.max(1, rot.dayShiftCount) }]
+    : [
+        { slot: 'DAY' as const, count: rot.dayShiftCount },
+        { slot: 'NIGHT' as const, count: rot.nightShiftCount },
+      ];
+
+  let idx = 0;
+  for (const section of assignList) {
+    for (let i = 0; i < section.count; i += 1) {
+      const poolIdx = section.slot === 'DAY' ? idx : (rot.dayShiftCount + i) % poolSize;
+      const g = orderedPool[poolIdx];
+      idx += 1;
+      if (!g) continue;
+      const shiftTime = section.slot === 'DAY'
+        ? `${rot.dayStartTime || '06:00'}-${rot.dayEndTime || '18:00'}`
+        : `${rot.nightStartTime || '18:00'}-${rot.nightEndTime || '06:00'}`;
+      assignments.push({ guard: g.guardId, slot: section.slot, shiftTime, poolIndex: idx - 1 });
+    }
   }
+
   return assignments;
 }
 
 function gcd(a: number, b: number): number { return b === 0 ? a : gcd(b, a % b); }
 function getInitials(g: any) { return `${g.firstName?.[0] || ''}${g.lastName?.[0] || ''}`; }
+
+function ScheduleGrid({ title, siteName, dateRange, dates, guardList, groups, shiftTimes, isTodayFn, showCode }: {
+  title: string; siteName: string; dateRange?: string;
+  dates: string[]; guardList: { id: string; name: string; code: string }[];
+  groups: Record<string, any[]>; shiftTimes: { day: string; night: string };
+  isTodayFn?: (key: string) => boolean; showCode?: boolean;
+}) {
+  const dayStart = shiftTimes.day.split('-')[0] || '0600';
+  const nightStart = shiftTimes.night.split('-')[0] || '1800';
+
+  return (
+    <div className="print-area bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 print:border-gray-300">
+        <p className="print-title text-sm font-bold text-gray-900">{siteName} Security Schedule</p>
+        <p className="print-subtitle text-[11px] text-gray-400 mt-0.5">
+          {title} {dateRange ? `— ${dateRange}` : ''} · {dates.length} days · {guardList.length} guards
+        </p>
+        <div className="flex gap-4 mt-2 text-[10px]">
+          <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-yellow-400" /> DAY ({dayStart})</span>
+          <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-indigo-500" /> NIGHT ({nightStart})</span>
+          <span className="inline-flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-gray-200" /> REST</span>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200">
+              <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-12 border border-gray-200">#</th>
+              <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-20 border border-gray-200">Date</th>
+              {guardList.map((g) => (
+                <th key={g.id} className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-700 uppercase tracking-wider min-w-[80px] border border-gray-200">
+                  <div className="underline decoration-red-400 decoration-1 underline-offset-2">{g.name}</div>
+                  {showCode && <div className="text-gray-400 normal-case no-underline mt-0.5">{g.code}</div>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {dates.map((dateKey, di) => {
+              const dayAssigns = groups[dateKey] || [];
+              const dayDate = new Date(dateKey + 'T12:00:00');
+              const isToday = isTodayFn ? isTodayFn(dateKey) : dateKey === new Date().toISOString().split('T')[0];
+              const byGuard: Record<string, any> = {};
+              dayAssigns.forEach((a: any) => {
+                const emp = a.guard || a.guardId;
+                const gid = emp?._id || a.guardId?._id || a.guardId;
+                if (gid) byGuard[String(gid)] = a;
+              });
+
+              return (
+                <tr key={dateKey} className={`hover:bg-gray-50/50 ${isToday ? 'bg-indigo-50/60 font-semibold' : ''}`}>
+                  <td className="px-3 py-2 font-bold text-gray-400 border border-gray-200">{di + 1}.</td>
+                  <td className={`px-3 py-2 font-medium border border-gray-200 ${isToday ? 'text-indigo-700' : 'text-gray-700'}`}>
+                    {dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </td>
+                  {guardList.map((g) => {
+                    const a = byGuard[g.id];
+                    if (!a) {
+                      return <td key={g.id} className="px-3 py-2 text-center border border-gray-200"><span className="text-gray-300">-</span></td>;
+                    }
+                    const isDay = a.shiftType === 'DAY';
+                    const startTime = isDay ? dayStart : nightStart;
+                    return (
+                      <td key={g.id} className="px-3 py-2 text-center border border-gray-200">
+                        <span className={`inline-block px-1.5 py-0.5 rounded font-bold text-[11px] ${isDay ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                          {startTime}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export default function RotationPage() {
   const { user } = useAuthStore();
@@ -101,34 +211,36 @@ export default function RotationPage() {
 
   return (
     <div className="p-6">
-      <PageHeader title="Rotations" subtitle="Manage guard rotation schedules"
-        action={canManage ? <Button onClick={() => setView('create')}>New Rotation</Button> : undefined} />
+      <PageHeader title="Shift Scheduling" subtitle="Plan and manage guard shift schedules across sites"
+        action={canManage ? <Button onClick={() => setView('create')}>New Schedule</Button> : undefined} />
       <div className="flex gap-3 mb-4">
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search rotations..." className="flex-1 max-w-sm px-3 py-2 border rounded-lg text-sm" />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search schedules..." className="flex-1 max-w-sm px-3 py-2 border rounded-lg text-sm" />
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
           <option value="">All Status</option>
           <option value="DRAFT">Draft</option><option value="ACTIVE">Active</option><option value="PAUSED">Paused</option><option value="ARCHIVED">Archived</option>
         </select>
       </div>
-      {loading ? <LoadingSpinner text="Loading rotations..." /> : rotations.length === 0 ? (
+      {loading ? <LoadingSpinner text="Loading schedules..." /> : rotations.length === 0 ? (
         <div className="bg-white rounded-xl border p-12 text-center">
-          <p className="text-gray-500 mb-4">No rotations found</p>
-          {canManage && <Button onClick={() => setView('create')}>Create First Rotation</Button>}
+          <p className="text-gray-500 mb-4">No schedules found</p>
+          {canManage && <Button onClick={() => setView('create')}>Create First Schedule</Button>}
         </div>
       ) : (
         <div className="grid gap-4">
           {rotations.map((r) => {
-            const ag = r.guardPool.filter((g: any) => g.status === 'ACTIVE').length;
             const siteName = typeof r.siteId === 'object' && r.siteId !== null ? (r.siteId as any).siteName : '';
+            const activeCount = r.guardPool.filter((g: any) => g.status === 'ACTIVE').length;
             return (
-              <div key={r._id} onClick={() => loadDetail(r._id)} className="bg-white rounded-xl border p-5 hover:shadow-md cursor-pointer transition-shadow">
+              <div key={r._id} onClick={() => loadDetail(r._id)} className="bg-white rounded-xl border border-gray-100 p-5 cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all">
                 <div className="flex items-center justify-between">
-                  <div><h3 className="font-semibold text-gray-900">{r.name}</h3><p className="text-sm text-gray-500 mt-0.5">{siteName || 'No site'}</p></div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[r.status] || ''}`}>{r.status}</span>
-                </div>
-                <div className="flex gap-4 mt-3 text-xs text-gray-500">
-                  <span>{ag} guards</span><span>{r.dayShiftCount} DAY · {r.nightShiftCount} NIGHT</span>
-                  <span>{r.dayStartTime}–{r.nightEndTime}</span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-gray-900">{r.name}</h3>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${STATUS_COLORS[r.status] || ''}`}>{r.status}</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">{siteName} · {activeCount} guards · {r.dayShiftCount}D+{r.nightShiftCount}N · Start {new Date(r.startDate).toLocaleDateString()}</p>
+                  </div>
+                  <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                 </div>
               </div>
             );
@@ -139,141 +251,116 @@ export default function RotationPage() {
   );
 }
 
-function CreateWizard({ onBack, onCreated, sites, allGuards }: {
-  onBack: () => void; onCreated: (id: string) => void; sites: Site[]; allGuards: GuardData[];
-}) {
+function CreateWizard({ onBack, onCreated, sites, allGuards }: { onBack: () => void; onCreated: (id: string) => void; sites: Site[]; allGuards: GuardData[] }) {
   const [step, setStep] = useState(1);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [siteId, setSiteId] = useState('');
-  const [dayShiftCount, setDayShiftCount] = useState(2);
+  const [shiftMode, setShiftMode] = useState<'STANDARD_12H' | 'SINGLE_24H'>('STANDARD_12H');
+  const [dayShiftCount, setDayShiftCount] = useState(1);
   const [nightShiftCount, setNightShiftCount] = useState(1);
   const [dayStartTime, setDayStartTime] = useState('06:00');
-  const [nightEndTime, setNightEndTime] = useState('18:00');
+  const [dayEndTime, setDayEndTime] = useState('18:00');
+  const [nightStartTime, setNightStartTime] = useState('18:00');
+  const [nightEndTime, setNightEndTime] = useState('06:00');
+  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
   const [guardIds, setGuardIds] = useState<string[]>([]);
   const [floaterIds, setFloaterIds] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [cycleInfo, setCycleInfo] = useState<any>(null);
 
-  const slotCountPerDay = dayShiftCount + nightShiftCount;
+  const slotCountPerDay = shiftMode === 'SINGLE_24H' ? Math.max(1, dayShiftCount) : dayShiftCount + nightShiftCount;
   const poolSize = guardIds.length;
 
-  const cycleInfo = useMemo(() => {
-    if (poolSize === 0 || slotCountPerDay === 0) return null;
-    const cycleDays = poolSize / gcd(poolSize, slotCountPerDay);
-    const restGuards = poolSize - slotCountPerDay;
-    const dutyPct = Math.round((slotCountPerDay / poolSize) * 100);
-    return { cycleDays, restGuards, dutyPct };
+  useEffect(() => {
+    if (poolSize > 0 && slotCountPerDay > 0) {
+      api.get(`/rotations/utils/fairness?poolSize=${poolSize}&slotCount=${slotCountPerDay}`).then((r) => setCycleInfo(r.data.data)).catch(() => setCycleInfo(null));
+    }
   }, [poolSize, slotCountPerDay]);
 
-  const toggleGuard = (id: string) => setGuardIds((p) => p.includes(id) ? p.filter((g) => g !== id) : [...p, id]);
-  const toggleFloater = (id: string) => setFloaterIds((p) => p.includes(id) ? p.filter((g) => g !== id) : [...p, id]);
+  const toggleGuard = (id: string) => setGuardIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
+  const toggleFloater = (id: string) => setFloaterIds((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
   const handleCreate = async () => {
-    if (!name || !siteId || slotCountPerDay < 2 || poolSize < slotCountPerDay) { setError('Fill all required fields'); return; }
+    if (!name.trim() || !siteId) return;
     setSaving(true); setError('');
     try {
       const res = await api.post('/rotations', {
-        name, description, siteId, dayShiftCount, nightShiftCount,
-        dayStartTime, nightEndTime, startDate,
+        name: name.trim(), siteId, shiftMode, dayShiftCount, nightShiftCount,
+        dayStartTime, dayEndTime, nightStartTime, nightEndTime, startDate,
       });
       const rotId = res.data.data._id;
-      await api.post(`/rotations/${rotId}/guards`, { guardIds });
+      if (guardIds.length > 0) await api.post(`/rotations/${rotId}/guards`, { guardIds });
       if (floaterIds.length > 0) await api.post(`/rotations/${rotId}/floaters`, { guardIds: floaterIds });
       onCreated(rotId);
-    } catch (e: any) { setError(e.response?.data?.message || 'Failed to create rotation'); }
+    } catch (e: any) { setError(e.response?.data?.message || 'Failed to create'); }
     finally { setSaving(false); }
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
-      <PageHeader title="Create Rotation" subtitle={`Step ${step} of 4`} action={<Button variant="ghost" onClick={onBack}>Back</Button>} />
-      <div className="flex gap-2 mb-6">{[1, 2, 3, 4].map((s) => (<div key={s} className={`flex-1 h-1.5 rounded-full ${s <= step ? 'bg-blue-600' : 'bg-gray-200'}`} />))}</div>
+    <div className="p-6 max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" onClick={onBack}>Back</Button>
+        <h1 className="text-xl font-bold">New Shift Schedule</h1>
+      </div>
+      <div className="flex items-center gap-2 mb-4">
+        {[1, 2, 3, 4].map((s) => (
+          <div key={s} className={`h-2 flex-1 rounded-full transition-colors ${step >= s ? 'bg-indigo-600' : 'bg-gray-200'}`} />
+        ))}
+      </div>
 
       {step === 1 && (
         <div className="bg-white rounded-xl border p-6 space-y-4">
-          <h2 className="text-lg font-semibold">Basic Information</h2>
-          <div><label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="e.g., HQ Rotation" /></div>
-          <div><label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" rows={2} /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-xs font-medium text-gray-500 mb-1">Site *</label>
-              <select value={siteId} onChange={(e) => setSiteId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm">
-                <option value="">Select site</option>{sites.map((s) => <option key={s._id} value={s._id}>{s.siteName}</option>)}
-              </select></div>
-            <div><label className="block text-xs font-medium text-gray-500 mb-1">Start Date *</label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
-          </div>
-          <div className="flex justify-end"><Button onClick={() => setStep(2)} disabled={!name || !siteId}>Next</Button></div>
+          <h2 className="text-lg font-semibold">Basic Info</h2>
+          <div><label className="block text-xs text-gray-500 mb-1">Schedule Name</label><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., Denmark Embassy Rotation" className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+          <div><label className="block text-xs text-gray-500 mb-1">Site</label>
+            <select value={siteId} onChange={(e) => setSiteId(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm">
+              <option value="">Select site</option>
+              {sites.map((s) => (<option key={s._id} value={s._id}>{s.siteName} ({s.siteCode})</option>))}
+            </select></div>
+          <div><label className="block text-xs text-gray-500 mb-1">Start Date</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+          <div className="flex justify-end"><Button onClick={() => setStep(2)} disabled={!name.trim() || !siteId}>Next</Button></div>
         </div>
       )}
 
       {step === 2 && (
         <div className="bg-white rounded-xl border p-6 space-y-4">
-          <div>
-            <h2 className="text-lg font-semibold">Shift Positions & Times</h2>
-            <p className="text-xs text-gray-500 mt-1">How many guards work each shift per day? The rest are on REST.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border-2 border-yellow-200 bg-yellow-50">
-              <label className="block text-xs font-bold text-yellow-800 uppercase tracking-wider mb-2">Guards on DAY shift</label>
-              <input type="number" min={1} value={dayShiftCount} onChange={(e) => setDayShiftCount(parseInt(e.target.value) || 1)}
-                className="w-full px-3 py-2 border border-yellow-300 rounded-lg text-sm font-medium bg-white" />
-              <label className="block text-xs font-medium text-gray-500 mt-3 mb-1">Start Time</label>
-              <input type="time" value={dayStartTime} onChange={(e) => setDayStartTime(e.target.value)}
-                className="w-full px-3 py-2 border border-yellow-300 rounded-lg text-sm bg-white" />
+          <h2 className="text-lg font-semibold">Shift Configuration</h2>
+          <div><label className="block text-xs text-gray-500 mb-1">Shift Mode</label>
+            <div className="flex gap-3">
+              <button onClick={() => setShiftMode('STANDARD_12H')} className={`flex-1 p-3 rounded-xl border-2 text-sm font-medium transition-colors ${shiftMode === 'STANDARD_12H' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300'}`}>12-Hour Shifts (Day + Night)</button>
+              <button onClick={() => setShiftMode('SINGLE_24H')} className={`flex-1 p-3 rounded-xl border-2 text-sm font-medium transition-colors ${shiftMode === 'SINGLE_24H' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 hover:border-gray-300'}`}>24-Hour Shifts</button>
+            </div></div>
+          {shiftMode === 'STANDARD_12H' ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-xs text-gray-500 mb-1">Day Guards</label><input type="number" min={1} value={dayShiftCount} onChange={(e) => setDayShiftCount(parseInt(e.target.value) || 1)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Night Guards</label><input type="number" min={1} value={nightShiftCount} onChange={(e) => setNightShiftCount(parseInt(e.target.value) || 1)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Day Start</label><input type="time" value={dayStartTime} onChange={(e) => setDayStartTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Day End</label><input type="time" value={dayEndTime} onChange={(e) => setDayEndTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Night Start</label><input type="time" value={nightStartTime} onChange={(e) => setNightStartTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Night End</label><input type="time" value={nightEndTime} onChange={(e) => setNightEndTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
             </div>
-            <div className="p-4 rounded-xl border-2 border-indigo-200 bg-indigo-50">
-              <label className="block text-xs font-bold text-indigo-800 uppercase tracking-wider mb-2">Guards on NIGHT shift</label>
-              <input type="number" min={1} value={nightShiftCount} onChange={(e) => setNightShiftCount(parseInt(e.target.value) || 1)}
-                className="w-full px-3 py-2 border border-indigo-300 rounded-lg text-sm font-medium bg-white" />
-              <label className="block text-xs font-medium text-gray-500 mt-3 mb-1">End Time</label>
-              <input type="time" value={nightEndTime} onChange={(e) => setNightEndTime(e.target.value)}
-                className="w-full px-3 py-2 border border-indigo-300 rounded-lg text-sm bg-white" />
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="block text-xs text-gray-500 mb-1">Guards on Duty (24h)</label><input type="number" min={1} value={dayShiftCount} onChange={(e) => setDayShiftCount(parseInt(e.target.value) || 1)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Shift Start</label><input type="time" value={dayStartTime} onChange={(e) => setDayStartTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
+              <div><label className="block text-xs text-gray-500 mb-1">Shift End (next day)</label><input type="time" value={dayEndTime} onChange={(e) => setDayEndTime(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm" /></div>
             </div>
-          </div>
-          <div className="bg-gray-50 rounded-xl p-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Working Positions ({slotCountPerDay})</p>
-            <div className="flex gap-1 mb-2">
-              {Array.from({ length: dayShiftCount }).map((_, i) => <span key={`d${i}`} className="px-2 py-1 rounded text-xs font-bold bg-yellow-400 text-yellow-900">DAY</span>)}
-              {Array.from({ length: nightShiftCount }).map((_, i) => <span key={`n${i}`} className="px-2 py-1 rounded text-xs font-bold bg-indigo-500 text-white">NIGHT</span>)}
+          )}
+          {shiftMode === 'SINGLE_24H' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-xs text-amber-700 font-medium">24-hour shifts require 48 hours of rest after each duty. The scheduler will respect this unless the pool is too small.</p>
             </div>
-            {poolSize > 0 && (
-              <div className="text-[11px] text-gray-500 space-y-0.5">
-                <p>Each day: <strong>{dayShiftCount}</strong> on DAY + <strong>{nightShiftCount}</strong> on NIGHT + <strong>{Math.max(0, poolSize - slotCountPerDay)}</strong> on REST</p>
-                <p>Each guard works <strong>{slotCountPerDay}</strong> out of every <strong>{poolSize}</strong> days ({Math.round((slotCountPerDay / poolSize) * 100)}% duty rate)</p>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-between">
-            <Button variant="ghost" onClick={() => setStep(1)}>Back</Button>
-            <Button onClick={() => setStep(3)}>Next</Button>
-          </div>
+          )}
+          <div className="flex justify-between"><Button variant="ghost" onClick={() => setStep(1)}>Back</Button><Button onClick={() => setStep(3)}>Next</Button></div>
         </div>
       )}
 
       {step === 3 && (
-        <div className="bg-white rounded-xl border p-6 space-y-5">
-          <div><h2 className="text-lg font-semibold">Guard Pool</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Order matters — guards rotate in this sequence. Need at least {slotCountPerDay} guards.</p></div>
-          {guardIds.length > 0 && (
-            <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-              <p className="text-xs font-semibold text-blue-700 mb-2">{guardIds.length} guard{guardIds.length !== 1 ? 's' : ''} selected</p>
-              <div className="flex flex-wrap gap-2">{guardIds.map((gid, idx) => {
-                const g = allGuards.find((x) => x.employee._id === gid);
-                if (!g) return null;
-                const slot = idx < slotCountPerDay ? (idx < dayShiftCount ? 'DAY' : 'NIGHT') : 'REST';
-                return (<span key={gid} className="inline-flex items-center gap-1.5 bg-white border border-blue-200 rounded-full pl-1 pr-2 py-0.5 text-xs">
-                  <span className={`w-5 h-5 rounded-full text-white flex items-center justify-center text-[10px] font-bold ${slot === 'DAY' ? 'bg-yellow-500' : slot === 'NIGHT' ? 'bg-indigo-600' : 'bg-gray-400'}`}>{idx + 1}</span>
-                  {g.employee.firstName} {g.employee.lastName}
-                  <button onClick={() => toggleGuard(gid)} className="text-blue-400 hover:text-red-500 ml-0.5">&times;</button>
-                </span>);
-              })}</div>
-            </div>
-          )}
-          <div className="max-h-72 overflow-y-auto border rounded-lg divide-y">
+        <div className="bg-white rounded-xl border p-6 space-y-4">
+          <h2 className="text-lg font-semibold">Guard Pool</h2>
+          <p className="text-xs text-gray-500">Select guards for this schedule. The system distributes shifts fairly based on rest time.</p>
+          <div className="max-h-60 overflow-y-auto border rounded-lg divide-y">
             {allGuards.filter((g) => g.employee.status === 'CONTRACTED' || g.employee.status === 'ACTIVE').length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-gray-400">No eligible guards found</div>
             ) : allGuards.filter((g) => g.employee.status === 'CONTRACTED' || g.employee.status === 'ACTIVE').map((g) => {
@@ -311,8 +398,7 @@ function CreateWizard({ onBack, onCreated, sites, allGuards }: {
             <div className="bg-green-50 border border-green-200 rounded-lg p-3">
               <p className="text-sm text-green-700 font-medium">Fair cycle: {cycleInfo.cycleDays} days</p>
               <p className="text-xs text-green-600 mt-1">
-                {poolSize} guards ÷ {slotCountPerDay} working positions = {cycleInfo.cycleDays} day full cycle.
-                Each guard works {slotCountPerDay} days, rests {poolSize - slotCountPerDay} days ({100 - cycleInfo.dutyPct}% rest).
+                The system distributes duty fairly across the selected pool; selection order does not affect the schedule.
               </p>
             </div>
           )}
@@ -323,13 +409,14 @@ function CreateWizard({ onBack, onCreated, sites, allGuards }: {
           )}
           <div className="bg-gray-50 rounded-lg p-4 text-xs text-gray-600 space-y-1">
             <p><strong>Pool:</strong> {poolSize} guards</p>
-            <p><strong>Shifts:</strong> {dayShiftCount} DAY + {nightShiftCount} NIGHT = {slotCountPerDay} per day</p>
-            <p><strong>Times:</strong> DAY {dayStartTime} · NIGHT {nightEndTime}</p>
+            <p><strong>Shifts:</strong> {shiftMode === 'SINGLE_24H' ? `${Math.max(1, dayShiftCount)} DAY only (24h)` : `${dayShiftCount} DAY + ${nightShiftCount} NIGHT = ${slotCountPerDay} per day`}</p>
+            <p><strong>Times:</strong> {shiftMode === 'SINGLE_24H' ? `DAY ${dayStartTime}-${dayEndTime}` : `DAY ${dayStartTime}-${dayEndTime} · NIGHT ${nightStartTime}-${nightEndTime}`}</p>
+            <p><strong>Rest Rules:</strong> {shiftMode === 'SINGLE_24H' ? '48h rest after 24h shift' : '12h rest after 12h shift'}</p>
             <p><strong>Site:</strong> {sites.find((s) => s._id === siteId)?.siteName}</p>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex justify-between"><Button variant="ghost" onClick={() => setStep(3)}>Back</Button>
-            <Button onClick={handleCreate} disabled={saving || guardIds.length < slotCountPerDay}>{saving ? 'Creating...' : 'Create Rotation'}</Button></div>
+            <Button onClick={handleCreate} disabled={saving || guardIds.length < slotCountPerDay}>{saving ? 'Creating...' : 'Create Schedule'}</Button></div>
         </div>
       )}
     </div>
@@ -343,8 +430,9 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
   const [previewing, setPreviewing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [assignments, setAssignments] = useState<any[]>([]);
-  const [assignStart, setAssignStart] = useState(new Date().toISOString().split('T')[0]);
-  const [assignEnd, setAssignEnd] = useState(new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0]);
+  const [assignStart, setAssignStart] = useState(() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split('T')[0]; });
+  const [assignEnd, setAssignEnd] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 60); return d.toISOString().split('T')[0]; });
+  const [rotateDate, setRotateDate] = useState(new Date().toISOString().split('T')[0]);
   const [actionLoading, setActionLoading] = useState(false);
   const [leaveGuardId, setLeaveGuardId] = useState('');
   const [leaveStart, setLeaveStart] = useState('');
@@ -354,11 +442,12 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
   const [selectedCover, setSelectedCover] = useState('');
   const [leaveLoading, setLeaveLoading] = useState(false);
 
-  const activeGuards = rot.guardPool.filter((g: any) => g.status === 'ACTIVE').sort((a: any, b: any) => a.order - b.order);
-  const slotCountPerDay = rot.dayShiftCount + rot.nightShiftCount;
+  const activeGuards = rot.guardPool.filter((g: any) => g.status === 'ACTIVE').sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+  const slotCountPerDay = rot.shiftMode === 'SINGLE_24H' ? Math.max(rot.dayShiftCount, 1) : rot.dayShiftCount + rot.nightShiftCount;
 
   const doPreview = async () => { setPreviewing(true); try { const res = await api.get(`/rotations/${rot._id}/preview?days=${previewDays}`); setPreviewData(res.data.data); } catch (e) { console.error(e); } finally { setPreviewing(false); } };
-  const doGenerate = async () => { if (!confirm(`Generate ${previewDays} days?`)) return; setGenerating(true); try { await api.post(`/rotations/${rot._id}/generate`, { days: previewDays }); alert('Generated'); setTab('assignments'); } catch (e: any) { alert(e.response?.data?.message || 'Failed'); } finally { setGenerating(false); } };
+  const doGenerate = async () => { if (!confirm(`Generate ${previewDays} days?`)) return; setGenerating(true); try { await api.post(`/rotations/${rot._id}/generate`, { days: previewDays }); setTab('assignments'); setTimeout(loadAssignments, 500); } catch (e: any) { alert(e.response?.data?.message || 'Failed'); } finally { setGenerating(false); } };
+  const doRotate = async () => { if (!rotateDate) return; setActionLoading(true); try { await api.post(`/rotations/${rot._id}/rotate`, { date: rotateDate }); alert('Assignments rotated'); await loadAssignments(); } catch (e: any) { alert(e.response?.data?.message || 'Failed'); } finally { setActionLoading(false); } };
   const doAction = async (action: string) => { setActionLoading(true); try { await api.post(`/rotations/${rot._id}/${action}`); window.location.reload(); } catch (e: any) { alert(e.response?.data?.message || 'Failed'); } finally { setActionLoading(false); } };
   const loadAssignments = async () => { try { const res = await api.get(`/rotations/${rot._id}/assignments?startDate=${assignStart}&endDate=${assignEnd}`); setAssignments(res.data.data || []); } catch (e) { console.error(e); } };
   useEffect(() => { if (tab === 'assignments') loadAssignments(); }, [tab, assignStart, assignEnd]);
@@ -368,7 +457,7 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
   const todayAssignments = useMemo(() => computeDayAssignments(rot, new Date()), [rot]);
   const dayGuards = todayAssignments.filter((a) => a.slot === 'DAY');
   const nightGuards = todayAssignments.filter((a) => a.slot === 'NIGHT');
-  const restGuards = activeGuards.filter((g) => !todayAssignments.find((a) => (a.guard as any)._id === g.guardId._id));
+  const restGuards = activeGuards.filter((g) => !todayAssignments.some((a) => String((a.guard as any)?._id || a.guard) === String((g.guardId as any)._id || g.guardId)));
 
   const startDateObj = new Date(rot.startDate);
   const today = new Date();
@@ -385,13 +474,25 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
 
   const siteName = typeof rot.siteId === 'object' && rot.siteId !== null ? (rot.siteId as any).siteName : '';
 
+  const deleteRotation = async () => {
+    if (!confirm('Delete this schedule? This also removes generated assignments.')) return;
+    try {
+      await api.delete(`/rotations/${rot._id}`);
+      alert('Schedule deleted');
+      onBack();
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Failed to delete');
+    }
+  };
+
   return (
     <div className="p-6">
-      <PageHeader title={rot.name} subtitle={`${rot.status} · ${activeGuards.length} guards · ${rot.dayShiftCount} DAY + ${rot.nightShiftCount} NIGHT`}
+      <style>{PRINT_STYLES}</style>
+      <PageHeader title={rot.name} subtitle={`${rot.status} · ${activeGuards.length} guards · ${rot.shiftMode === 'SINGLE_24H' ? `${rot.dayShiftCount}×24h` : `${rot.dayShiftCount} DAY + ${rot.nightShiftCount} NIGHT`}`}
         action={<Button variant="ghost" onClick={onBack}>Back to List</Button>} />
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 w-fit">
+      <div className="no-print flex gap-1 bg-gray-100 rounded-lg p-1 mb-6 w-fit">
         {(['overview', 'preview', 'assignments', 'leave'] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>{t}</button>
+          <button key={t} onClick={() => setTab(t)} className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition-colors ${tab === t ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>{t === 'overview' ? 'Overview' : t === 'preview' ? 'Preview' : t === 'assignments' ? 'Generated' : 'Leave'}</button>
         ))}
       </div>
 
@@ -405,7 +506,7 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
             </div>
             <div className="grid grid-cols-3 divide-x divide-gray-100">
               <div className="p-5">
-                <div className="flex items-center gap-2 mb-3"><span className="w-8 h-8 rounded-lg bg-yellow-400 flex items-center justify-center text-yellow-900 text-sm font-bold">D</span><div><p className="text-sm font-bold text-gray-900">Day Shift</p><p className="text-[10px] text-gray-400">{rot.dayStartTime}</p></div></div>
+                <div className="flex items-center gap-2 mb-3"><span className="w-8 h-8 rounded-lg bg-yellow-400 flex items-center justify-center text-yellow-900 text-sm font-bold">D</span><div><p className="text-sm font-bold text-gray-900">Day Shift</p><p className="text-[10px] text-gray-400">{rot.dayStartTime}-{rot.dayEndTime}</p></div></div>
                 {dayGuards.length === 0 ? <p className="text-xs text-gray-400 italic">None</p> : <div className="space-y-2">{dayGuards.map((a, i) => (
                   <div key={i} className="flex items-center gap-2.5 p-2 rounded-xl bg-yellow-50 border border-yellow-100">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-yellow-400 to-yellow-500 flex items-center justify-center text-white text-xs font-bold">{getInitials(a.guard)}</div>
@@ -413,7 +514,7 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
                   </div>))}</div>}
               </div>
               <div className="p-5">
-                <div className="flex items-center gap-2 mb-3"><span className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-sm font-bold">N</span><div><p className="text-sm font-bold text-gray-900">Night Shift</p><p className="text-[10px] text-gray-400">{rot.nightEndTime}</p></div></div>
+                <div className="flex items-center gap-2 mb-3"><span className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white text-sm font-bold">N</span><div><p className="text-sm font-bold text-gray-900">Night Shift</p><p className="text-[10px] text-gray-400">{rot.nightStartTime}-{rot.nightEndTime}</p></div></div>
                 {nightGuards.length === 0 ? <p className="text-xs text-gray-400 italic">None</p> : <div className="space-y-2">{nightGuards.map((a, i) => (
                   <div key={i} className="flex items-center gap-2.5 p-2 rounded-xl bg-indigo-50 border border-indigo-100">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">{getInitials(a.guard)}</div>
@@ -461,9 +562,11 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
               <h3 className="text-sm font-bold text-gray-900">Configuration</h3>
               <div className="text-sm space-y-2">
                 <div className="flex justify-between"><span className="text-gray-500">Site</span><span className="font-medium">{siteName}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Shift Mode</span><span className="font-medium">{rot.shiftMode === 'SINGLE_24H' ? '24-Hour' : '12-Hour'}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Day Shift</span><span className="font-medium">{rot.dayShiftCount} guards · {rot.dayStartTime}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Night Shift</span><span className="font-medium">{rot.nightShiftCount} guards · {rot.nightEndTime}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Start</span><span className="font-medium">{new Date(rot.startDate).toLocaleDateString()}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Rest Rule</span><span className="font-medium">{rot.shiftMode === 'SINGLE_24H' ? '48h after 24h shift' : '12h after 12h shift'}</span></div>
               </div>
             </div>
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
@@ -471,8 +574,9 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
               <div className="space-y-1.5">{activeGuards.map((g, i) => {
                 const isWorking = todayAssignments.find((a) => (a.guard as any)._id === g.guardId._id);
                 const slot = isWorking ? isWorking.slot : 'REST';
+                const slotColor = slot === 'DAY' ? 'bg-yellow-400 text-yellow-900' : slot === 'NIGHT' ? 'bg-indigo-500 text-white' : 'bg-gray-200 text-gray-600';
                 return (<div key={i} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50">
-                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold ${SLOT_COLORS[slot]}`}>{slot[0]}</span>
+                  <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold ${slotColor}`}>{slot[0]}</span>
                   <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-white text-[10px] font-bold">{getInitials(g.guardId)}</div>
                   <div className="flex-1 min-w-0"><p className="text-sm font-medium text-gray-900 truncate">{(g.guardId as any).firstName} {(g.guardId as any).lastName}</p></div>
                   <span className="text-[10px] text-gray-400">#{i + 1}</span>
@@ -484,11 +588,17 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
           {canManage && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <h3 className="text-sm font-bold text-gray-900 mb-3">Actions</h3>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {rot.status === 'DRAFT' && <Button onClick={() => doAction('activate')} disabled={actionLoading}>Activate</Button>}
                 {rot.status === 'ACTIVE' && <Button variant="ghost" onClick={() => doAction('pause')} disabled={actionLoading}>Pause</Button>}
                 {rot.status === 'PAUSED' && <Button onClick={() => doAction('activate')} disabled={actionLoading}>Resume</Button>}
                 <Button variant="ghost" onClick={() => doAction('archive')} disabled={actionLoading}>Archive</Button>
+                <Button variant="ghost" onClick={doRotate} disabled={actionLoading}>Rotate on date</Button>
+                <Button variant="ghost" onClick={deleteRotation} disabled={actionLoading}>Delete</Button>
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <label className="text-xs text-gray-500">Date</label>
+                <input type="date" value={rotateDate} onChange={(e) => setRotateDate(e.target.value)} className="px-2 py-1.5 border rounded-md text-sm" />
               </div>
             </div>
           )}
@@ -497,7 +607,7 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
 
       {tab === 'preview' && (
         <div className="space-y-5">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+          <div className="no-print bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div>
@@ -518,6 +628,13 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
                   {generating ? 'Generating...' : `Generate ${previewDays} Days`}
                 </button>
               )}
+              {previewData && (
+                <button onClick={() => window.print()}
+                  className="h-9 px-5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 mt-5">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                  Print Schedule
+                </button>
+              )}
             </div>
           </div>
 
@@ -532,105 +649,131 @@ function DetailView({ rotation: rot, onBack, canManage }: { rotation: Rotation; 
             const guardList: { id: string; name: string; code: string }[] = [];
             const seen = new Set<string>();
             previewData.assignments.forEach((a: any) => {
-              if (a.guardId?._id && !seen.has(a.guardId._id)) {
-                seen.add(a.guardId._id);
-                guardList.push({ id: a.guardId._id, name: `${a.guardId.firstName} ${a.guardId.lastName}`, code: a.guardId.employeeCode });
+              const emp = a.guard || a.guardId;
+              const gid = emp?._id || a.guardId?._id || a.guardId;
+              if (gid && !seen.has(String(gid))) {
+                seen.add(String(gid));
+                const firstName = emp?.firstName || '';
+                const lastName = emp?.lastName || '';
+                guardList.push({ id: String(gid), name: `${firstName} ${lastName}`.trim() || 'Unknown', code: emp?.employeeCode || '' });
               }
             });
             const shiftTimes = previewData.shiftTimes || { day: rot.dayStartTime, night: rot.nightEndTime };
+            const dateRange = dates.length > 0 ? `${new Date(dates[0] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(dates[dates.length - 1] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : '';
 
             return (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h3 className="text-sm font-bold text-gray-900">Rotation Schedule — {rot.name}</h3>
-                  <p className="text-[11px] text-gray-400 mt-0.5">{dates.length} days · {guardList.length} guards · DAY = {shiftTimes.day} · NIGHT = {shiftTimes.night}</p>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-16">Day</th>
-                        <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-24">Date</th>
-                        {guardList.map((g) => (
-                          <th key={g.id} className="px-3 py-2.5 text-center text-[10px] font-bold text-gray-700 uppercase tracking-wider min-w-[100px]">
-                            <div>{g.name}</div>
-                            <div className="text-gray-400 normal-case">{g.code}</div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {dates.map((dateKey, di) => {
-                        const dayAssigns = groups[dateKey];
-                        const dayDate = new Date(dateKey + 'T12:00:00');
-                        const isToday = dateKey === new Date().toISOString().split('T')[0];
-                        const byGuard: Record<string, any> = {};
-                        dayAssigns.forEach((a: any) => { if (a.guardId?._id) byGuard[a.guardId._id] = a; });
-
-                        return (
-                          <tr key={dateKey} className={`hover:bg-gray-50/50 ${isToday ? 'bg-indigo-50/50' : ''}`}>
-                            <td className="px-3 py-2 font-bold text-gray-500">{di + 1}.</td>
-                            <td className={`px-3 py-2 font-medium ${isToday ? 'text-indigo-700' : 'text-gray-700'}`}>
-                              {dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              {isToday && <span className="ml-1 text-[9px] font-bold text-indigo-600">TODAY</span>}
-                            </td>
-                            {guardList.map((g) => {
-                              const a = byGuard[g.id];
-                              if (!a) return <td key={g.id} className="px-3 py-2 text-center"><span className="px-2 py-0.5 rounded-lg bg-gray-100 text-gray-400 font-medium text-[10px]">REST</span></td>;
-                              const time = a.shiftType === 'DAY' ? shiftTimes.day : shiftTimes.night;
-                              return (
-                                <td key={g.id} className="px-3 py-2 text-center">
-                                  <span className={`px-2 py-0.5 rounded-lg font-bold text-[11px] ${a.shiftType === 'DAY' ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-indigo-800'}`}>
-                                    {time}
-                                  </span>
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <>
+                <ScheduleGrid title="Shift Schedule" siteName={siteName} dateRange={dateRange}
+                  dates={dates} guardList={guardList} groups={groups} shiftTimes={shiftTimes} showCode />
+                {previewData.warnings && previewData.warnings.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <h4 className="text-sm font-bold text-amber-800 mb-2">Scheduling Warnings ({previewData.warnings.length})</h4>
+                    <ul className="text-xs text-amber-700 space-y-1 list-disc list-inside">
+                      {previewData.warnings.map((w: string, i: number) => <li key={i}>{w}</li>)}
+                    </ul>
+                  </div>
+                )}
+                {previewData.guardStats && previewData.guardStats.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100">
+                      <h3 className="text-sm font-bold text-gray-900">Guard Workload Summary</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead><tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="px-4 py-2.5 text-left font-bold text-gray-400">Guard</th>
+                          <th className="px-4 py-2.5 text-center font-bold text-gray-400">Day Shifts</th>
+                          <th className="px-4 py-2.5 text-center font-bold text-gray-400">Night Shifts</th>
+                          <th className="px-4 py-2.5 text-center font-bold text-gray-400">Total</th>
+                          <th className="px-4 py-2.5 text-center font-bold text-gray-400">Rest Days</th>
+                          <th className="px-4 py-2.5 text-center font-bold text-gray-400">Duty %</th>
+                        </tr></thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {previewData.guardStats.map((gs: any) => (
+                            <tr key={gs.guardId} className="hover:bg-gray-50/50">
+                              <td className="px-4 py-2 font-medium text-gray-900">{gs.name} <span className="text-gray-400">{gs.employeeCode}</span></td>
+                              <td className="px-4 py-2 text-center"><span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-800 font-bold">{gs.dayShifts}</span></td>
+                              <td className="px-4 py-2 text-center"><span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold">{gs.nightShifts}</span></td>
+                              <td className="px-4 py-2 text-center font-bold">{gs.totalShifts}</td>
+                              <td className="px-4 py-2 text-center text-gray-500">{gs.restDays}</td>
+                              <td className="px-4 py-2 text-center">
+                                <span className={`font-bold ${gs.totalShifts / previewDays > 0.6 ? 'text-red-600' : gs.totalShifts / previewDays > 0.4 ? 'text-amber-600' : 'text-green-600'}`}>
+                                  {Math.round((gs.totalShifts / previewDays) * 100)}%
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
             );
           })()}
 
           {!previewData && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
-              <p className="text-sm font-medium text-gray-500">Click "Preview Schedule" to see the rotation</p>
-              <p className="text-xs text-gray-400 mt-1">Shows who works which shift each day</p>
+              <p className="text-sm font-medium text-gray-500">Click "Preview Schedule" to see the shift schedule</p>
+              <p className="text-xs text-gray-400 mt-1">Shows who works which shift each day, respecting rest rules and cross-site conflicts</p>
             </div>
           )}
         </div>
       )}
 
       {tab === 'assignments' && (
-        <div className="bg-white rounded-xl border p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <input type="date" value={assignStart} onChange={(e) => setAssignStart(e.target.value)} className="px-2 py-1 border rounded text-sm" />
-            <span className="text-gray-400">to</span>
-            <input type="date" value={assignEnd} onChange={(e) => setAssignEnd(e.target.value)} className="px-2 py-1 border rounded text-sm" />
-            <Button variant="ghost" onClick={loadAssignments}>Load</Button>
-          </div>
-          {assignments.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-8">No assignments found. Generate from Preview tab.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead><tr className="border-b"><th className="px-2 py-1 text-left">Date</th><th className="px-2 py-1 text-left">Guard</th><th className="px-2 py-1 text-left">Code</th><th className="px-2 py-1 text-left">Shift</th><th className="px-2 py-1 text-left">Time</th></tr></thead>
-                <tbody>{assignments.map((a: any) => (
-                  <tr key={a._id} className="border-b hover:bg-gray-50">
-                    <td className="px-2 py-1">{new Date(a.date).toLocaleDateString()}</td>
-                    <td className="px-2 py-1">{a.guardId?.firstName} {a.guardId?.lastName}</td>
-                    <td className="px-2 py-1 text-gray-400">{a.guardId?.employeeCode}</td>
-                    <td className="px-2 py-1"><span className={`px-1.5 py-0.5 rounded font-bold ${a.shiftType === 'DAY' ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-indigo-800'}`}>{a.shiftType}</span></td>
-                    <td className="px-2 py-1">{a.shiftTime}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
+        <div className="space-y-5">
+          <div className="no-print bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <input type="date" value={assignStart} onChange={(e) => setAssignStart(e.target.value)} className="px-2 py-1.5 border rounded-lg text-sm" />
+                <span className="text-gray-400">to</span>
+                <input type="date" value={assignEnd} onChange={(e) => setAssignEnd(e.target.value)} className="px-2 py-1.5 border rounded-lg text-sm" />
+                <Button variant="ghost" onClick={loadAssignments}>Load</Button>
+              </div>
+              <div className="flex gap-2">
+                {assignments.length > 0 && (
+                  <button onClick={() => window.print()} className="h-9 px-4 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                    Print
+                  </button>
+                )}
+              </div>
             </div>
-          )}
+          </div>
+
+          {assignments.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-16 text-center">
+              <p className="text-sm font-medium text-gray-500">No assignments found. Generate from Preview tab first.</p>
+            </div>
+          ) : (() => {
+            const groups: Record<string, any[]> = {};
+            assignments.forEach((a: any) => {
+              const key = new Date(a.date).toISOString().split('T')[0];
+              if (!groups[key]) groups[key] = [];
+              groups[key].push(a);
+            });
+            const dates = Object.keys(groups).sort();
+            const guardList: { id: string; name: string; code: string }[] = [];
+            const seen = new Set<string>();
+            assignments.forEach((a: any) => {
+              const emp = a.guard || a.guardId;
+              const gid = emp?._id || a.guardId?._id || a.guardId;
+              if (gid && !seen.has(String(gid))) {
+                seen.add(String(gid));
+                const firstName = emp?.firstName || '';
+                const lastName = emp?.lastName || '';
+                guardList.push({ id: String(gid), name: `${firstName} ${lastName}`.trim() || 'Unknown', code: emp?.employeeCode || '' });
+              }
+            });
+            const shiftTimes = { day: rot.dayStartTime || '06:00', night: rot.nightStartTime || '18:00' };
+            const dateRange = dates.length > 0 ? `${new Date(dates[0] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(dates[dates.length - 1] + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : '';
+
+            return (
+              <ScheduleGrid title="Generated Schedule" siteName={siteName} dateRange={dateRange}
+                dates={dates} guardList={guardList} groups={groups} shiftTimes={{ day: shiftTimes.day, night: shiftTimes.night }} />
+            );
+          })()}
         </div>
       )}
 

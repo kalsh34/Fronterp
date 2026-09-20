@@ -57,7 +57,7 @@ const AttendanceTracker: React.FC = () => {
 
   const fetchGuards = useCallback(async () => {
     try {
-      const response = await api.get('/api/guards');
+      const response = await api.get('/guards');
       const data = response.data.data;
       setGuards(data);
       if (data.length > 0) {
@@ -76,7 +76,7 @@ const AttendanceTracker: React.FC = () => {
       const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
       
       const response = await api.get(
-        `/api/attendance/monthly?guardId=${selectedGuard}&start=${formatDateStr(monthStart)}&end=${formatDateStr(monthEnd)}`
+        `/attendance/monthly?guardId=${selectedGuard}&start=${formatDateStr(monthStart)}&end=${formatDateStr(monthEnd)}`
       );
       setMonthlyData(response.data.data);
     } catch (error) {
