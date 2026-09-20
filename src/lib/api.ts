@@ -1,10 +1,32 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
-export const getApiBaseUrl = () => {
-  const configured = import.meta.env.VITE_API_URL as string | undefined;
-  const fallback = import.meta.env.DEV ? 'http://localhost:5000' : 'https://erpback-tnsv.onrender.com';
-  return ((configured || fallback).replace(/\/$/, '') + '/api');
+// Deployed backend. Used in every mode (dev, preview, production) unless VITE_API_URL overrides it.
+export const DEFAULT_API_ORIGIN = 'https://erpback-tnsv.onrender.com';
+
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
+
+// Origin of the backend without a trailing slash and without /api,
+// e.g. https://erpback-tnsv.onrender.com
+export const getApiOrigin = (): string => {
+  const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  return trimTrailingSlash(configured || DEFAULT_API_ORIGIN);
+};
+
+// Full API base URL, e.g. https://erpback-tnsv.onrender.com/api
+export const getApiBaseUrl = (): string => `${getApiOrigin()}/api`;
+
+// The backend stores uploads as root-relative paths (e.g. "/uploads/file.pdf").
+// Resolve them against the backend origin so links keep working when the
+// frontend and the API are served from different hosts.
+export const getAssetUrl = (path?: string | null): string => {
+  if (!path) return '';
+  const value = path.trim();
+  if (!value) return '';
+  if (/^(https?:)?\/\//i.test(value) || value.startsWith('data:') || value.startsWith('blob:')) {
+    return value;
+  }
+  return `${getApiOrigin()}${value.startsWith('/') ? value : `/${value}`}`;
 };
 
 const api = axios.create({
