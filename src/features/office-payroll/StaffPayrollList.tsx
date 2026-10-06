@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { StatusBadge, LoadingSpinner } from '../../components/ui';
 import api from '../../lib/api';
+import PayslipModal from '../../components/payroll/PayslipModal';
 
 interface StaffRecord {
   _id: string;
@@ -60,6 +61,9 @@ export default function StaffPayrollList() {
   const [generating, setGenerating] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [selectedRecord, setSelectedRecord] = useState<StaffRecord | null>(null);
+  const [currentRun, setCurrentRun] = useState<any>(null);
+  const [payslipModalOpen, setPayslipModalOpen] = useState(false);
+  const [payslipRecordId, setPayslipRecordId] = useState<string | null>(null);
   const [skippedEmployees, setSkippedEmployees] = useState<SkippedEmployee[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -150,6 +154,9 @@ export default function StaffPayrollList() {
     try {
       const response = await api.get(`/office-payroll?payrollPeriodId=${selectedPeriod}&limit=500`);
       setRecords(response.data.data || []);
+      if (response.data.run) {
+        setCurrentRun(response.data.run);
+      }
     } catch (error) {
       console.error('Failed to fetch office payroll:', error);
     } finally {
@@ -242,6 +249,47 @@ export default function StaffPayrollList() {
 
   const currentPeriod = periods.find(p => p._id === selectedPeriod);
   const hasRecords = records.length > 0;
+
+  const runId = currentRun?._id || (records.length > 0 ? (records[0] as any).runId : null);
+
+  const downloadReport = async (path: string, defaultFilename: string) => {
+    try {
+      const res = await api.get(path, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = defaultFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      setDownloadOpen(false);
+    } catch (err) {
+      console.error('Failed to export report:', err);
+    }
+  };
+
+  const handleExportBank = (bank: string) => {
+    if (!runId) return;
+    const filterQuery = bank !== 'ALL' ? `?bank=${encodeURIComponent(bank)}` : '';
+    downloadReport(`/staff-payroll/runs/${runId}/export/bank${filterQuery}`, `staff-bank-disbursement-${bank}.csv`);
+  };
+
+  const handleExportTax = () => {
+    if (!runId) return;
+    downloadReport(`/staff-payroll/runs/${runId}/export/tax`, `staff-tax-declaration.csv`);
+  };
+
+  const handleExportPension = () => {
+    if (!runId) return;
+    downloadReport(`/staff-payroll/runs/${runId}/export/pension`, `staff-pension-poessa.csv`);
+  };
+
+  const handleOpenPayslip = (recordId: string) => {
+    setPayslipRecordId(recordId);
+    setPayslipModalOpen(true);
+  };
 
   const handleExportCSV = () => {
     const headers = ['Employee Code', 'Name', 'Department', 'Basic Pay', 'Responsibility Allow.', 'Tele Allow.', 'Taxable Transport', 'Non-Taxable Allow.', 'OT', 'Gross Pay', 'Income Tax', 'Emp. Pension', 'Loan', 'Total Deductions', 'Net Pay', 'Status'];
@@ -361,14 +409,86 @@ export default function StaffPayrollList() {
                 </svg>
               </button>
               {downloadOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg z-50 py-2">
-                  <button onClick={handleExportCSV} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    <div className="text-left">
-                      <p className="font-medium">Download CSV</p>
-                      <p className="text-xs text-gray-400">Comma separated values</p>
-                    </div>
-                  </button>
+                <div className="absolute right-0 mt-2 w-72 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2 divide-y divide-gray-100">
+                  {/* Bank Batch Exports */}
+                  <div className="py-1">
+                    <p className="px-4 py-1 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Bank Batch Transfers</p>
+                    <button
+                      onClick={() => handleExportBank('CBE')}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-blue-50/50 hover:text-blue-700 transition-colors"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-violet-600" />
+                      <div className="text-left">
+                        <p className="font-medium text-xs">CBE Transfer Batch</p>
+                        <p className="text-[11px] text-gray-400">Commercial Bank of Ethiopia CSV</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleExportBank('Awash')}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-blue-50/50 hover:text-blue-700 transition-colors"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-blue-600" />
+                      <div className="text-left">
+                        <p className="font-medium text-xs">Awash Bank Transfer Batch</p>
+                        <p className="text-[11px] text-gray-400">Awash International Bank CSV</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleExportBank('ALL')}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-blue-50/50 hover:text-blue-700 transition-colors"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                      <div className="text-left">
+                        <p className="font-medium text-xs">All Banks Batch File</p>
+                        <p className="text-[11px] text-gray-400">Full net pay disbursement list</p>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Statutory Schedules */}
+                  <div className="py-1">
+                    <p className="px-4 py-1 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Statutory Compliance</p>
+                    <button
+                      onClick={handleExportTax}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-blue-50/50 hover:text-blue-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <div className="text-left">
+                        <p className="font-medium text-xs">ERCA Income Tax Declaration</p>
+                        <p className="text-[11px] text-gray-400">Monthly schedule for Ministry of Revenues</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={handleExportPension}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-blue-50/50 hover:text-blue-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                      <div className="text-left">
+                        <p className="font-medium text-xs">POESSA Pension Remittance (18%)</p>
+                        <p className="text-[11px] text-gray-400">7% Employee + 11% Employer schedule</p>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Standard CSV */}
+                  <div className="py-1">
+                    <button
+                      onClick={handleExportCSV}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      <div className="text-left">
+                        <p className="font-medium text-xs">Table Grid Export</p>
+                        <p className="text-[11px] text-gray-400">Standard table values CSV</p>
+                      </div>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -552,6 +672,15 @@ export default function StaffPayrollList() {
                             <td className="px-6 py-4 text-center"><StatusBadge status={record.status} /></td>
                             <td className="px-6 py-4 text-center">
                               <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => handleOpenPayslip(record._id)}
+                                  className="p-1.5 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+                                  title="Official Payslip"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                </button>
                                 <button onClick={() => setSelectedRecord(record)} className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="View details">
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -693,11 +822,32 @@ export default function StaffPayrollList() {
               </div>
             </div>
 
-            <div className="bg-green-50 rounded-xl p-4 border border-green-100">
+            <div className="bg-green-50 rounded-xl p-4 border border-green-100 mb-4">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-green-800">Net Pay</span>
                 <span className="text-lg font-bold text-green-700">{formatCurrency(selectedRecord.netPay)}</span>
               </div>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-gray-100">
+              <button
+                onClick={() => handleOpenPayslip(selectedRecord._id)}
+                className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                View Official Payslip
+              </button>
+              <button
+                onClick={() => handleOpenPayslip(selectedRecord._id)}
+                className="w-full px-4 py-2.5 bg-white text-gray-700 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Print / Save Payslip PDF
+              </button>
             </div>
           </div>
         )}
@@ -754,6 +904,13 @@ export default function StaffPayrollList() {
           </div>
         </div>
       )}
+
+      <PayslipModal
+        isOpen={payslipModalOpen}
+        onClose={() => setPayslipModalOpen(false)}
+        recordId={payslipRecordId}
+        type="STAFF"
+      />
     </div>
   );
 }
