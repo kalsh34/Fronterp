@@ -24,10 +24,10 @@ const statusColors: Record<string, string> = {
 };
 
 const siteTypeColors: Record<string, string> = {
-  COMMERCIAL: 'bg-indigo-100 text-indigo-700',
-  RESIDENTIAL: 'bg-violet-100 text-violet-700',
-  INDUSTRIAL: 'bg-amber-100 text-amber-700',
-  GOVERNMENT: 'bg-teal-100 text-teal-700',
+  COMMERCIAL: 'bg-slate-100 text-slate-800 border border-slate-200',
+  RESIDENTIAL: 'bg-blue-50 text-blue-700 border border-blue-200',
+  INDUSTRIAL: 'bg-slate-900 text-white shadow-xs',
+  GOVERNMENT: 'bg-sky-50 text-sky-800 border border-sky-200',
 };
 
 const siteTypeIcons: Record<string, string> = {

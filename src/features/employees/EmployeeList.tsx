@@ -63,8 +63,8 @@ const categoryLabels: Record<string, string> = {
 };
 
 const categoryBadge: Record<string, string> = {
-  GUARD: 'bg-blue-100 text-blue-700',
-  OFFICE_STAFF: 'bg-violet-100 text-violet-700',
+  GUARD: 'bg-blue-50 text-blue-700 border border-blue-200',
+  OFFICE_STAFF: 'bg-slate-100 text-slate-800 border border-slate-200',
 };
 
 const tabs = ['Employee Directory', 'Onboarding', 'Guarantor', 'Contract', 'Attendance', 'Performance'];

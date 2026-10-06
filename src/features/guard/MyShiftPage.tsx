@@ -3,8 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import api from '../../lib/api';
 import { Button } from '../../components/ui/Button';
-import { Card, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Modal } from '../../components/ui/Modal';
+import {
+  Shield,
+  ShieldCheck,
+  Radio,
+  Clock,
+  Square,
+  Users,
+  LogOut,
+  CheckCircle2,
+  AlertTriangle,
+  User,
+} from 'lucide-react';
 
 interface Site {
   _id: string;
@@ -48,7 +59,6 @@ interface CoverageInfo {
 }
 
 type ViewTab = 'shift' | 'history';
-
 type ShiftState = 'loading' | 'active' | 'completed' | 'idle';
 
 interface Toast {
@@ -146,7 +156,11 @@ export default function MyShiftPage() {
     if (!guardId) return;
     setHistoryLoading(true);
     try {
-      const res = await api.get(`/attendance/recent/${guardId}?days=${historyDays}`);
+      const to = new Date().toISOString();
+      const from = new Date(Date.now() - historyDays * 86400000).toISOString();
+      const res = await api.get(`/attendance/guard/${guardId}`, {
+        params: { from, to, limit: 100 },
+      });
       setHistoryRecords(res.data.data || []);
     } catch (e) {
       console.error(e);
@@ -189,13 +203,13 @@ export default function MyShiftPage() {
   }, [todayRecord]);
 
   const handleClockIn = async (relievesAttendanceId?: string) => {
-    if (!selectedSite) return alert('Please select a site');
+    if (!selectedSite) return alert('Please select an assigned post site');
     const siteName = sites.find((s) => s.siteId?._id === selectedSite)?.siteId?.siteName || 'this site';
     setConfirm({
-      title: 'Start Shift',
+      title: 'COMMENCE SHIFT DUTY',
       message: relievesAttendanceId
-        ? `Start your shift at ${siteName}? You will be recorded as relieving the predecessor.`
-        : `Start your shift at ${siteName}? (No predecessor selected — gap coverage)`,
+        ? `Initiate duty rotation at ${siteName}? Official relief timestamp will be registered.`
+        : `Initiate active shift at ${siteName}? (Proceeding as gap clearance coverage)`,
       onConfirm: async () => {
         setConfirm(null);
         setClocking(true);
@@ -205,11 +219,11 @@ export default function MyShiftPage() {
           const res = await api.post('/attendance/clock-in', body);
           const record = res.data.data;
           const time = new Date(record.clockIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          showToast('Clocked in successfully', `${siteName} at ${time}`);
+          showToast('Shift Active', `${siteName} logged at ${time}`);
           await loadData();
           setSelectedSite('');
         } catch (e: any) {
-          alert(e.response?.data?.message || 'Failed to clock in');
+          alert(e.response?.data?.message || 'Failed to initiate clock in');
         } finally {
           setClocking(false);
         }
@@ -219,8 +233,8 @@ export default function MyShiftPage() {
 
   const handleClockOut = async () => {
     setConfirm({
-      title: 'End Shift',
-      message: 'End your current shift now?',
+      title: 'TERMINATE SHIFT DUTY',
+      message: 'Cease active duty and lock final patrol timestamp for this post?',
       onConfirm: async () => {
         setConfirm(null);
         setClocking(true);
@@ -229,10 +243,10 @@ export default function MyShiftPage() {
           const record = res.data.data;
           const time = new Date(record.clockOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const hours = record.totalHours.toFixed(1);
-          showToast('Clocked out successfully', `${time} - ${hours}h worked`);
+          showToast('Shift Terminated', `${time} — ${hours}h logged`);
           await loadData();
         } catch (e: any) {
-          alert(e.response?.data?.message || 'Failed to clock out');
+          alert(e.response?.data?.message || 'Failed to log clock out');
         } finally {
           setClocking(false);
         }
@@ -244,18 +258,24 @@ export default function MyShiftPage() {
     setTodayRecord(null);
   };
 
-  const shiftState: ShiftState = loading ? 'loading' : todayRecord && !todayRecord.clockOut ? 'active' : todayRecord && todayRecord.clockOut ? 'completed' : 'idle';
+  const shiftState: ShiftState = loading
+    ? 'loading'
+    : todayRecord && !todayRecord.clockOut
+    ? 'active'
+    : todayRecord && todayRecord.clockOut
+    ? 'completed'
+    : 'idle';
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-lg mx-auto min-h-screen flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      <div className="w-full max-w-lg mx-auto min-h-screen flex flex-col bg-slate-900 border-x border-slate-800 shadow-2xl">
         <Header
           view={view}
           onTabChange={setView}
           onProfile={() => navigate('/my-profile')}
         />
 
-        <div className="flex-1 px-4 pb-6">
+        <div className="flex-1 px-4 py-5 overflow-y-auto">
           {view === 'shift' ? (
             <ShiftView
               state={shiftState}
@@ -282,59 +302,105 @@ export default function MyShiftPage() {
         </div>
 
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
-        {confirm && <ConfirmDialogComp title={confirm.title} message={confirm.message} onConfirm={confirm.onConfirm} onCancel={() => setConfirm(null)} />}
+        {confirm && (
+          <ConfirmDialogComp
+            title={confirm.title}
+            message={confirm.message}
+            onConfirm={confirm.onConfirm}
+            onCancel={() => setConfirm(null)}
+          />
+        )}
       </div>
     </div>
   );
 }
 
 function Header({ view, onTabChange, onProfile }: { view: ViewTab; onTabChange: (v: ViewTab) => void; onProfile: () => void }) {
-  const { logout } = useAuthStore();
+  const { logout, user } = useAuthStore();
   const navigate = useNavigate();
 
   return (
-    <div className="sticky top-0 z-10 bg-gray-100 pt-3 pb-2 px-4">
-      <div className="flex items-center justify-between mb-3">
-        <h1 className="text-lg font-bold text-gray-900">My Shift</h1>
+    <div className="sticky top-0 z-20 bg-slate-950 border-b border-slate-800 px-4 pt-3.5 pb-3 shadow-md">
+      {/* Top Identity Strip */}
+      <div className="flex items-center justify-between mb-3.5">
         <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center p-1 shadow-md border border-blue-400/40">
+            <img src="/logo.png" alt="Vital" className="w-full h-full object-contain" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black tracking-widest text-white uppercase font-mono">
+                VITAL TACTICAL
+              </span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> PATROL TERMINAL
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 font-medium font-mono">Officer ID: {user?.employeeId || 'GUARD-SEC'}</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
             onClick={onProfile}
-            className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900"
+            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors border border-slate-800"
+            title="Profile"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-            Profile
+            <User className="w-4 h-4" />
           </button>
           <button
             onClick={() => { logout(); navigate('/login'); }}
-            className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-700"
+            className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-lg transition-colors border border-slate-800"
+            title="Sign Out"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </div>
-      <div className="flex bg-gray-200 rounded-lg p-0.5">
+
+      {/* Military Segmented Control Tabs */}
+      <div className="flex bg-slate-900 border border-slate-800 rounded-xl p-1 gap-1">
         <button
           onClick={() => onTabChange('shift')}
-          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-            view === 'shift' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          className={`flex-1 py-2 text-xs font-bold font-mono uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            view === 'shift'
+              ? 'bg-blue-600 text-white shadow-md border border-blue-400/30'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          Shift
+          <Radio className="w-3.5 h-3.5" />
+          <span>Active Shift</span>
         </button>
         <button
           onClick={() => onTabChange('history')}
-          className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-            view === 'history' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          className={`flex-1 py-2 text-xs font-bold font-mono uppercase tracking-wider rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            view === 'history'
+              ? 'bg-blue-600 text-white shadow-md border border-blue-400/30'
+              : 'text-slate-400 hover:text-slate-200'
           }`}
         >
-          History
+          <Clock className="w-3.5 h-3.5" />
+          <span>Duty Log</span>
         </button>
       </div>
     </div>
   );
 }
 
-function ShiftView({ state, todayRecord, sites, selectedSite, onSelectSite, elapsed, clocking, guardId, onClockIn, onClockOut, onBackToIdle, onGoToHistory }: {
+function ShiftView({
+  state,
+  todayRecord,
+  sites,
+  selectedSite,
+  onSelectSite,
+  elapsed,
+  clocking,
+  guardId,
+  onClockIn,
+  onClockOut,
+  onBackToIdle,
+  onGoToHistory,
+}: {
   state: ShiftState;
   todayRecord: AttendanceRecord | null;
   sites: SiteAssignment[];
@@ -350,10 +416,10 @@ function ShiftView({ state, todayRecord, sites, selectedSite, onSelectSite, elap
 }) {
   if (state === 'loading') {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex items-center justify-center h-64 text-slate-400 text-xs font-mono">
         <div className="text-center">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Loading...</p>
+          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p>INITIALIZING TERMINAL SECURE TELEMETRY...</p>
         </div>
       </div>
     );
@@ -367,10 +433,26 @@ function ShiftView({ state, todayRecord, sites, selectedSite, onSelectSite, elap
     return <CompletedView record={todayRecord!} onBackToIdle={onBackToIdle} onGoToHistory={onGoToHistory} />;
   }
 
-  return <IdleView sites={sites} selectedSite={selectedSite} onSelectSite={onSelectSite} clocking={clocking} guardId={guardId} onClockIn={onClockIn} />;
+  return (
+    <IdleView
+      sites={sites}
+      selectedSite={selectedSite}
+      onSelectSite={onSelectSite}
+      clocking={clocking}
+      guardId={guardId}
+      onClockIn={onClockIn}
+    />
+  );
 }
 
-function IdleView({ sites, selectedSite, onSelectSite, clocking, guardId, onClockIn }: {
+function IdleView({
+  sites,
+  selectedSite,
+  onSelectSite,
+  clocking,
+  guardId,
+  onClockIn,
+}: {
   sites: SiteAssignment[];
   selectedSite: string;
   onSelectSite: (v: string) => void;
@@ -443,72 +525,106 @@ function IdleView({ sites, selectedSite, onSelectSite, clocking, guardId, onCloc
     onClockIn(undefined);
   };
 
+  // High-Contrast Military Site Status Chips
   const coverageBanner = (() => {
     if (!coverage) return null;
     if (coverage.status === 'understaffed') {
       return (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 flex items-center gap-3">
-          <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div className="bg-amber-950/40 border-2 border-amber-500/70 rounded-2xl p-4 mb-4 flex items-center gap-3.5 text-amber-200 shadow-lg shadow-amber-950/30">
+          <div className="w-10 h-10 bg-amber-500/20 border border-amber-500/50 rounded-xl flex items-center justify-center shrink-0 text-amber-400">
+            <AlertTriangle className="w-5 h-5 stroke-[2.2]" />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-amber-800">Understaffed</p>
-            <p className="text-xs text-amber-600">{coverage.onDuty}/{coverage.required} guards on duty</p>
+          <div className="flex-1 min-w-0 font-mono">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-300">
+                [ POST ALERT: UNDERSTAFFED ]
+              </span>
+              <span className="text-[10px] font-bold bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40 text-amber-300">
+                CRITICAL GAP
+              </span>
+            </div>
+            <p className="text-xs text-amber-300/90 font-sans font-medium">
+              Active Complement: <span className="font-mono font-bold text-white">{coverage.onDuty}</span> / <span className="font-mono font-bold text-white">{coverage.required}</span> guards stationed on perimeter.
+            </p>
           </div>
         </div>
       );
     }
     if (coverage.status === 'overstaffed') {
       return (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <div className="bg-blue-950/40 border-2 border-blue-500/70 rounded-2xl p-4 mb-4 flex items-center gap-3.5 text-blue-200 shadow-lg shadow-blue-950/30">
+          <div className="w-10 h-10 bg-blue-500/20 border border-blue-500/50 rounded-xl flex items-center justify-center shrink-0 text-blue-400">
+            <Shield className="w-5 h-5 stroke-[2.2]" />
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-blue-800">Overstaffed</p>
-            <p className="text-xs text-blue-600">{coverage.onDuty}/{coverage.required} guards on duty</p>
+          <div className="flex-1 min-w-0 font-mono">
+            <div className="flex items-center justify-between mb-0.5">
+              <span className="text-xs font-black uppercase tracking-wider text-blue-300">
+                [ POST STATUS: REINFORCED ]
+              </span>
+              <span className="text-[10px] font-bold bg-blue-500/20 px-2 py-0.5 rounded border border-blue-500/40 text-blue-300">
+                MAX COVERAGE
+              </span>
+            </div>
+            <p className="text-xs text-blue-300/90 font-sans font-medium">
+              Active Complement: <span className="font-mono font-bold text-white">{coverage.onDuty}</span> / <span className="font-mono font-bold text-white">{coverage.required}</span> guards on post.
+            </p>
           </div>
         </div>
       );
     }
     return (
-      <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 flex items-center gap-3">
-        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+      <div className="bg-emerald-950/40 border-2 border-emerald-500/70 rounded-2xl p-4 mb-4 flex items-center gap-3.5 text-emerald-200 shadow-lg shadow-emerald-950/30">
+        <div className="w-10 h-10 bg-emerald-500/20 border border-emerald-500/50 rounded-xl flex items-center justify-center shrink-0 text-emerald-400">
+          <ShieldCheck className="w-5 h-5 stroke-[2.2]" />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-green-800">At Capacity</p>
-          <p className="text-xs text-green-600">{coverage.onDuty}/{coverage.required} guards on duty</p>
+        <div className="flex-1 min-w-0 font-mono">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-xs font-black uppercase tracking-wider text-emerald-300">
+              [ POST STATUS: SECURED ]
+            </span>
+            <span className="text-[10px] font-bold bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/40 text-emerald-300">
+              OPTIMAL
+            </span>
+          </div>
+          <p className="text-xs text-emerald-300/90 font-sans font-medium">
+            Post Complement: <span className="font-mono font-bold text-white">{coverage.onDuty}</span> / <span className="font-mono font-bold text-white">{coverage.required}</span> guards verified on duty.
+          </p>
         </div>
       </div>
     );
   })();
 
   return (
-    <div className="mt-2">
-      <div className="text-center mb-6">
-        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
-          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    <div className="space-y-4">
+      {/* Ready Banner */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-center">
+        <div className="w-14 h-14 bg-slate-800 border-2 border-slate-700 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-inner">
+          <Radio className="w-7 h-7 text-blue-400" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900">Ready to Clock In</h2>
-        <p className="text-sm text-gray-500 mt-1">Select your site and start your shift</p>
+        <h2 className="text-lg font-black font-mono tracking-wider text-white uppercase">
+          PERIMETER CLOCK-IN
+        </h2>
+        <p className="text-xs text-slate-400 mt-1 font-sans">
+          Select authorized post assignment to establish patrol telemetry.
+        </p>
       </div>
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm">Select Site</CardTitle>
-        </CardHeader>
+      {/* Select Site Card */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+        <label className="block text-[11px] font-bold font-mono uppercase tracking-wider text-slate-400 mb-2">
+          Designated Site Location
+        </label>
         {sites.length === 0 ? (
-          <div className="text-center py-6 text-gray-400">
-            <p className="text-sm">No site assignments yet</p>
+          <div className="text-center py-6 text-slate-500 text-xs font-mono">
+            NO AUTHORIZED POST ASSIGNMENTS LOCATED
           </div>
         ) : (
           <select
             value={selectedSite}
             onChange={(e) => onSelectSite(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3.5 text-base bg-gray-50 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
+            className="w-full border-2 border-slate-700 rounded-xl px-4 py-3.5 text-sm font-semibold bg-slate-950 text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
           >
-            <option value="">Choose a site...</option>
+            <option value="">-- Choose Assigned Post Location --</option>
             {sites.map((s) => (
               <option key={s.siteId?._id} value={s.siteId?._id}>
                 {s.siteId?.siteName} ({s.siteId?.siteCode})
@@ -516,131 +632,127 @@ function IdleView({ sites, selectedSite, onSelectSite, clocking, guardId, onCloc
             ))}
           </select>
         )}
-      </Card>
+      </div>
 
+      {/* Status Chip */}
       {selectedSite && coverageBanner}
 
+      {/* Relief Chain if guards on duty */}
       {selectedSite && (
-        <Card className="mb-4">
-          <CardHeader>
-            <CardTitle className="text-sm">Relief Chain</CardTitle>
-          </CardHeader>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold font-mono uppercase tracking-wider text-slate-300">
+              Shift Handover &amp; Relief Chain
+            </span>
+            <Users className="w-4 h-4 text-slate-400" />
+          </div>
+
           {fetchingOnDuty ? (
-            <div className="flex items-center justify-center py-4">
-              <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center justify-center py-6 text-xs text-slate-400">
+              <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2" />
+              Scanning on-duty roster...
             </div>
           ) : onDutyGuards.length === 0 ? (
-            <div className="text-center py-4">
-              <p className="text-sm text-gray-500 mb-1">No guards currently on duty</p>
-              <p className="text-xs text-gray-400">Clock-in will proceed as gap coverage</p>
+            <div className="text-center py-4 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+              <p className="font-bold text-slate-300 font-mono mb-0.5">PERIMETER VACANT</p>
+              <p className="text-slate-500">Clock-in will initiate as primary gap clearance.</p>
             </div>
           ) : (
-            <div>
-              <p className="text-xs text-gray-500 mb-3">Select who you are relieving:</p>
-              <div className="space-y-2">
-                {onDutyGuards.map((g) => (
-                  <button
-                    key={g._id}
-                    onClick={() => setSelectedPredecessor(g._id)}
-                    className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
-                      selectedPredecessor === g._id
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          selectedPredecessor === g._id ? 'bg-green-100' : 'bg-gray-100'
-                        }`}>
-                          <span className={`text-sm font-bold ${
-                            selectedPredecessor === g._id ? 'text-green-700' : 'text-gray-500'
-                          }`}>
-                            {g.guardName?.charAt(0) || '?'}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{g.guardName || 'Unknown'}</p>
-                          <p className="text-xs text-gray-500">Clocked in at {formatTime(g.clockIn)}</p>
-                        </div>
-                      </div>
-                      {selectedPredecessor === g._id && (
-                        <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                      )}
+            <div className="space-y-2">
+              <p className="text-xs text-slate-400 mb-2">Select officer you are relieving on post:</p>
+              {onDutyGuards.map((g) => (
+                <button
+                  key={g._id}
+                  onClick={() => setSelectedPredecessor(g._id)}
+                  className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-center justify-between cursor-pointer ${
+                    selectedPredecessor === g._id
+                      ? 'border-blue-500 bg-blue-950/60 shadow-md text-white'
+                      : 'border-slate-800 bg-slate-950 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-mono font-bold text-sm text-blue-400">
+                      {g.guardName?.charAt(0) || 'G'}
                     </div>
-                  </button>
-                ))}
-              </div>
+                    <div>
+                      <p className="text-xs font-bold text-white font-mono">{g.guardName}</p>
+                      <p className="text-[11px] text-slate-400 font-sans">On duty since {formatTime(g.clockIn)}</p>
+                    </div>
+                  </div>
+                  {selectedPredecessor === g._id && (
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-600 text-white uppercase">
+                      Selected
+                    </span>
+                  )}
+                </button>
+              ))}
             </div>
           )}
-        </Card>
+        </div>
       )}
 
-      <Button
+      {/* Military Grade Clock-In Button */}
+      <button
         onClick={handleClockInClick}
         disabled={clocking || !selectedSite || sites.length === 0}
-        className="w-full py-4 text-lg font-bold rounded-2xl active:scale-[0.98] transition-all shadow-lg"
-        variant="primary"
+        className="w-full py-4.5 px-6 bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-600 hover:from-blue-600 hover:to-indigo-500 active:scale-[0.98] disabled:opacity-40 text-white font-black font-mono tracking-widest uppercase rounded-2xl shadow-xl shadow-blue-950/60 border-2 border-blue-400 ring-4 ring-blue-600/30 transition-all flex items-center justify-center gap-3 text-base cursor-pointer"
       >
         {clocking ? (
-          <span className="flex items-center justify-center gap-2">
+          <span className="flex items-center justify-center gap-2.5">
             <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Starting...
+            INITIALIZING SHIFT TELEMETRY...
           </span>
         ) : (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            Clock In
+          <span className="flex items-center justify-center gap-2.5">
+            <Radio className="w-5 h-5 animate-pulse" />
+            <span>[ INITIATE SHIFT / CLOCK IN ]</span>
           </span>
         )}
-      </Button>
+      </button>
 
-      <Modal open={showPredecessorModal} onClose={() => setShowPredecessorModal(false)} title="Select Predecessor">
-        <p className="text-sm text-gray-600 mb-4">
+      {/* Relief Modal */}
+      <Modal open={showPredecessorModal} onClose={() => setShowPredecessorModal(false)} title="CONFIRM POST RELIEF">
+        <p className="text-xs text-slate-400 mb-4 font-sans leading-relaxed">
           {selectedPredecessor
-            ? 'You will be recorded as relieving this guard. Their shift ends when you clock in.'
-            : 'No predecessor selected. Your shift will start as gap coverage.'}
+            ? 'You are relieving the selected officer. Their shift duty will be closed automatically when your clock-in is registered.'
+            : 'No predecessor officer selected. This deployment will be logged as gap clearance.'}
         </p>
+
         {onDutyGuards.length > 0 && (
-          <div className="space-y-2 mb-4">
+          <div className="space-y-2 mb-5">
             {onDutyGuards.map((g) => (
               <button
                 key={g._id}
                 onClick={() => setSelectedPredecessor(g._id)}
-                className={`w-full text-left p-3 rounded-xl border-2 transition-all ${
+                className={`w-full text-left p-3 rounded-xl border-2 transition-all flex items-center justify-between ${
                   selectedPredecessor === g._id
-                    ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 bg-white hover:border-gray-300'
+                    ? 'border-blue-500 bg-blue-950/60 text-white'
+                    : 'border-slate-800 bg-slate-900 text-slate-300'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    selectedPredecessor === g._id ? 'bg-green-100' : 'bg-gray-100'
-                  }`}>
-                    <span className={`text-sm font-bold ${
-                      selectedPredecessor === g._id ? 'text-green-700' : 'text-gray-500'
-                    }`}>
-                      {g.guardName?.charAt(0) || '?'}
-                    </span>
+                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center font-mono font-bold text-xs text-blue-400">
+                    {g.guardName?.charAt(0) || 'G'}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900">{g.guardName || 'Unknown'}</p>
-                    <p className="text-xs text-gray-500">On duty since {formatTime(g.clockIn)}</p>
+                  <div>
+                    <p className="text-xs font-bold font-mono text-white">{g.guardName}</p>
+                    <p className="text-[10px] text-slate-400 font-sans">Duty started {formatTime(g.clockIn)}</p>
                   </div>
-                  {selectedPredecessor === g._id && (
-                    <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-                  )}
                 </div>
+                {selectedPredecessor === g._id && (
+                  <CheckCircle2 className="w-4 h-4 text-blue-400" />
+                )}
               </button>
             ))}
           </div>
         )}
+
         <div className="flex gap-3">
-          <Button onClick={handleSkipPredecessor} variant="secondary" className="flex-1">
-            Skip (Gap)
+          <Button onClick={handleSkipPredecessor} variant="secondary" className="flex-1 text-xs font-mono font-bold">
+            Gap Coverage
           </Button>
-          <Button onClick={handleConfirmPredecessor} variant="primary" className="flex-1">
-            Confirm
+          <Button onClick={handleConfirmPredecessor} variant="primary" className="flex-1 text-xs font-mono font-bold bg-blue-600 hover:bg-blue-500">
+            Confirm Relief
           </Button>
         </div>
       </Modal>
@@ -648,67 +760,100 @@ function IdleView({ sites, selectedSite, onSelectSite, clocking, guardId, onCloc
   );
 }
 
-function ActiveView({ record, elapsed, clocking, onClockOut }: {
+function ActiveView({
+  record,
+  elapsed,
+  clocking,
+  onClockOut,
+}: {
   record: AttendanceRecord;
   elapsed: string;
   clocking: boolean;
   onClockOut: () => void;
 }) {
   return (
-    <div className="mt-2">
-      <div className="bg-blue-600 text-white rounded-2xl p-5 mb-4 shadow-lg shadow-blue-600/20">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75" />
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-400" />
-          </span>
-          <span className="text-sm font-medium text-blue-100 uppercase tracking-wide">On Duty</span>
-        </div>
+    <div className="space-y-4">
+      {/* Tactical Active HUD Card */}
+      <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-2xl border-2 border-blue-500/50 relative overflow-hidden">
+        {/* Ambient tactical lighting */}
+        <div className="absolute top-0 right-0 w-44 h-44 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        <h2 className="text-2xl font-bold mb-1">{record.siteId?.siteName || 'Unknown Site'}</h2>
-        <p className="text-sm text-blue-200 mb-5">{record.siteId?.siteCode}</p>
-
-        <div className="bg-blue-700/50 rounded-xl p-4 mb-4">
-          <p className="text-xs text-blue-200 uppercase tracking-wide mb-1">Clock In</p>
-          <p className="text-lg font-mono font-semibold">{formatTime(record.clockIn)}</p>
-        </div>
-
-        {record.relievesAttendanceId && (
-          <div className="bg-blue-700/50 rounded-xl p-4 mb-4">
-            <p className="text-xs text-blue-200 uppercase tracking-wide mb-1">Relieving</p>
-            <p className="text-sm font-medium">Relief chain active</p>
+        <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
+            </span>
+            <span className="text-xs font-mono font-bold tracking-widest text-emerald-400 uppercase">
+              TACTICAL SHIFT ACTIVE
+            </span>
           </div>
-        )}
+          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-500/40 uppercase">
+            PATROL LOG ON
+          </span>
+        </div>
 
-        <div className="text-center py-3">
-          <p className="text-xs text-blue-200 uppercase tracking-wide mb-1">Elapsed</p>
-          <p className="text-5xl font-bold font-mono tracking-tight">{elapsed}</p>
+        <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white mb-1">
+          {record.siteId?.siteName || 'Perimeter Guard Post'}
+        </h2>
+        <div className="flex items-center gap-2 mb-6">
+          <span className="text-xs font-mono font-bold text-blue-400 bg-slate-950 px-2.5 py-0.5 rounded-md border border-slate-800">
+            POST ID: {record.siteId?.siteCode || 'SITE-SEC'}
+          </span>
+          <span className="text-xs text-slate-400 font-sans">{record.siteId?.location || 'Assigned Zone'}</span>
+        </div>
+
+        {/* High-Visibility Digital Monospace Elapsed Clock */}
+        <div className="bg-slate-950/90 rounded-2xl p-5 mb-5 border border-slate-800 text-center shadow-inner">
+          <p className="text-[10px] font-mono font-bold text-blue-400 uppercase tracking-widest mb-1">
+            RECORDED SHIFT ELAPSED TIME
+          </p>
+          <p className="text-5xl sm:text-6xl font-black font-mono tracking-widest text-white drop-shadow-[0_0_15px_rgba(59,130,246,0.5)]">
+            {elapsed}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-2 font-mono">
+          <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800">
+            <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">OFFICIAL CLOCK IN</p>
+            <p className="text-sm font-bold text-white">{formatTime(record.clockIn)}</p>
+          </div>
+          <div className="bg-slate-950/80 rounded-xl p-3 border border-slate-800">
+            <p className="text-[10px] font-bold text-slate-400 uppercase mb-0.5">RELIEF HANDOVER</p>
+            <p className="text-sm font-bold text-blue-400">
+              {record.relievesAttendanceId ? 'Verified Handover' : 'Gap Clearance'}
+            </p>
+          </div>
         </div>
       </div>
 
-      <Button
+      {/* Military Grade Clock Out CTA */}
+      <button
         onClick={onClockOut}
         disabled={clocking}
-        className="w-full py-4 text-lg font-bold rounded-2xl active:scale-[0.98] transition-all shadow-lg"
-        variant="danger"
+        className="w-full py-4.5 px-6 bg-gradient-to-r from-rose-700 via-rose-600 to-red-600 hover:from-rose-600 hover:to-red-500 active:scale-[0.98] disabled:opacity-40 text-white font-black font-mono tracking-widest uppercase rounded-2xl shadow-xl shadow-rose-950/50 border-2 border-rose-400 ring-4 ring-rose-600/30 transition-all flex items-center justify-center gap-3 text-base cursor-pointer"
       >
         {clocking ? (
-          <span className="flex items-center justify-center gap-2">
+          <span className="flex items-center justify-center gap-2.5">
             <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            Ending...
+            FINALIZING LOG...
           </span>
         ) : (
-          <span className="flex items-center justify-center gap-2">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" /></svg>
-            Clock Out
+          <span className="flex items-center justify-center gap-2.5">
+            <Square className="w-5 h-5" />
+            <span>[ CEASE DUTY / SECURE CLOCK-OUT ]</span>
           </span>
         )}
-      </Button>
+      </button>
     </div>
   );
 }
 
-function CompletedView({ record, onBackToIdle, onGoToHistory }: {
+function CompletedView({
+  record,
+  onBackToIdle,
+  onGoToHistory,
+}: {
   record: AttendanceRecord;
   onBackToIdle: () => void;
   onGoToHistory: () => void;
@@ -719,65 +864,64 @@ function CompletedView({ record, onBackToIdle, onGoToHistory }: {
   }, [onBackToIdle]);
 
   return (
-    <div className="mt-2">
-      <div className="text-center mb-6">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-          <svg className="w-9 h-9 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+    <div className="space-y-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
+        <div className="w-16 h-16 bg-emerald-950/60 border-2 border-emerald-500/60 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+          <CheckCircle2 className="w-8 h-8 text-emerald-400" />
         </div>
-        <h2 className="text-xl font-bold text-gray-900">Shift Completed</h2>
-        <p className="text-sm text-gray-500 mt-1">Great work today!</p>
+        <h2 className="text-xl font-black font-mono tracking-wide text-white uppercase">
+          DUTY CYCLE COMPLETE
+        </h2>
+        <p className="text-xs text-slate-400 mt-1">Official patrol records synchronized to central ERP.</p>
       </div>
 
-      <Card className="mb-4">
-        <div className="text-center mb-4">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full text-xs font-semibold">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Completed
-          </span>
-        </div>
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+        <h3 className="text-base font-bold text-center text-white mb-4">
+          {record.siteId?.siteName || 'Perimeter Site'}
+        </h3>
 
-        <h3 className="text-lg font-semibold text-center text-gray-900 mb-4">{record.siteId?.siteName || 'Unknown Site'}</h3>
-
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-gray-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Clock In</p>
-            <p className="text-sm font-mono font-semibold text-gray-900">{formatTime(record.clockIn)}</p>
+        <div className="grid grid-cols-2 gap-3 mb-4 font-mono">
+          <div className="bg-slate-950 rounded-xl p-3 text-center border border-slate-800">
+            <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Clock In</p>
+            <p className="text-sm font-bold text-white">{formatTime(record.clockIn)}</p>
           </div>
-          <div className="bg-gray-50 rounded-xl p-3 text-center">
-            <p className="text-xs text-gray-500 mb-0.5">Clock Out</p>
-            <p className="text-sm font-mono font-semibold text-gray-900">{record.clockOut ? formatTime(record.clockOut) : '--'}</p>
+          <div className="bg-slate-950 rounded-xl p-3 text-center border border-slate-800">
+            <p className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Clock Out</p>
+            <p className="text-sm font-bold text-white">{record.clockOut ? formatTime(record.clockOut) : '--'}</p>
           </div>
         </div>
 
-        <div className="text-center py-4 border-t border-gray-100">
-          <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Hours</p>
-          <p className="text-4xl font-bold text-blue-600 font-mono">{record.totalHours.toFixed(1)}<span className="text-lg font-medium">h</span></p>
+        <div className="text-center py-4 border-t border-slate-800 font-mono">
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-1">Total Duty Duration</p>
+          <p className="text-4xl font-black text-blue-400">{record.totalHours.toFixed(1)}<span className="text-lg">h</span></p>
         </div>
-      </Card>
+      </div>
 
-      <div className="space-y-3">
-        <Button
+      <div className="space-y-3 font-mono">
+        <button
           onClick={onBackToIdle}
-          className="w-full py-3.5 text-base font-bold rounded-2xl active:scale-[0.98] transition-all shadow-lg"
-          variant="primary"
+          className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md"
         >
-          Start Next Shift
-        </Button>
-        <Button
+          [ COMMENCE NEXT POST ]
+        </button>
+        <button
           onClick={onGoToHistory}
-          className="w-full py-3 text-sm font-medium rounded-2xl active:scale-[0.98] transition-all"
-          variant="secondary"
+          className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold uppercase tracking-wider rounded-xl transition-all border border-slate-700"
         >
-          View Shift History
-        </Button>
+          View Duty Archives
+        </button>
       </div>
-
-      <p className="text-xs text-gray-400 text-center mt-4">Auto-returning in 8 seconds...</p>
+      <p className="text-[11px] text-slate-500 text-center font-mono">Auto-returning to ready state in 8s...</p>
     </div>
   );
 }
 
-function HistoryView({ records, loading, days, onChangeDays }: {
+function HistoryView({
+  records,
+  loading,
+  days,
+  onChangeDays,
+}: {
   records: AttendanceRecord[];
   loading: boolean;
   days: number;
@@ -786,13 +930,13 @@ function HistoryView({ records, loading, days, onChangeDays }: {
   const grouped = groupByDate(records);
 
   return (
-    <div className="mt-2">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-base font-semibold text-gray-900">Shift History</h2>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+        <h2 className="text-sm font-bold font-mono tracking-wider text-white uppercase">DUTY ARCHIVES</h2>
         <select
           value={days}
           onChange={(e) => onChangeDays(parseInt(e.target.value))}
-          className="text-xs border border-gray-300 rounded-lg px-2 py-1.5 bg-white focus:ring-2 focus:ring-blue-500"
+          className="text-xs font-mono font-semibold border border-slate-700 rounded-lg px-2.5 py-1 bg-slate-900 text-slate-200 focus:ring-2 focus:ring-blue-500"
         >
           <option value={7}>Last 7 days</option>
           <option value={14}>Last 14 days</option>
@@ -802,53 +946,51 @@ function HistoryView({ records, loading, days, onChangeDays }: {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-40">
-          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <div className="flex items-center justify-center h-40 text-xs text-slate-400 font-mono">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mr-2" />
+          RETRIEVING DUTY TIMESTAMPS...
         </div>
       ) : records.length === 0 ? (
-        <Card className="p-8 text-center">
-          <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-          <p className="text-gray-500 text-sm">No shifts in the last {days} days</p>
-        </Card>
+        <div className="p-8 text-center bg-slate-900 rounded-2xl border border-slate-800 text-slate-500 text-xs font-mono">
+          NO PATROL LOGS RECORDED IN THE LAST {days} DAYS
+        </div>
       ) : (
         <div className="space-y-4">
           {Object.entries(grouped).map(([dateKey, dayRecords]) => (
             <div key={dateKey}>
-              <div className="flex items-center gap-2 mb-2">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              <div className="flex items-center gap-2 mb-2 font-mono">
+                <span className="text-xs font-bold text-slate-400 uppercase">
                   {formatDate(dayRecords[0].date)}
-                </h3>
-                <div className="flex-1 h-px bg-gray-200" />
-                <span className="text-xs text-gray-400">
-                  {dayRecords.reduce((sum, r) => sum + r.totalHours, 0).toFixed(1)}h total
+                </span>
+                <div className="flex-1 h-px bg-slate-800" />
+                <span className="text-[11px] text-blue-400 font-bold">
+                  {dayRecords.reduce((sum, r) => sum + r.totalHours, 0).toFixed(1)}h logged
                 </span>
               </div>
               <div className="space-y-2">
                 {dayRecords.map((record) => (
-                  <div key={record._id} className="bg-white rounded-xl shadow-sm border border-gray-200 p-3.5">
+                  <div key={record._id} className="bg-slate-900 rounded-xl border border-slate-800 p-3.5 shadow-sm">
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="text-sm font-semibold text-gray-900">{record.siteId?.siteName || 'Unknown'}</p>
-                        <p className="text-xs text-gray-400">{record.siteId?.siteCode}</p>
+                        <p className="text-xs font-bold text-white font-mono">{record.siteId?.siteName || 'Designated Post'}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{record.siteId?.siteCode}</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 font-mono">
                         {record.relievesAttendanceId && (
-                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full font-medium">Relief</span>
+                          <span className="px-2 py-0.5 bg-blue-950 text-blue-400 border border-blue-500/40 text-[10px] rounded-md font-bold">
+                            HANDOVER
+                          </span>
                         )}
                         {record.isHoliday && (
-                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 text-xs rounded-full font-medium">Holiday</span>
+                          <span className="px-2 py-0.5 bg-purple-950 text-purple-400 border border-purple-500/40 text-[10px] rounded-md font-bold">
+                            HOLIDAY
+                          </span>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" /></svg>
-                          {formatTime(record.clockIn)}
-                          {record.clockOut && ` - ${formatTime(record.clockOut)}`}
-                        </span>
-                      </div>
-                      <span className="text-sm font-bold text-gray-900 font-mono">{record.totalHours.toFixed(1)}h</span>
+                    <div className="flex items-center justify-between text-xs font-mono text-slate-400 pt-1 border-t border-slate-800/60">
+                      <span>{formatTime(record.clockIn)} → {record.clockOut ? formatTime(record.clockOut) : 'ACTIVE'}</span>
+                      <span className="text-sm font-bold text-white">{record.totalHours.toFixed(1)}h</span>
                     </div>
                   </div>
                 ))}
@@ -861,16 +1003,26 @@ function HistoryView({ records, loading, days, onChangeDays }: {
   );
 }
 
-function ConfirmDialogComp({ title, message, onConfirm, onCancel }: { title: string; message: string; onConfirm: () => void; onCancel: () => void }) {
+function ConfirmDialogComp({
+  title,
+  message,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   return (
     <Modal open={true} onClose={onCancel} title={title}>
-      <p className="text-sm text-gray-600 mb-6">{message}</p>
-      <div className="flex gap-3">
-        <Button onClick={onCancel} variant="secondary" className="flex-1">
-          Cancel
+      <p className="text-xs text-slate-300 mb-6 font-sans leading-relaxed">{message}</p>
+      <div className="flex gap-3 font-mono">
+        <Button onClick={onCancel} variant="secondary" className="flex-1 text-xs font-bold">
+          Abort
         </Button>
-        <Button onClick={onConfirm} variant="primary" className="flex-1">
-          Confirm
+        <Button onClick={onConfirm} variant="primary" className="flex-1 text-xs font-bold bg-blue-600 hover:bg-blue-500">
+          Confirm Execution
         </Button>
       </div>
     </Modal>
@@ -880,23 +1032,20 @@ function ConfirmDialogComp({ title, message, onConfirm, onCancel }: { title: str
 function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
   if (toasts.length === 0) return null;
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-full max-w-sm px-4 pointer-events-none font-mono">
       {toasts.map((t) => (
         <div
           key={t.id}
           onClick={() => onDismiss(t.id)}
-          className="pointer-events-auto bg-white border border-green-200 rounded-xl shadow-lg px-4 py-3 flex items-start gap-3 cursor-pointer animate-in slide-in-from-top-2 fade-in duration-200"
+          className="pointer-events-auto bg-slate-900 border-2 border-emerald-500/60 text-white rounded-xl shadow-2xl px-4 py-3 flex items-start gap-3 cursor-pointer animate-in slide-in-from-top-2 fade-in duration-200"
         >
-          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+          <div className="w-8 h-8 bg-emerald-500/20 border border-emerald-500/40 rounded-lg flex items-center justify-center shrink-0 mt-0.5 text-emerald-400">
+            <CheckCircle2 className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-900">{t.message}</p>
-            {t.sub && <p className="text-xs text-gray-500 mt-0.5">{t.sub}</p>}
+            <p className="text-xs font-bold text-white tracking-wider">{t.message}</p>
+            {t.sub && <p className="text-[11px] text-slate-400 font-sans mt-0.5">{t.sub}</p>}
           </div>
-          <button className="text-gray-400 hover:text-gray-600 flex-shrink-0" onClick={(e) => { e.stopPropagation(); onDismiss(t.id); }}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
         </div>
       ))}
     </div>

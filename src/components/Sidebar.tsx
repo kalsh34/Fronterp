@@ -74,13 +74,13 @@ const lockedModules = [
 ];
 
 const SIDEBAR_COLORS: Record<string, { activeBg: string; activeText: string; childActiveBg: string; childActiveText: string }> = {
-  '/':           { activeBg: 'bg-slate-500/15',   activeText: 'text-slate-400',   childActiveBg: 'bg-slate-500/15',   childActiveText: 'text-slate-400' },
-  '/employees':  { activeBg: 'bg-violet-500/15',  activeText: 'text-violet-400',  childActiveBg: 'bg-violet-500/15',  childActiveText: 'text-violet-400' },
-  '/attendance': { activeBg: 'bg-blue-500/15',    activeText: 'text-blue-400',    childActiveBg: 'bg-blue-500/15',    childActiveText: 'text-blue-400' },
-  '/guard-payroll': { activeBg: 'bg-amber-500/15', activeText: 'text-amber-400',  childActiveBg: 'bg-amber-500/15',  childActiveText: 'text-amber-400' },
-  '/finance':    { activeBg: 'bg-emerald-500/15', activeText: 'text-emerald-400', childActiveBg: 'bg-emerald-500/15', childActiveText: 'text-emerald-400' },
-  '/reports':    { activeBg: 'bg-indigo-500/15',  activeText: 'text-indigo-400',  childActiveBg: 'bg-indigo-500/15',  childActiveText: 'text-indigo-400' },
-  '/settings':   { activeBg: 'bg-rose-500/15',    activeText: 'text-rose-400',    childActiveBg: 'bg-rose-500/15',    childActiveText: 'text-rose-400' },
+  '/':           { activeBg: 'bg-blue-600/20', activeText: 'text-blue-400', childActiveBg: 'bg-blue-600/15', childActiveText: 'text-blue-300' },
+  '/employees':  { activeBg: 'bg-blue-600/20', activeText: 'text-blue-400', childActiveBg: 'bg-blue-600/15', childActiveText: 'text-blue-300' },
+  '/attendance': { activeBg: 'bg-blue-600/20', activeText: 'text-blue-400', childActiveBg: 'bg-blue-600/15', childActiveText: 'text-blue-300' },
+  '/guard-payroll': { activeBg: 'bg-blue-600/20', activeText: 'text-blue-400', childActiveBg: 'bg-blue-600/15', childActiveText: 'text-blue-300' },
+  '/finance':    { activeBg: 'bg-blue-600/20', activeText: 'text-blue-400', childActiveBg: 'bg-blue-600/15', childActiveText: 'text-blue-300' },
+  '/reports':    { activeBg: 'bg-blue-600/20', activeText: 'text-blue-400', childActiveBg: 'bg-blue-600/15', childActiveText: 'text-blue-300' },
+  '/settings':   { activeBg: 'bg-blue-600/20', activeText: 'text-blue-400', childActiveBg: 'bg-blue-600/15', childActiveText: 'text-blue-300' },
 };
 
 function getSidebarColors(path: string) {
