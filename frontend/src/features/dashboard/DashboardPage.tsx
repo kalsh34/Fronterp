@@ -30,9 +30,7 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-canvas">
         <header className="h-16 bg-surface border-b border-line px-4 sm:px-6 md:px-8 flex items-center justify-between sticky top-0 z-50 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 shrink-0">
-              <img src="/logo.png" alt="Vital Security" className="w-full h-full object-contain" />
-            </div>
+            <img src="/logo.png" alt="Vital Security" className="w-9 h-9 object-contain shrink-0" />
             <div>
               <p className="text-base font-bold text-ink leading-tight tracking-tight">Vital Security</p>
               <p className="text-[11px] text-muted leading-tight">Security Officer Portal</p>
@@ -122,9 +120,7 @@ export default function DashboardPage() {
       {/* Top Header */}
       <header className="h-16 bg-surface border-b border-line px-4 sm:px-6 md:px-8 flex items-center justify-between sticky top-0 z-50 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 shrink-0">
-            <img src="/logo.png" alt="Vital Security" className="w-full h-full object-contain" />
-          </div>
+          <img src="/logo.png" alt="Vital Security" className="w-9 h-9 object-contain shrink-0" />
           <span className="text-base font-bold text-ink tracking-tight">Vital Security</span>
         </div>
 

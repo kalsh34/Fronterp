@@ -114,15 +114,16 @@ export default function ProfilePage() {
           className="group flex items-center gap-3 cursor-pointer text-left focus:outline-none"
           title={t('back') || "Back"}
         >
-          <div className="relative w-9 h-9 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 group-hover:bg-primary-600 dark:group-hover:bg-primary-600 transition-all duration-200 shrink-0">
+          {/* Logo with smooth back-arrow hover transition */}
+          <div className="relative w-9 h-9 flex items-center justify-center shrink-0">
             <img
               src="/logo.png"
               alt="Vital Security"
-              className="w-full h-full object-contain transition-all duration-200 group-hover:opacity-0 group-hover:scale-50"
+              className="w-full h-full object-contain transition-all duration-200 group-hover:opacity-0 group-hover:scale-75"
             />
-            <ArrowLeft
-              className="w-4 h-4 text-white absolute opacity-0 scale-50 -translate-x-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200"
-            />
+            <div className="absolute inset-0 rounded-xl bg-subtle text-ink flex items-center justify-center opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-200 shadow-xs border border-line">
+              <ArrowLeft className="w-4 h-4" />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-base font-bold text-ink tracking-tight group-hover:text-primary-600 transition-colors">
