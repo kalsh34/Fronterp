@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { QrCode } from 'lucide-react';
 import api from '../../lib/api';
 import { InfoTooltip } from '../../components/ui';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import { useT } from '../../i18n';
-import { LanguageToggle, ThemeToggle } from '../../components/ThemeToggle';
 
 interface Department {
   _id: string;
@@ -223,44 +220,17 @@ export default function OrganizationStructurePage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Breadcrumb + Back */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2 text-xs text-subtext">
-          <Link to="/employees" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-line text-muted hover:bg-subtle hover:text-ink transition-colors">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            {t('backToEmployees')}
-          </Link>
-          <span>/</span>
-          <span>Vital Security PLC</span>
-          <span>/</span>
-          <span>{t('hrPeople')}</span>
-          <span>/</span>
-          <span>{t('navDepartments')}</span>
-        </div>
+    <div className="p-6 space-y-4">
+      {/* Module Summary Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <LanguageToggle />
-          <ThemeToggle />
+          <span className="text-sm font-semibold text-ink">{t('navDepartments')}</span>
+          <InfoTooltip content={t('departmentsPageHint')} />
         </div>
-      </div>
-
-      {/* Page title */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-ink">{t('navDepartments')}</h1>
-          <p className="text-sm text-muted mt-1">{t('departmentsPageHint')}</p>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted">
-          <span className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink">{t('departmentsCount', { count: departments.length })}</span>
-          <span className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink">{t('positionsCount', { count: positions.length })}</span>
-          <span className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink">{t('payGradesCount', { count: payGrades.length })}</span>
-          <Link
-            to="/sites/qr-codes"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary-600 text-white text-xs font-medium hover:bg-primary-700 transition-colors"
-          >
-            <QrCode className="w-3.5 h-3.5" />
-            {t('siteQrCodes')}
-          </Link>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink font-medium">{t('departmentsCount', { count: departments.length })}</span>
+          <span className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink font-medium">{t('positionsCount', { count: positions.length })}</span>
+          <span className="px-3 py-1.5 rounded-lg bg-surface border border-line text-ink font-medium">{t('payGradesCount', { count: payGrades.length })}</span>
         </div>
       </div>
 

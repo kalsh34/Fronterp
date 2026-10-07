@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import { ArrowLeft, Download, Printer, QrCode as QrCodeIcon } from 'lucide-react';
 import api from '../../lib/api';
 import { siteQrPayload } from '../../lib/siteQr';
-import { LoadingSpinner } from '../../components/ui';
+import { LoadingSpinner, InfoTooltip } from '../../components/ui';
 import { useT } from '../../i18n';
 
 interface SiteRow {
@@ -67,11 +67,19 @@ export default function SiteQRCodesPage() {
         }
       `}</style>
 
-      <div className="bg-surface border-b border-line px-6 py-3 flex items-center justify-between sticky top-0 z-40 no-print">
-        <Link to="/departments" className="flex items-center gap-2 text-sm text-muted hover:text-ink transition-colors">
-          <ArrowLeft className="w-4 h-4" />
-          {t('back')}
-        </Link>
+      <div className="bg-surface border-b border-line px-6 py-3.5 flex items-center justify-between sticky top-0 z-40 no-print">
+        <div className="flex items-center gap-4">
+          <Link to="/sites" className="flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            {t('back')}
+          </Link>
+          <div className="h-4 w-px bg-line" />
+          <div className="flex items-center gap-2">
+            <QrCodeIcon className="w-4 h-4 text-primary-600" />
+            <h1 className="text-sm font-bold text-ink">{t('siteQrCodes')}</h1>
+            <InfoTooltip content={t('siteQrCodesSub')} />
+          </div>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => window.print()}
@@ -84,16 +92,7 @@ export default function SiteQRCodesPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="flex items-center gap-3 mb-2 no-print">
-          <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center text-primary-700">
-            <QrCodeIcon className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-ink">{t('siteQrCodes')}</h1>
-            <p className="text-sm text-muted">{t('siteQrCodesSub')}</p>
-          </div>
-        </div>
+      <div className="max-w-5xl mx-auto px-4 py-6">
 
         {loading && <LoadingSpinner text={t('loading')} />}
 

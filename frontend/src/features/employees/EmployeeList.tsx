@@ -256,22 +256,33 @@ export default function EmployeeList() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-line">
-        {tabs.map((tab, i) => (
+      <div className="flex gap-1 border-b border-line items-center justify-between">
+        <div className="flex gap-1 overflow-x-auto">
+          {tabs.map((tab, i) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(i)}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
+                activeTab === i
+                  ? 'border-primary-600 text-primary-600 bg-primary-500/5'
+                  : 'border-transparent text-muted hover:text-ink hover:border-line'
+              }`}
+            >
+              {t(tab)}
+            </button>
+          ))}
+        </div>
+        {activeTab === 0 && (
           <button
-            key={tab}
-            onClick={() => setActiveTab(i)}
-            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
-              activeTab === i
-                ? 'border-primary-600 text-primary-600 bg-primary-500/5'
-                : 'border-transparent text-muted hover:text-ink hover:border-line'
-            }`}
+            onClick={() => openFormModal()}
+            className="h-9 px-4 flex items-center gap-2 rounded-lg bg-primary-600 text-white text-xs font-semibold hover:bg-primary-700 transition-colors shadow-xs shrink-0"
           >
-            {t(tab)}
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            {t('createEmployee')}
           </button>
-        ))}
+        )}
       </div>
 
       {activeTab === 2 ? (
@@ -284,36 +295,24 @@ export default function EmployeeList() {
         <PerformanceTab />
       ) : (
       <>
-      {/* Simple overview */}
-      <div className="bg-surface rounded-xl border border-line p-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-ink">{t('employees')}</h2>
-          <div className="flex flex-wrap items-center gap-2 mt-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-subtle text-xs font-medium text-ink">
-              {t('totalBadge', { count: (analytics?.total ?? stats.total).toLocaleString() })}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-success-subtle text-xs font-medium text-success-text">
-              {t('activeBadge', { count: analytics?.activeTotal ?? 0 })}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-subtle border border-line text-xs font-medium text-muted">
-              {t('inactiveBadge', { count: analytics?.inactiveTotal ?? 0 })}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-warning-subtle text-xs font-medium text-warning-text">
-              {t('onLeaveBadge', { count: stats.onLeave })}
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-info-subtle text-xs font-medium text-info-text">
-              {t('newThisMonthBadge', { count: stats.newThisMonth })}
-            </span>
-            <InfoTooltip content={t('directoryNote')} />
-          </div>
-        </div>
-        <button
-          onClick={() => openFormModal()}
-          className="h-11 px-6 flex items-center gap-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm shrink-0"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-          {t('createEmployee')}
-        </button>
+      {/* Summary Badges */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-subtle text-xs font-medium text-ink">
+          {t('totalBadge', { count: (analytics?.total ?? stats.total).toLocaleString() })}
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-success-subtle text-xs font-medium text-success-text">
+          {t('activeBadge', { count: analytics?.activeTotal ?? 0 })}
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-subtle border border-line text-xs font-medium text-muted">
+          {t('inactiveBadge', { count: analytics?.inactiveTotal ?? 0 })}
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-warning-subtle text-xs font-medium text-warning-text">
+          {t('onLeaveBadge', { count: stats.onLeave })}
+        </span>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-info-subtle text-xs font-medium text-info-text">
+          {t('newThisMonthBadge', { count: stats.newThisMonth })}
+        </span>
+        <InfoTooltip content={t('directoryNote')} />
       </div>
 
       {/* Filters + Add Button */}

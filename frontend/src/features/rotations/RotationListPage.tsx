@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { PageHeader, Button, LoadingSpinner, EmptyState, Badge } from '../../components/ui';
+import { Button, LoadingSpinner, EmptyState, Badge, InfoTooltip } from '../../components/ui';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole, PERMISSIONS, ROLE_PERMISSIONS } from '../../types';
 import { formatDate, useLang, useT, type DictKey } from '../../i18n';
@@ -71,24 +71,17 @@ export default function RotationListPage() {
   useEffect(() => { load(); }, [load]);
 
   return (
-    <div className="p-6">
-      <PageHeader
-        title={t('rotListTitle')}
-        subtitle={t('rotListSubtitle')}
-        action={manage ? (
-          <Link to="/rotations/new">
-            <Button>{t('rotNew')}</Button>
-          </Link>
-        ) : undefined}
-      />
-
-      <div className="flex flex-wrap gap-3 mb-5">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('rotSearchPlaceholder')}
-          className="v-input flex-1 min-w-[200px] max-w-sm"
-        />
+    <div className="p-6 space-y-4">
+      {/* Compact Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-sm">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t('rotSearchPlaceholder')}
+            className="v-input"
+          />
+        </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -96,6 +89,15 @@ export default function RotationListPage() {
         >
           {STATUS_FILTERS.map((s) => <option key={s.value} value={s.value}>{t(s.labelKey)}</option>)}
         </select>
+        <InfoTooltip content={t('rotListSubtitle')} />
+
+        <div className="flex-1" />
+
+        {manage && (
+          <Link to="/rotations/new">
+            <Button>{t('rotNew')}</Button>
+          </Link>
+        )}
       </div>
 
       {error && (

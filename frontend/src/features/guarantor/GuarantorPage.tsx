@@ -254,13 +254,8 @@ export default function GuarantorPage() {
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs text-subtext mb-2">
-            <span>Vital Security PLC</span><span>/</span>
-            <span>{t('hrPeople')}</span><span>/</span>
-            <span>{t('tabGuarantor')}</span>
-          </div>
-          <h1 className="text-2xl font-bold text-ink">{t('guarantorManagement')}</h1>
-          <p className="text-sm text-muted mt-1">
+          <h1 className="text-xl font-bold text-ink">{t('guarantorManagement')}</h1>
+          <p className="text-xs text-muted mt-1">
             {employee.firstName} {employee.lastName} ({employee.employeeCode})
           </p>
         </div>
