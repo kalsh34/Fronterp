@@ -86,11 +86,11 @@ export function Tooltip({
         role="tooltip"
         className={`absolute ${positionClasses} z-50 pointer-events-none transition-all duration-150 transform ${
           isOpen
-            ? 'opacity-100 scale-100'
-            : 'opacity-0 scale-95 pointer-events-none'
+            ? 'opacity-100 scale-100 visible'
+            : 'opacity-0 scale-95 pointer-events-none invisible'
         } ${popupClassName}`}
       >
-        <span className="block max-w-xs sm:max-w-sm w-max rounded-lg bg-slate-900 dark:bg-slate-800 text-slate-100 px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal shadow-xl border border-slate-700/60 text-left">
+        <span className="block max-w-[calc(100vw-3rem)] sm:max-w-sm w-max rounded-lg bg-slate-900 dark:bg-slate-800 text-slate-100 px-3 py-2 text-xs font-normal normal-case leading-relaxed tracking-normal shadow-xl border border-slate-700/60 text-left">
           {content}
         </span>
         <span

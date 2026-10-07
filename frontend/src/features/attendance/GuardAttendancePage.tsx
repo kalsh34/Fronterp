@@ -194,10 +194,15 @@ export default function GuardAttendancePage() {
       ]);
       setTotals(tRes.data.data);
       setReadiness(rRes.data.data);
-    } catch (e) {
+    } catch (e: any) {
       setTotals(null);
       setReadiness(null);
-      setError(errMsg(e, t('attendanceFailedLoadMonthly')));
+      const msg = errMsg(e, t('attendanceFailedLoadMonthly'));
+      if (msg.includes('Route not found') || e?.response?.status === 404) {
+        setError(null);
+      } else {
+        setError(msg);
+      }
     } finally {
       setMonthlyLoading(false);
     }
@@ -225,9 +230,25 @@ export default function GuardAttendancePage() {
       setSheetDrafts(next);
       setSheetRowErrors({});
       setNotice(null);
-    } catch (e) {
-      setSheet(null);
-      setError(errMsg(e, t('attendanceFailedLoadMonthly')));
+    } catch (e: any) {
+      const msg = errMsg(e, t('attendanceFailedLoadMonthly'));
+      if (msg.includes('Route not found') || e?.response?.status === 404) {
+        setSheet({
+          rows: [],
+          stats: {
+            assignedRows: 0,
+            savedSheets: 0,
+            guardsWithDaily: 0,
+            totalNormal: 0,
+            totalHoliday: 0,
+            totalSunday: 0,
+          },
+        });
+        setError(null);
+      } else {
+        setSheet(null);
+        setError(msg);
+      }
     } finally {
       setSheetLoading(false);
     }
@@ -443,7 +464,7 @@ export default function GuardAttendancePage() {
           onChange={(k) => setTab(k as 'daily' | 'monthly' | 'hours')}
         />
         <div className="pr-2 pb-2">
-          <InfoTooltip content={t('attendanceSubtitle')} />
+          <InfoTooltip position="left" content={t('attendanceSubtitle')} />
         </div>
       </div>
 

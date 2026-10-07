@@ -54,9 +54,9 @@ function AppLayout() {
   const moduleGroup = getModuleGroupForRoute(location.pathname);
 
   return (
-    <div className="min-h-screen bg-canvas ">
+    <div className="min-h-screen bg-canvas overflow-x-hidden">
       {moduleGroup && <ModuleNavbar moduleGroup={moduleGroup} />}
-      <main className={moduleGroup ? '' : 'min-h-screen'}>
+      <main className={moduleGroup ? 'overflow-x-hidden' : 'min-h-screen overflow-x-hidden'}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
 
