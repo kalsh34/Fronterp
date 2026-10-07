@@ -110,19 +110,11 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-canvas">
       {/* Top Header */}
       <header className="bg-surface border-b border-line px-8 py-3.5 flex items-center justify-between sticky top-0 z-50 shadow-xs">
-        <div className="flex items-center gap-3.5">
-          <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center p-1 shadow-xs ring-1 ring-slate-900/10">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center p-1 shadow-xs ring-1 ring-slate-900/10 shrink-0">
             <img src="/logo.png" alt="Vital Security" className="w-full h-full object-contain" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-bold text-ink leading-tight tracking-tight">Vital Security</p>
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-subtle text-muted border border-line uppercase tracking-wider">
-                ERP Command
-              </span>
-            </div>
-            <p className="text-[11px] text-muted font-medium leading-tight">Operations, Workforce & Payroll</p>
-          </div>
+          <span className="text-base font-bold text-ink tracking-tight">Vital Security</span>
         </div>
 
         {/* Global Search Bar */}

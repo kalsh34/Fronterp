@@ -27,10 +27,7 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
             className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
           >
             <img src="/logo.png" alt="Vital Security" className="w-8 h-8 rounded-lg object-contain" />
-            <div>
-              <p className="text-xs font-bold text-ink leading-tight">Vital Security</p>
-              <p className="text-[10px] text-muted leading-tight">Enterprise resource planning</p>
-            </div>
+            <span className="text-sm font-bold text-ink tracking-tight">Vital Security</span>
           </button>
           <div className="h-5 w-px bg-line" />
           <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white tracking-wide shadow-xs flex items-center gap-1.5">

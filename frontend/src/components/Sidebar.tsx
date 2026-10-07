@@ -144,12 +144,9 @@ export default function Sidebar() {
   return (
     <aside className="fixed top-0 left-0 bottom-0 w-64 bg-[#0f172a] text-gray-300 flex flex-col select-none sidebar-scrollbar overflow-y-auto z-40">
       {/* Logo */}
-      <div className="px-5 py-5 flex items-center gap-3 border-b border-gray-700/50 flex-shrink-0">
+      <div className="px-5 py-4 flex items-center gap-3 border-b border-gray-700/50 flex-shrink-0">
         <ShieldIcon />
-        <div>
-          <h1 className="text-white font-bold text-sm tracking-wide leading-tight">VITAL SECURITY</h1>
-          <p className="text-[10px] text-amber-400/80 font-semibold tracking-widest uppercase">Enterprise ERP</p>
-        </div>
+        <h1 className="text-white font-bold text-sm tracking-wide leading-tight">VITAL SECURITY</h1>
       </div>
 
       {/* Primary Nav */}
