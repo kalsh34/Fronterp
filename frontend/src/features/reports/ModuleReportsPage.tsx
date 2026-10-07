@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, Printer } from 'lucide-react';
 import api from '../../lib/api';
-import { Button, Card, LoadingSpinner } from '../../components/ui';
+import { LoadingSpinner } from '../../components/ui';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
@@ -39,9 +40,9 @@ const TABS: { key: Tab; labelKey: string }[] = [
 ];
 
 const inputCls =
-  'border border-line bg-surface text-content rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-400';
-const thCls = 'px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-subtext whitespace-nowrap';
-const tdCls = 'px-3 py-2 text-sm border-t border-line whitespace-nowrap';
+  'h-10 px-3.5 rounded-lg border border-line bg-surface text-sm text-ink placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400';
+const thCls = 'text-left px-6 py-3.5 text-xs font-semibold text-muted uppercase tracking-wider whitespace-nowrap bg-subtle/50 border-b border-line';
+const tdCls = 'px-6 py-4 text-sm text-ink whitespace-nowrap border-b border-line';
 
 export default function ModuleReportsPage() {
   const { user } = useAuthStore();
@@ -251,7 +252,13 @@ export default function ModuleReportsPage() {
   };
 
   if (!canSee) {
-    return <Card className="p-6 text-center text-subtext">{t('repNoAccess')}</Card>;
+    return (
+      <div className="p-6">
+        <div className="bg-surface rounded-xl border border-line p-8 text-center text-muted shadow-xs">
+          {t('repNoAccess')}
+        </div>
+      </div>
+    );
   }
 
   const summaryEntries = result
@@ -259,30 +266,17 @@ export default function ModuleReportsPage() {
     : [];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-content">{t('repTitle')}</h1>
-          <p className="text-sm text-subtext">{t('repSubtitle')}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={exportCsv} disabled={!result?.rows?.length}>
-            {t('exportCsv')}
-          </Button>
-          <Button variant="secondary" onClick={printReport} disabled={!result?.rows?.length}>
-            {t('print')}
-          </Button>
-        </div>
-      </div>
-
-      {/* module tabs */}
+    <div className="p-6 space-y-6">
+      {/* Category Tabs (styled exactly like HR & Payroll subtabs) */}
       <div className="flex flex-wrap gap-1 border-b border-line">
         {TABS.map((x) => (
           <button
             key={x.key}
             onClick={() => setTab(x.key)}
-            className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === x.key ? 'border-primary-500 text-primary-600 dark:text-primary-300' : 'border-transparent text-subtext hover:text-content'
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              tab === x.key
+                ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-primary-500/5'
+                : 'border-transparent text-muted hover:text-ink hover:border-line'
             }`}
           >
             {t(x.labelKey)}
@@ -290,9 +284,60 @@ export default function ModuleReportsPage() {
         ))}
       </div>
 
-      {/* filter bar */}
-      <Card className="p-3">
-        <div className="flex flex-wrap items-end gap-2">
+      {/* Overview Card (matching HR's overview banner card) */}
+      <div className="bg-surface rounded-xl border border-line p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">
+            {t(TABS.find((x) => x.key === tab)?.labelKey || 'repTitle')}
+          </h2>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-subtle text-xs font-medium text-ink">
+              Total: {result?.rows?.length ?? 0}
+            </span>
+            {summaryEntries.map(([k, v]) => {
+              const isPositive = /active|paid|present/i.test(k);
+              return (
+                <span
+                  key={k}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
+                    isPositive
+                      ? 'bg-success-subtle text-success-text'
+                      : 'bg-subtle border border-line text-muted'
+                  }`}
+                >
+                  <span className="capitalize">{k.replace(/([A-Z])/g, ' $1').trim()}</span>: {String(v)}
+                </span>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted mt-2 max-w-xl">
+            {t('repSubtitle')}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={exportCsv}
+            disabled={!result?.rows?.length}
+            className="h-10 px-4 flex items-center gap-2 rounded-lg border border-line bg-surface hover:bg-subtle text-ink text-sm font-medium transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Download className="w-4 h-4 text-muted" />
+            {t('exportCsv')}
+          </button>
+          <button
+            onClick={printReport}
+            disabled={!result?.rows?.length}
+            className="h-10 px-4 flex items-center gap-2 rounded-lg border border-line bg-surface hover:bg-subtle text-ink text-sm font-medium transition-colors shadow-xs disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Printer className="w-4 h-4 text-muted" />
+            {t('print')}
+          </button>
+        </div>
+      </div>
+
+      {/* Filter Bar Card */}
+      <div className="bg-surface rounded-xl border border-line p-5 shadow-xs">
+        <div className="flex flex-wrap items-end gap-3">
           {tab === 'HR' && (
             <>
               <Select label={t('category')} value={hr.category} onChange={(v) => setHr({ ...hr, category: v })} options={[['GUARD', 'GUARD'], ['OFFICE_STAFF', 'OFFICE_STAFF']]} />
@@ -354,26 +399,23 @@ export default function ModuleReportsPage() {
               <Field label={t('search')} value={users.search} onChange={(v) => setUsers({ ...users, search: v })} />
             </>
           )}
-          <Button onClick={run} disabled={loading}>{t('repApply')}</Button>
+          <button
+            onClick={run}
+            disabled={loading}
+            className="h-10 px-6 rounded-lg bg-primary-600 hover:bg-primary-700 text-white text-sm font-medium transition-colors shadow-xs disabled:opacity-50 shrink-0 self-end"
+          >
+            {t('repApply')}
+          </button>
         </div>
-      </Card>
-
-      {/* summary chips */}
-      {summaryEntries.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {summaryEntries.map(([k, v]) => (
-            <span key={k} className="inline-flex items-center gap-1 rounded-full border border-line bg-surface px-3 py-1 text-xs text-subtext">
-              <b className="text-content">{k}</b>: {String(v)}
-            </span>
-          ))}
-        </div>
-      )}
+      </div>
 
       {loading && <LoadingSpinner />}
-      {error && <Card className="p-4 text-sm text-red-600">{error}</Card>}
+      {error && <div className="p-4 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-300 text-sm shadow-xs">{error}</div>}
       {!loading && !error && result && <ReportTable tab={tab} result={result} lang={lang} />}
       {!loading && !error && result && result.rows.length === 0 && (
-        <Card className="p-6 text-center text-subtext">{t('noData')}</Card>
+        <div className="bg-surface rounded-xl border border-line p-12 text-center text-muted text-sm shadow-xs">
+          {t('noData')}
+        </div>
       )}
     </div>
   );
@@ -389,9 +431,9 @@ function ReportTable({ tab, result, lang }: { tab: Tab; result: ReportResult; la
   const money = (v: unknown) => fmtMoney(v as number);
 
   return (
-    <Card className="overflow-x-auto">
+    <div className="bg-surface rounded-xl border border-line shadow-xs overflow-x-auto">
       <table className="min-w-full">
-        <thead className="bg-surface">
+        <thead className="bg-subtle/50">
           <tr>
             {tab === 'HR' && (<>{th('employeeCode', 'employeeId')}{th('fullName', 'fullName')}{th('category', 'category')}{th('status', 'status')}{th('joinDate', 'joinDate')}{th('basicSalary', 'repBasic')}{th('department', 'department')}{th('phone', 'phone')}{th('bankName', 'repBank')}{th('accountNumber', 'repAccount')}</>)}
             {tab === 'SITES' && (<>{th('siteCode', 'employeeId')}{th('siteName', 'repSiteName')}{th('client', 'repClient')}{th('location', 'repLocation')}{th('siteType', 'repSiteType')}{th('status', 'status')}{th('agreedManpower', 'repAgreed')}{th('actualManpower', 'repActual')}{th('currentCompensation', 'repComp')}{th('agreementStartDate', 'repAgreeFrom')}{th('agreementEndDate', 'repAgreeTo')}</>)}
@@ -405,7 +447,7 @@ function ReportTable({ tab, result, lang }: { tab: Tab; result: ReportResult; la
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="hover:bg-surface/60">
+            <tr key={i} className="hover:bg-subtle/40 transition-colors">
               {tab === 'HR' && (<>
                 <td className={tdCls}>{r.employeeCode}</td>
                 <td className={tdCls}>{r.fullName}</td>
@@ -494,7 +536,7 @@ function ReportTable({ tab, result, lang }: { tab: Tab; result: ReportResult; la
           ))}
         </tbody>
       </table>
-    </Card>
+    </div>
   );
 }
 
@@ -503,8 +545,8 @@ function Field({ label, value, onChange, type = 'text', placeholder }: {
   label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string;
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-subtext">{label}</span>
+    <label className="flex flex-col gap-1.5 min-w-[170px] flex-1 sm:flex-initial">
+      <span className="text-xs font-semibold text-muted">{label}</span>
       <input className={inputCls} type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
     </label>
   );
@@ -514,8 +556,8 @@ function Select({ label, value, onChange, options }: {
   label: string; value: string; onChange: (v: string) => void; options: [string, string][];
 }) {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-subtext">{label}</span>
+    <label className="flex flex-col gap-1.5 min-w-[170px] flex-1 sm:flex-initial">
+      <span className="text-xs font-semibold text-muted">{label}</span>
       <select className={inputCls} value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">—</option>
         {options.map(([v, l]) => (
