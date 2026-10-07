@@ -25,11 +25,7 @@ export declare class StaffAttendanceService {
         ua?: string;
     }): Promise<IStaffAttendance[]>;
     static getGrid(year: number, month: number): Promise<{
-        period: import("mongoose").Document<unknown, {}, import("../../../models/PayrollPeriod").IPayrollPeriod, {}, {}> & import("../../../models/PayrollPeriod").IPayrollPeriod & Required<{
-            _id: import("mongoose").Types.ObjectId;
-        }> & {
-            __v: number;
-        };
+        periodKey: string;
         daysInMonth: number;
         grid: {
             employee: import("mongoose").Document<unknown, {}, import("../../../models/Employee").IEmployee, {}, {}> & import("../../../models/Employee").IEmployee & Required<{
@@ -45,11 +41,7 @@ export declare class StaffAttendanceService {
         }[];
     }>;
     static getMonthlySummary(year: number, month: number): Promise<{
-        period: import("mongoose").Document<unknown, {}, import("../../../models/PayrollPeriod").IPayrollPeriod, {}, {}> & import("../../../models/PayrollPeriod").IPayrollPeriod & Required<{
-            _id: import("mongoose").Types.ObjectId;
-        }> & {
-            __v: number;
-        };
+        periodKey: string;
         daysInMonth: number;
         summaries: {
             employee: import("mongoose").Document<unknown, {}, import("../../../models/Employee").IEmployee, {}, {}> & import("../../../models/Employee").IEmployee & Required<{
@@ -61,32 +53,6 @@ export declare class StaffAttendanceService {
             payableDays: number;
             totalDaysInMonth: number;
         }[];
-    }>;
-    static lockPeriod(year: number, month: number, userId: string, reason: string, auditCtx?: {
-        ip?: string;
-        ua?: string;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../../../models/PayrollPeriod").IPayrollPeriod, {}, {}> & import("../../../models/PayrollPeriod").IPayrollPeriod & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }>;
-    static unlockPeriod(year: number, month: number, userId: string, reason: string, auditCtx?: {
-        ip?: string;
-        ua?: string;
-    }): Promise<import("mongoose").Document<unknown, {}, import("../../../models/PayrollPeriod").IPayrollPeriod, {}, {}> & import("../../../models/PayrollPeriod").IPayrollPeriod & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }>;
-    static getAllPeriods(): Promise<(import("mongoose").Document<unknown, {}, import("../../../models/PayrollPeriod").IPayrollPeriod, {}, {}> & import("../../../models/PayrollPeriod").IPayrollPeriod & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    })[]>;
-    static getOrCreatePeriod(year: number, month: number): Promise<import("mongoose").Document<unknown, {}, import("../../../models/PayrollPeriod").IPayrollPeriod, {}, {}> & import("../../../models/PayrollPeriod").IPayrollPeriod & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
     }>;
 }
 //# sourceMappingURL=staffAttendance.service.d.ts.map

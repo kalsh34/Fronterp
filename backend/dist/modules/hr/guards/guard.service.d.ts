@@ -40,6 +40,21 @@ export declare class GuardService {
     }> & {
         __v: number;
     }>;
+    /**
+     * Operations can move the Primary Site later. The flag lives on the
+     * assignment itself (never inferred from array order) and homeSiteId is kept
+     * in sync. Historical attendance stays attached to the site it was recorded
+     * at — nothing about attendance rows changes here.
+     */
+    static setPrimarySite(guardId: string, siteId: string, auditCtx?: {
+        userId: string;
+        ip?: string;
+        ua?: string;
+    }): Promise<mongoose.Document<unknown, {}, import("../../../models/PrimarySiteAssignment").IPrimarySiteAssignment, {}, {}> & import("../../../models/PrimarySiteAssignment").IPrimarySiteAssignment & Required<{
+        _id: mongoose.Types.ObjectId;
+    }> & {
+        __v: number;
+    }>;
     static getGuardSites(guardId: string): Promise<(mongoose.Document<unknown, {}, import("../../../models/PrimarySiteAssignment").IPrimarySiteAssignment, {}, {}> & import("../../../models/PrimarySiteAssignment").IPrimarySiteAssignment & Required<{
         _id: mongoose.Types.ObjectId;
     }> & {
@@ -54,7 +69,20 @@ export declare class GuardService {
     }> & {
         __v: number;
     }>;
-    static getAllGuards(): Promise<{
+    /**
+     * Guard roster with profiles + current site assignments.
+     * Optional filters:
+     *  - siteId      → only guards currently assigned to that site (isCurrent: true)
+     *  - assignment  → 'assigned' | 'unassigned' — whether the guard holds any current site assignment
+     *  - status      → employee status (ACTIVE, CONTRACTED, …); 'active' short-cut = ACTIVE or CONTRACTED
+     *  - search      → matches name or employee code
+     */
+    static getAllGuards(filters?: {
+        siteId?: string;
+        assignment?: 'assigned' | 'unassigned';
+        status?: string;
+        search?: string;
+    }): Promise<{
         employee: mongoose.Document<unknown, {}, import("../../../models/Employee").IEmployee, {}, {}> & import("../../../models/Employee").IEmployee & Required<{
             _id: mongoose.Types.ObjectId;
         }> & {

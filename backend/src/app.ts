@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import path from 'path';
+import { config } from './config/env';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 
@@ -9,30 +10,30 @@ import authRoutes from './modules/auth/auth.routes';
 import userRoutes from './modules/hr/employees/user.routes';
 import employeeRoutes from './modules/hr/employees/employee.routes';
 import siteRoutes from './modules/hr/sites/site.routes';
+import companyRoutes from './modules/hr/companies/company.routes';
 import guardRoutes from './modules/hr/guards/guard.routes';
-import attendanceRoutes from './modules/hr/attendance/attendance.routes';
-import guardPayrollRoutes from './modules/hr/guardPayroll/guardPayroll.routes';
-import officePayrollRoutes from './modules/hr/officePayroll/officePayroll.routes';
-import financeRoutes from './modules/hr/finance/finance.routes';
-import rulesRoutes from './modules/rules/rules.routes';
 import auditRoutes from './modules/audit/audit.routes';
 import reportsRoutes from './modules/reports/reports.routes';
+import reports2Routes from './modules/reports2/reports2.routes';
 import staffAttendanceRoutes from './modules/hr/staffAttendance/staffAttendance.routes';
+import guardShiftRoutes from './modules/hr/guardAttendance/guardShift.routes';
+import guardAttendanceRoutes from './modules/hr/guardAttendance/guardAttendance.routes';
+import notificationRoutes from './modules/notifications/notification.routes';
 import contractRoutes from './modules/hr/contracts/contract.routes';
-import payrollConfigRoutes from './modules/hr/payrollConfig/payrollConfig.routes';
 import siteNotesRoutes from './modules/hr/sites/siteNotes.routes';
 import shiftRoutes from './modules/hr/shifts/shift.routes';
 import candidateRoutes from './modules/hr/onboarding/candidate.routes';
 import performanceRoutes from './modules/hr/performance/performance.routes';
 import guarantorRoutes from './modules/hr/guarantor/guarantor.routes';
 import rotationRoutes from './modules/hr/rotation/rotation.routes';
-import salaryStructureRoutes from './modules/hr/salaryStructure/salaryStructure.routes';
 import departmentRoutes from './modules/hr/organization/department.routes';
 import positionRoutes from './modules/hr/organization/position.routes';
+import payGradeRoutes from './modules/hr/organization/payGrade.routes';
 import fileRoutes from './modules/hr/files/file.routes';
 
-import financeAccountingStub from './modules/finance-accounting/index';
-import journalRoutes from './modules/finance-accounting/journal.routes';
+import staffPayrollRoutes from './modules/staffPayroll/staffPayroll.routes';
+import guardPayrollRoutes from './modules/guardPayroll/guardPayroll.routes';
+import payrollCommonRoutes from './modules/payrollCommon/payrollCommon.routes';
 import inventoryStub from './modules/inventory/index';
 import salesCrmStub from './modules/sales-crm/index';
 import procurementStub from './modules/procurement/index';
@@ -42,7 +43,16 @@ import fleetStub from './modules/fleet/index';
 
 const app = express();
 
-app.use(cors());
+// CORS_ORIGIN accepts a comma separated list of the frontend origins allowed to
+// call this API, e.g. CORS_ORIGIN=https://my-frontend.onrender.com,http://localhost:3000
+// Defaults to "*" (any origin) so the deployed API keeps working out of the box.
+const corsOrigins = config.corsOrigin
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowAnyOrigin = corsOrigins.length === 0 || corsOrigins.includes('*');
+
+app.use(cors(allowAnyOrigin ? {} : { origin: corsOrigins }));
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(requestLogger);
@@ -57,31 +67,33 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/sites', siteRoutes);
+app.use('/api/companies', companyRoutes);
 app.use('/api/guards', guardRoutes);
-app.use('/api/attendance', attendanceRoutes);
-app.use('/api/guard-payroll', guardPayrollRoutes);
-app.use('/api/staff-payroll', officePayrollRoutes);
-app.use('/api/office-payroll', officePayrollRoutes);
-app.use('/api/finance', financeRoutes);
-app.use('/api/rules', rulesRoutes);
 app.use('/api/audit-logs', auditRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/module-reports', reports2Routes);
 app.use('/api/staff-attendance', staffAttendanceRoutes);
+app.use('/api/attendance/shifts', guardShiftRoutes); // before /api/attendance so /shifts/* wins over /:id/*
+app.use('/api/attendance', guardAttendanceRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/contracts', contractRoutes);
-app.use('/api/admin/payroll-config', payrollConfigRoutes);
 app.use('/api/site-notes', siteNotesRoutes);
 app.use('/api/shifts', shiftRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/performance', performanceRoutes);
 app.use('/api/guarantors', guarantorRoutes);
 app.use('/api/rotations', rotationRoutes);
-app.use('/api/salary-structures', salaryStructureRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/positions', positionRoutes);
+app.use('/api/pay-grades', payGradeRoutes);
 app.use('/api/files', fileRoutes);
 
-app.use('/api/v2/finance-accounting', financeAccountingStub);
-app.use('/api/journal', journalRoutes);
+// Payroll v2 — separate systems. Logic to be defined by the owner.
+app.use('/api/staff-payroll', staffPayrollRoutes);
+app.use('/api/office-payroll', staffPayrollRoutes);
+app.use('/api/guard-payroll', guardPayrollRoutes);
+app.use('/api/payroll-common', payrollCommonRoutes);
+
 app.use('/api/v2/inventory', inventoryStub);
 app.use('/api/v2/sales-crm', salesCrmStub);
 app.use('/api/v2/procurement', procurementStub);
