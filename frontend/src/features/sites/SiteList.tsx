@@ -391,13 +391,13 @@ export function SiteList() {
       {/* Toolbar: search + refresh | Export, Add Site, column visibility */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[220px] max-w-sm">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-muted" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
           <input
             type="text"
             placeholder={t('searchSite')}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            className="v-input pl-10"
+            className="v-input !pl-10"
           />
         </div>
         <button

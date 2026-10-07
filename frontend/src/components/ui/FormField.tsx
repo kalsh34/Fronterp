@@ -28,7 +28,7 @@ export function FormField({ label, error, hint, icon, className = '', required, 
           {icon && <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted">{icon}</div>}
           <input
             required={required}
-            className={`v-input ${icon ? 'pl-10' : ''} ${error ? 'border-red-300 focus:border-red-400 focus:ring-red-500/10' : ''} ${className}`}
+            className={`v-input ${icon ? '!pl-10' : ''} ${error ? 'border-red-300 focus:border-red-400 focus:ring-red-500/10' : ''} ${className}`}
             {...props}
           />
         </div>

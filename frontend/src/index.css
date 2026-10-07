@@ -104,31 +104,37 @@ html[lang='am'] textarea {
     -apple-system, 'Segoe UI', sans-serif;
 }
 
-/* Shared input surface — used by plain <input>/<select>/<textarea> across pages
-   so every form control looks identical (surface bg, line border, blue focus). */
-.v-input {
-  width: 100%;
-  border: 1px solid rgb(var(--c-line));
-  border-radius: 0.75rem;
-  background: rgb(var(--c-surface));
-  padding: 0.625rem 0.875rem;
-  font-size: 0.875rem;
-  color: rgb(var(--c-ink));
-  outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
-}
-.v-input::placeholder {
-  color: rgb(var(--c-muted));
-  opacity: 0.85;
-}
-.v-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-.v-input:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  background: rgb(var(--c-subtle));
+@layer components {
+  /* Shared input surface — used by plain <input>/<select>/<textarea> across pages
+     so every form control looks identical (surface bg, line border, blue focus). */
+  .v-input {
+    width: 100%;
+    border: 1px solid rgb(var(--c-line));
+    border-radius: 0.75rem;
+    background: rgb(var(--c-surface));
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    color: rgb(var(--c-ink));
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  }
+  .v-input::placeholder {
+    color: rgb(var(--c-muted));
+    opacity: 0.85;
+  }
+  .v-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+  .v-input:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background: rgb(var(--c-subtle));
+  }
+  .v-input.pl-10,
+  .v-input.\!pl-10 {
+    padding-left: 2.5rem !important;
+  }
 }
 
 /* Shared card surface — themed, bordered, soft shadow. */
