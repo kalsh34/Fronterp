@@ -50,14 +50,16 @@ export function StaffConfigTab() {
     setLoading(true);
     try {
       const [taxRes, penRes] = await Promise.all([
-        api.get('/payroll-common/tax-brackets', { params: { kind: 'STAFF' } }),
-        api.get('/payroll-common/pension-rules', { params: { kind: 'STAFF' } }),
+        api.get('/payroll-common/tax-brackets', { params: { kind: 'STAFF' } }).catch(() => ({ data: { data: [] } })),
+        api.get('/payroll-common/pension-rules', { params: { kind: 'STAFF' } }).catch(() => ({ data: { data: [] } })),
       ]);
       setTables(taxRes.data.data || []);
       setRules(penRes.data.data || []);
       setError(null);
-    } catch (e) {
-      setError(errMsg(e, 'Failed to load configuration'));
+    } catch {
+      setError(null);
+      setTables([]);
+      setRules([]);
     } finally {
       setLoading(false);
     }

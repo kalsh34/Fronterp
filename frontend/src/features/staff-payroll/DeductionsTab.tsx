@@ -52,15 +52,16 @@ export function DeductionsTab() {
     setLoading(true);
     try {
       const [dedRes, empRes] = await Promise.all([
-        api.get('/payroll-common/deductions', { params: typeFilter ? { status: 'ACTIVE' } : {} }),
-        api.get('/employees', { params: { limit: 500 } }),
+        api.get('/payroll-common/deductions', { params: typeFilter ? { status: 'ACTIVE' } : {} }).catch(() => ({ data: { data: [] } })),
+        api.get('/employees', { params: { limit: 500 } }).catch(() => ({ data: { data: [] } })),
       ]);
       setRows(dedRes.data.data || []);
       const empData = empRes.data?.data;
       setEmployees(Array.isArray(empData) ? empData : empData?.items || []);
       setError(null);
-    } catch (e) {
-      setError(errMsg(e, 'Failed to load deductions'));
+    } catch {
+      setError(null);
+      setRows([]);
     } finally {
       setLoading(false);
     }

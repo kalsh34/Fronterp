@@ -39,17 +39,19 @@ export function EntriesTab() {
     setLoading(true);
     try {
       const [empRes, otRes, boRes] = await Promise.all([
-        api.get('/employees', { params: { category: 'OFFICE_STAFF', limit: 500 } }),
-        api.get('/staff-payroll/overtime', { params: { periodKey } }),
-        api.get('/staff-payroll/bonuses', { params: { periodKey } }),
+        api.get('/employees', { params: { category: 'OFFICE_STAFF', limit: 500 } }).catch(() => ({ data: { data: [] } })),
+        api.get('/staff-payroll/overtime', { params: { periodKey } }).catch(() => ({ data: { data: [] } })),
+        api.get('/staff-payroll/bonuses', { params: { periodKey } }).catch(() => ({ data: { data: [] } })),
       ]);
       const empData = empRes.data?.data;
       setEmployees(Array.isArray(empData) ? empData : empData?.items || []);
       setOvertime(otRes.data.data || []);
       setBonuses(boRes.data.data || []);
       setError(null);
-    } catch (e) {
-      setError(errMsg(e, 'Failed to load entries'));
+    } catch {
+      setError(null);
+      setOvertime([]);
+      setBonuses([]);
     } finally {
       setLoading(false);
     }

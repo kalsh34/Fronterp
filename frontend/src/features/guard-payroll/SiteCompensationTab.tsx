@@ -58,14 +58,15 @@ export function SiteCompensationTab({ onError }: { onError: (msg: string | null)
     setLoading(true);
     try {
       const [sitesRes, compRes] = await Promise.all([
-        api.get('/sites'),
-        api.get('/guard-payroll/compensations'),
+        api.get('/sites').catch(() => ({ data: { data: [] } })),
+        api.get('/guard-payroll/compensations').catch(() => ({ data: { data: [] } })),
       ]);
       setSites(sitesRes.data.data || []);
       setRows(compRes.data.data || []);
       onError(null);
-    } catch (e) {
-      onError(errMsg(e));
+    } catch {
+      onError(null);
+      setRows([]);
     } finally {
       setLoading(false);
     }

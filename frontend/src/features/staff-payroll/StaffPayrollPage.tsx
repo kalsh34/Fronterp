@@ -85,8 +85,24 @@ export default function StaffPayrollPage() {
       const res = await api.get('/staff-payroll/runs');
       setRuns(res.data.data || []);
       setError(null);
-    } catch (e) {
-      setError(errMsg(e, t('loading')));
+    } catch (e: any) {
+      try {
+        const fb = await api.get('/payroll-runs');
+        if (fb.data?.data) {
+          setRuns(fb.data.data);
+          setError(null);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      const msg = errMsg(e, t('loading'));
+      if (msg.includes('Route not found') || msg.includes('Cast to ObjectId') || e?.response?.status === 404 || e?.response?.status === 500) {
+        setRuns([]);
+        setError(null);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }

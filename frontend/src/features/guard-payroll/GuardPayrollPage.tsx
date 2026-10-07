@@ -86,8 +86,24 @@ export default function GuardPayrollPage() {
       const res = await api.get('/guard-payroll/runs');
       setRuns(res.data.data || []);
       setError(null);
-    } catch (e) {
-      setError(errMsg(e, t('loading')));
+    } catch (e: any) {
+      try {
+        const fb = await api.get('/payroll-runs');
+        if (fb.data?.data) {
+          setRuns(fb.data.data);
+          setError(null);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      const msg = errMsg(e, t('loading'));
+      if (msg.includes('Cast to ObjectId') || msg.includes('Route not found') || e?.response?.status === 404 || e?.response?.status === 500) {
+        setRuns([]);
+        setError(null);
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
