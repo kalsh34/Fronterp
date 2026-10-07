@@ -24,27 +24,27 @@ export function DataTable<T>({ columns, data, sortKey, sortDir, onSort, emptyMes
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-gray-200">
+          <tr className="border-b border-line">
             {columns.map((col) => (
               <th
                 key={col.key}
-                className={`text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide ${col.sortable ? 'cursor-pointer hover:text-gray-700 select-none' : ''} ${col.className || ''}`}
+                className={`text-left px-4 py-3 font-medium text-muted text-xs uppercase tracking-wide ${col.sortable ? 'cursor-pointer hover:text-ink select-none' : ''} ${col.className || ''}`}
                 onClick={() => col.sortable && onSort?.(col.key)}
               >
                 <span className="inline-flex items-center gap-1">
                   {col.header}
                   {col.sortable && sortKey === col.key && (
-                    <span className="text-blue-600">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                    <span className="text-primary-600 dark:text-primary-300">{sortDir === 'asc' ? '↑' : '↓'}</span>
                   )}
                 </span>
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-line">
           {data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="text-center py-12 text-gray-400">
+              <td colSpan={columns.length} className="text-center py-12 text-subtext">
                 {emptyMessage}
               </td>
             </tr>
@@ -52,7 +52,7 @@ export function DataTable<T>({ columns, data, sortKey, sortDir, onSort, emptyMes
             data.map((row) => (
               <tr
                 key={keyExtractor(row)}
-                className={`hover:bg-gray-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+                className={`hover:bg-surface-hover transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((col) => (

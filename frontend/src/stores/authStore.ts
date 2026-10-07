@@ -10,6 +10,10 @@ interface User {
   lastName: string;
   role: UserRole;
   employeeId?: string;
+  phone?: string;
+  avatarUrl?: string;
+  /** Effective per-user permissions (role defaults + module grants − denies). */
+  permissions?: string[];
 }
 
 interface AuthState {
@@ -19,6 +23,13 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   fetchMe: () => Promise<void>;
+  setUser: (user: User) => void;
+}
+
+/** Permission check used by UI action gating (`can('guard-payroll.calculate')`). */
+export function can(permissions: string[] | undefined, ...required: string[]): boolean {
+  if (!permissions?.length) return false;
+  return required.some((p) => permissions.includes(p));
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -46,6 +57,8 @@ export const useAuthStore = create<AuthState>()(
           set({ token: null, user: null, isAuthenticated: false });
         }
       },
+
+      setUser: (user) => set({ user }),
     }),
     { name: 'vitalpayroll-auth' }
   )

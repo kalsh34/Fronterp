@@ -25,17 +25,18 @@ function getVariant(status: string, override?: StatusVariant): StatusVariant {
 }
 
 export function StatusBadge({ status, variant, className = '' }: StatusBadgeProps) {
-  const v = getVariant(status, variant);
+  const v = getVariant(status ?? '', variant);
+  // Semantic palette: success=green, warning=amber, error=red, info=blue.
   const styles: Record<StatusVariant, string> = {
-    default: 'bg-gray-100 text-gray-700',
-    success: 'bg-green-100 text-green-700',
-    warning: 'bg-amber-100 text-amber-700',
-    danger: 'bg-red-100 text-red-700',
-    info: 'bg-blue-100 text-blue-700',
-    purple: 'bg-purple-100 text-purple-700',
+    default: 'bg-subtle text-muted border border-line',
+    success: 'bg-success-subtle text-success-text border border-success-line',
+    warning: 'bg-warning-subtle text-warning-text border border-warning-line',
+    danger: 'bg-danger-subtle text-danger-text border border-danger-line',
+    info: 'bg-info-subtle text-info-text border border-info-line',
+    purple: 'bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300 border border-primary-200 dark:border-primary-500/30',
   };
 
-  const label = status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  const label = (status ?? '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[v]} ${className}`}>

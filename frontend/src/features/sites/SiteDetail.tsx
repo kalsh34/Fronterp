@@ -13,25 +13,17 @@ interface Site {
   status: string;
   agreedManpower: number;
   actualManpower: number;
+  maleCount?: number;
+  femaleCount?: number;
   address?: string;
   contactPerson?: string;
   contactPhone?: string;
   latitude?: number;
   longitude?: number;
   radiusMeters?: number;
+  deactivatedAt?: string;
   createdAt: string;
   updatedAt: string;
-}
-
-interface ShiftTemplate {
-  _id: string;
-  name: string;
-  startTime: string;
-  endTime: string;
-  daysOfWeek: number[];
-  maxGuards: number;
-  color: string;
-  active: boolean;
 }
 
 interface ShiftAssignment {
@@ -51,16 +43,8 @@ interface PrimaryAssignment {
   standardMonthlyHours: number;
   hourlyRate: number;
   effectiveFrom: string;
-}
-
-interface AttendanceRec {
-  _id: string;
-  guardId: { _id: string; firstName: string; lastName: string; employeeCode: string } | string;
-  date: string;
-  clockIn?: string;
-  clockOut?: string;
-  totalHours: number;
-  source: string;
+  effectiveTo?: string;
+  isCurrent: boolean;
 }
 
 interface SiteNoteRec {
@@ -79,30 +63,22 @@ interface RotationAssignmentRec {
 
 interface SiteDetailData {
   site: Site;
-  shiftTemplates: ShiftTemplate[];
   activeAssignments: ShiftAssignment[];
   currentAssignments: PrimaryAssignment[];
-  recentAttendance: AttendanceRec[];
+  pastAssignments: PrimaryAssignment[];
   recentNotes: SiteNoteRec[];
   rotationAssignments: RotationAssignmentRec[];
-  todaySummary: {
-    onDuty: number;
-    clockedOut: number;
-    totalFiled: number;
-    onDutyGuards: { guardId: string; name: string; code: string; clockIn: string; totalHours: number }[];
-  };
+  rotations?: { _id: string; name?: string; title?: string; status: string; startDate?: string; endDate?: string }[];
 }
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  INACTIVE: 'bg-gray-100 text-gray-600 border-gray-200',
-  SUSPENDED: 'bg-red-50 text-red-700 border-red-200',
+  ACTIVE: 'bg-success-subtle text-success-text border-success-line',
+  INACTIVE: 'bg-subtle text-muted border-line',
+  SUSPENDED: 'bg-danger-subtle text-danger-text border-danger-line',
 };
 
 const SITE_TYPE_COLORS: Record<string, string> = {
-  COMMERCIAL: 'bg-indigo-100 text-indigo-700',
+  COMMERCIAL: 'bg-indigo-100 text-primary-700',
   RESIDENTIAL: 'bg-violet-100 text-violet-700',
   INDUSTRIAL: 'bg-amber-100 text-amber-700',
   GOVERNMENT: 'bg-teal-100 text-teal-700',
@@ -112,7 +88,6 @@ const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'shifts', label: 'Shifts' },
   { key: 'guards', label: 'Guards' },
-  { key: 'attendance', label: 'Attendance' },
   { key: 'notes', label: 'Notes' },
 ] as const;
 
@@ -121,6 +96,7 @@ function getGuardName(g: any): string {
   if (typeof g === 'string') return g;
   return `${g.firstName || ''} ${g.lastName || ''}`.trim() || 'Unknown';
 }
+
 function getGuardCode(g: any): string {
   if (!g || typeof g === 'string') return '';
   return g.employeeCode || '';
@@ -133,6 +109,15 @@ function getTemplateName(t: any): string {
 function getTemplateTime(t: any): string {
   if (!t || typeof t === 'string') return '';
   return `${t.startTime || ''}–${t.endTime || ''}`;
+}
+/** Local calendar date from stored ISO/Date string (never toISOString on a Date). */
+function localDate(iso?: string): string {
+  if (!iso) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso));
+  if (m) return `${m[2]}/${m[3]}/${m[1]}`;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
 export default function SiteDetail() {
@@ -149,9 +134,6 @@ export default function SiteDetail() {
   const [noteText, setNoteText] = useState('');
   const [noteDate, setNoteDate] = useState(new Date().toISOString().split('T')[0]);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
-  const [addTemplateOpen, setAddTemplateOpen] = useState(false);
-  const [templateForm, setTemplateForm] = useState({ name: '', startTime: '06:00', endTime: '18:00', daysOfWeek: [0,1,2,3,4,5,6], maxGuards: 1, color: '#3B82F6' });
-  const [templateSaving, setTemplateSaving] = useState(false);
 
   const [form, setForm] = useState({
     siteCode: '', siteName: '', client: '', location: '', siteType: 'COMMERCIAL',
@@ -219,32 +201,10 @@ export default function SiteDetail() {
     }
   };
 
-  const handleAddTemplate = async () => {
-    if (!id || !templateForm.name.trim()) return;
-    setTemplateSaving(true);
-    try {
-      await api.post('/shifts/templates', { siteId: id, ...templateForm });
-      setAddTemplateOpen(false);
-      setTemplateForm({ name: '', startTime: '06:00', endTime: '18:00', daysOfWeek: [0,1,2,3,4,5,6], maxGuards: 1, color: '#3B82F6' });
-      fetchDetail();
-    } catch (e: any) {
-      alert(e.response?.data?.message || 'Failed to create template');
-    } finally {
-      setTemplateSaving(false);
-    }
-  };
-
-  const toggleTemplateDay = (day: number) => {
-    setTemplateForm((p) => ({
-      ...p,
-      daysOfWeek: p.daysOfWeek.includes(day) ? p.daysOfWeek.filter((d) => d !== day) : [...p.daysOfWeek, day].sort(),
-    }));
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+        <div className="animate-spin w-8 h-8 border-4 border-primary-600 border-t-transparent rounded-full" />
       </div>
     );
   }
@@ -252,41 +212,48 @@ export default function SiteDetail() {
   if (!data) {
     return (
       <div className="text-center py-32">
-        <p className="text-gray-500">Site not found</p>
-        <button onClick={() => navigate('/sites')} className="mt-4 text-indigo-600 hover:underline text-sm">Back to Sites</button>
+        <p className="text-muted">Site not found</p>
+        <button onClick={() => navigate('/sites')} className="mt-4 text-primary-600 hover:underline text-sm">Back to Sites</button>
       </div>
     );
   }
 
-  const { site, shiftTemplates, activeAssignments, currentAssignments, recentAttendance, recentNotes, rotationAssignments, todaySummary } = data;
+  const { site, activeAssignments, currentAssignments, pastAssignments, recentNotes, rotationAssignments } = data;
+  const isInactive = site.status === 'INACTIVE';
+  const guardsList = isInactive ? pastAssignments : currentAssignments;
   const pct = site.agreedManpower > 0 ? Math.round((site.actualManpower / site.agreedManpower) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30">
+    <div className="min-h-screen bg-canvas ">
       <div className="max-w-[1400px] mx-auto p-6 space-y-6">
         {/* Back button */}
-        <button onClick={() => navigate('/sites')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+        <button onClick={() => navigate('/sites')} className="flex items-center gap-2 text-sm text-muted hover:text-ink transition-colors">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
           Back to Sites
         </button>
 
         {/* Hero Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-violet-700 p-6 text-white">
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-primary-600 via-primary-700 to-primary-800 p-6 text-white">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDJ2LTJoMzR6TTMgNmgzNHYySDN6TTM2IDE4djJIM3YtMmgzMzoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-40" />
           <div className="relative flex items-start justify-between">
             <div>
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-2xl font-bold tracking-tight">{site.siteName}</h1>
-                <span className="text-xs font-mono text-indigo-200">{site.siteCode}</span>
+                <span className="text-xs font-mono text-primary-200">{site.siteCode}</span>
                 <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold border ${STATUS_COLORS[site.status]}`}>{site.status}</span>
               </div>
-              <div className="flex items-center gap-4 text-sm text-indigo-200">
+              <div className="flex items-center gap-4 text-sm text-primary-200">
                 <span className="flex items-center gap-1">
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   {site.location}
                 </span>
                 {site.client && <span>{site.client}</span>}
                 <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${SITE_TYPE_COLORS[site.siteType] || ''}`}>{site.siteType}</span>
+                {site.deactivatedAt && (
+                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-red-500/20 text-red-100 border border-red-400/30">
+                    Deactivated {localDate(site.deactivatedAt)}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -313,38 +280,30 @@ export default function SiteDetail() {
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">{error}</div>
+          <div className="bg-danger-subtle border border-danger-line text-danger-text px-4 py-3 rounded-xl text-sm">{error}</div>
         )}
 
         {/* Today's Summary Cards */}
-        <div className="grid grid-cols-5 gap-4">
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <div className="text-2xl font-bold text-indigo-600">{site.agreedManpower}</div>
-            <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mt-0.5">Required Guards</div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="bg-surface rounded-2xl p-5 shadow-sm border border-line">
+            <div className="text-2xl font-bold text-primary-600">{site.agreedManpower}</div>
+            <div className="text-[11px] text-muted font-medium uppercase tracking-wider mt-0.5">Required Guards</div>
           </div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <div className="text-2xl font-bold text-violet-600">{todaySummary.onDuty}</div>
-            <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mt-0.5">On Duty Now</div>
+          <div className="bg-surface rounded-2xl p-5 shadow-sm border border-line">
+            <div className="text-2xl font-bold text-ink">{guardsList.length}</div>
+            <div className="text-[11px] text-muted font-medium uppercase tracking-wider mt-0.5">{isInactive ? 'Former Guards' : 'Assigned Guards'}</div>
           </div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <div className="text-2xl font-bold text-emerald-600">{todaySummary.clockedOut}</div>
-            <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mt-0.5">Completed Today</div>
-          </div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <div className="text-2xl font-bold text-gray-900">{currentAssignments.length}</div>
-            <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mt-0.5">Assigned Guards</div>
-          </div>
-          <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-            <div className={`text-2xl font-bold ${pct >= 90 ? 'text-emerald-600' : pct >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{pct}%</div>
-            <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mt-0.5">Coverage</div>
+          <div className="bg-surface rounded-2xl p-5 shadow-sm border border-line">
+            <div className={`text-2xl font-bold ${pct >= 90 ? 'text-emerald-600' : pct >= 60 ? 'text-amber-600' : 'text-danger-text'}`}>{pct}%</div>
+            <div className="text-[11px] text-muted font-medium uppercase tracking-wider mt-0.5">Coverage</div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 w-fit">
+        <div className="flex items-center gap-1 bg-surface rounded-2xl p-1.5 shadow-sm border border-line w-fit">
           {TABS.map((tab) => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-              className={`px-5 py-2.5 text-sm font-medium rounded-xl transition-all ${activeTab === tab.key ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+              className={`px-5 py-2.5 text-sm font-medium rounded-xl transition-all ${activeTab === tab.key ? 'bg-primary-600 text-white shadow-lg' : 'text-muted hover:text-ink hover:bg-subtle'}`}>
               {tab.label}
             </button>
           ))}
@@ -355,34 +314,34 @@ export default function SiteDetail() {
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
             <div className="space-y-6">
               {/* Site Info */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900 mb-5">Site Information</h2>
+              <div className="bg-surface rounded-2xl p-6 shadow-sm border border-line">
+                <h2 className="text-lg font-bold text-ink mb-5">Site Information</h2>
                 {editing ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Site Code</label>
-                        <input value={form.siteCode} onChange={e => setForm({ ...form, siteCode: e.target.value.toUpperCase() })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none" />
+                        <label className="block text-xs font-medium text-muted mb-1">Site Code</label>
+                        <input value={form.siteCode} onChange={e => setForm({ ...form, siteCode: e.target.value.toUpperCase() })} className="v-input" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Site Name</label>
-                        <input value={form.siteName} onChange={e => setForm({ ...form, siteName: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none" />
+                        <label className="block text-xs font-medium text-muted mb-1">Site Name</label>
+                        <input value={form.siteName} onChange={e => setForm({ ...form, siteName: e.target.value })} className="v-input" />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Client</label>
-                        <input value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none" />
+                        <label className="block text-xs font-medium text-muted mb-1">Client</label>
+                        <input value={form.client} onChange={e => setForm({ ...form, client: e.target.value })} className="v-input" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Location</label>
-                        <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none" />
+                        <label className="block text-xs font-medium text-muted mb-1">Location</label>
+                        <input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} className="v-input" />
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
-                        <select value={form.siteType} onChange={e => setForm({ ...form, siteType: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none">
+                        <label className="block text-xs font-medium text-muted mb-1">Type</label>
+                        <select value={form.siteType} onChange={e => setForm({ ...form, siteType: e.target.value })} className="v-input">
                           <option value="COMMERCIAL">Commercial</option>
                           <option value="RESIDENTIAL">Residential</option>
                           <option value="INDUSTRIAL">Industrial</option>
@@ -390,143 +349,99 @@ export default function SiteDetail() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                        <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none">
+                        <label className="block text-xs font-medium text-muted mb-1">Status</label>
+                        <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="v-input">
                           <option value="ACTIVE">Active</option>
                           <option value="INACTIVE">Inactive</option>
                           <option value="SUSPENDED">Suspended</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Agreed Manpower</label>
-                        <input type="number" value={form.agreedManpower} onChange={e => setForm({ ...form, agreedManpower: parseInt(e.target.value) || 0 })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none" />
+                        <label className="block text-xs font-medium text-muted mb-1">Agreed Manpower</label>
+                        <input type="number" value={form.agreedManpower} onChange={e => setForm({ ...form, agreedManpower: parseInt(e.target.value) || 0 })} className="v-input" />
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Contact Person</label>
-                        <input value={form.contactPerson} onChange={e => setForm({ ...form, contactPerson: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none" />
+                        <label className="block text-xs font-medium text-muted mb-1">Contact Person</label>
+                        <input value={form.contactPerson} onChange={e => setForm({ ...form, contactPerson: e.target.value })} className="v-input" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Contact Phone</label>
-                        <input value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none" />
+                        <label className="block text-xs font-medium text-muted mb-1">Contact Phone</label>
+                        <input value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} className="v-input" />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
-                        <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none" />
+                        <label className="block text-xs font-medium text-muted mb-1">Address</label>
+                        <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className="v-input" />
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-6">
-                      <InfoField label="Site Code" value={site.siteCode} mono />
-                      <InfoField label="Site Name" value={site.siteName} />
-                      <InfoField label="Client" value={site.client} />
-                      <InfoField label="Location" value={site.location} />
-                      <InfoField label="Type" value={site.siteType} badge={SITE_TYPE_COLORS[site.siteType]} />
-                      <InfoField label="Status" value={site.status} badge={STATUS_COLORS[site.status]} />
-                      <InfoField label="Agreed Manpower" value={String(site.agreedManpower)} />
-                      <InfoField label="Actual Manpower" value={String(site.actualManpower)} />
-                      <InfoField label="Contact Person" value={site.contactPerson} />
-                      <InfoField label="Contact Phone" value={site.contactPhone} />
-                      <InfoField label="Address" value={site.address} />
-                      <InfoField label="Created" value={new Date(site.createdAt).toLocaleDateString()} />
+<div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-6">
+                        <InfoField label="Site Code" value={site.siteCode} mono />
+                        <InfoField label="Site Name" value={site.siteName} />
+                        <InfoField label="Client" value={site.client} />
+                        <InfoField label="Location" value={site.location} />
+                        <InfoField label="Type" value={site.siteType} badge={SITE_TYPE_COLORS[site.siteType]} />
+                        <InfoField label="Status" value={site.status} badge={STATUS_COLORS[site.status]} />
+                        <InfoField label="Agreed Manpower" value={String(site.agreedManpower)} />
+                        <InfoField label="Actual Manpower" value={String(site.actualManpower)} />
+                        {(site.maleCount != null || site.femaleCount != null) && (
+                          <>
+                            <InfoField label="Male Guards" value={site.maleCount != null ? String(site.maleCount) : undefined} />
+                            <InfoField label="Female Guards" value={site.femaleCount != null ? String(site.femaleCount) : undefined} />
+                          </>
+                        )}
+                        <InfoField label="Contact Person" value={site.contactPerson} />
+                        <InfoField label="Contact Phone" value={site.contactPhone} />
+                        <InfoField label="Address" value={site.address} />
+                        <InfoField label="Created" value={localDate(site.createdAt)} />
+                        {site.deactivatedAt && (
+                          <InfoField label="Deactivated" value={localDate(site.deactivatedAt)} />
+                        )}
+                      </div>
                     </div>
-                  </div>
                 )}
               </div>
 
               {/* Coverage Bar */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Guard Coverage</h2>
+              <div className="bg-surface rounded-2xl p-6 shadow-sm border border-line">
+                <h2 className="text-lg font-bold text-ink mb-4">Guard Coverage</h2>
                 <div className="flex items-center gap-6 mb-3">
                   <div className="flex-1">
-                    <div className="h-4 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-4 bg-subtle rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all ${pct >= 90 ? 'bg-emerald-500' : pct >= 60 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${Math.min(pct, 100)}%` }} />
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className={`text-2xl font-bold ${pct >= 90 ? 'text-emerald-600' : pct >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{site.actualManpower}/{site.agreedManpower}</span>
-                    <span className="text-xs text-gray-400 ml-2">({pct}%)</span>
+                    <span className={`text-2xl font-bold ${pct >= 90 ? 'text-emerald-600' : pct >= 60 ? 'text-amber-600' : 'text-danger-text'}`}>{site.actualManpower}/{site.agreedManpower}</span>
+                    <span className="text-xs text-muted ml-2">({pct}%)</span>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500">{pct >= 90 ? 'Fully covered' : pct >= 60 ? 'Partially covered — shortfall of ' + (site.agreedManpower - site.actualManpower) + ' guard(s)' : 'Understaffed — shortfall of ' + (site.agreedManpower - site.actualManpower) + ' guard(s)'}</p>
-              </div>
-
-              {/* Shift Templates */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Shift Templates ({shiftTemplates.length})</h2>
-                  <button onClick={() => setAddTemplateOpen(true)} className="h-8 px-3 flex items-center gap-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-700 transition-colors">
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                    Create Template
-                  </button>
-                </div>
-                {shiftTemplates.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-4">No shift templates configured for this site</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {shiftTemplates.map(t => (
-                      <div key={t._id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
-                        <div className="w-3 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: t.color || '#3B82F6' }} />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-gray-900">{t.name}</div>
-                          <div className="text-xs text-gray-500">{t.startTime}–{t.endTime} | Max {t.maxGuards} guards</div>
-                          <div className="flex gap-1 mt-1">
-                            {t.daysOfWeek.map(d => (
-                              <span key={d} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">{DAY_NAMES[d]}</span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <p className="text-xs text-muted">{pct >= 90 ? 'Fully covered' : pct >= 60 ? 'Partially covered — shortfall of ' + (site.agreedManpower - site.actualManpower) + ' guard(s)' : 'Understaffed — shortfall of ' + (site.agreedManpower - site.actualManpower) + ' guard(s)'}</p>
               </div>
             </div>
 
             {/* Right Sidebar */}
             <div className="space-y-6">
-              {/* On Duty Now */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">On Duty Now</h2>
-                {todaySummary.onDutyGuards.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-4 text-center">No guards on duty</p>
-                ) : (
-                  <div className="space-y-3">
-                    {todaySummary.onDutyGuards.map((g, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                          {g.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 truncate">{g.name}</div>
-                          <div className="text-[11px] text-gray-400">{g.code} | In since {new Date(g.clockIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               {/* Recent Site Notes */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+              <div className="bg-surface rounded-2xl p-6 shadow-sm border border-line">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">Recent Notes</h2>
-                  <button onClick={() => setAddNoteOpen(true)} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">+ Add</button>
+                  <h2 className="text-lg font-bold text-ink">Recent Notes</h2>
+                  <button onClick={() => setAddNoteOpen(true)} className="text-xs text-primary-600 hover:text-primary-800 font-medium">+ Add</button>
                 </div>
                 {recentNotes.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-4 text-center">No notes yet</p>
+                  <p className="text-sm text-muted py-4 text-center">No notes yet</p>
                 ) : (
                   <div className="space-y-3 max-h-64 overflow-y-auto">
                     {recentNotes.slice(0, 5).map(n => (
-                      <div key={n._id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                      <div key={n._id} className="p-3 rounded-xl bg-subtle border border-line">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[10px] font-mono text-gray-400">{n.date}</span>
-                          {n.recordedById && <span className="text-[10px] text-gray-400">by {n.recordedById.firstName}</span>}
+                          <span className="text-[10px] font-mono text-muted">{n.date}</span>
+                          {n.recordedById && <span className="text-[10px] text-muted">by {n.recordedById.firstName}</span>}
                         </div>
-                        <p className="text-xs text-gray-700">{n.noteText}</p>
+                        <p className="text-xs text-ink">{n.noteText}</p>
                       </div>
                     ))}
                   </div>
@@ -534,15 +449,15 @@ export default function SiteDetail() {
               </div>
 
               {/* Site Stats */}
-              <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900 mb-4">Statistics</h2>
+              <div className="bg-surface rounded-2xl p-6 shadow-sm border border-line">
+                <h2 className="text-lg font-bold text-ink mb-4">Statistics</h2>
                 <div className="space-y-3 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Shift Templates</span><span className="font-medium">{shiftTemplates.length}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Active Assignments</span><span className="font-medium">{activeAssignments.length}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Primary Assignments</span><span className="font-medium">{currentAssignments.length}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Rotation Entries</span><span className="font-medium">{rotationAssignments.length}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Today's Records</span><span className="font-medium">{todaySummary.totalFiled}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Total Attendance Records</span><span className="font-medium">{recentAttendance.length}+</span></div>
+                  <div className="flex justify-between"><span className="text-muted">Active Assignments</span><span className="font-medium">{activeAssignments.length}</span></div>
+                  <div className="flex justify-between"><span className="text-muted">Primary Assignments</span><span className="font-medium">{guardsList.length}</span></div>
+                  <div className="flex justify-between"><span className="text-muted">Rotation Entries</span><span className="font-medium">{rotationAssignments.length}</span></div>
+                  {site.deactivatedAt && (
+                    <div className="flex justify-between pt-2 border-t border-line"><span className="text-muted">Deactivated</span><span className="font-medium text-danger-text">{localDate(site.deactivatedAt)}</span></div>
+                  )}
                 </div>
               </div>
             </div>
@@ -552,6 +467,32 @@ export default function SiteDetail() {
         {/* ═══ SHIFTS TAB ═══ */}
         {activeTab === 'shifts' && (
           <div className="space-y-6">
+            {/* Rotations for this site */}
+            {(data.rotations?.length ?? 0) > 0 && (
+              <div className="bg-surface rounded-2xl shadow-sm border border-line overflow-hidden">
+                <div className="px-6 py-4 border-b border-line">
+                  <h2 className="text-lg font-bold text-ink">Rotations for This Site ({data.rotations!.length})</h2>
+                  <p className="text-xs text-muted mt-0.5">Shift patterns generated for this site</p>
+                </div>
+                <div className="divide-y divide-line">
+                  {data.rotations!.map(r => (
+                    <div key={r._id} className="px-6 py-3 flex items-center justify-between hover:bg-subtle/60">
+                      <div>
+                        <span className="font-medium text-sm text-ink">{r.name || r.title || 'Rotation'}</span>
+                        <span className="text-[10px] text-muted ml-2">
+                          {r.startDate ? localDate(r.startDate) : ''}{r.endDate ? ` → ${localDate(r.endDate)}` : ''}
+                        </span>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
+                        r.status === 'PUBLISHED' || r.status === 'ACTIVE' ? 'bg-success-subtle text-success-text' :
+                        r.status === 'ARCHIVED' ? 'bg-subtle text-muted' : 'bg-amber-100 text-amber-700'
+                      }`}>{r.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Rotation Schedule Grid */}
             {rotationAssignments.length > 0 && (() => {
               const groups: Record<string, any[]> = {};
@@ -574,25 +515,25 @@ export default function SiteDetail() {
               });
 
               return (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-900">Generated Shift Schedule</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">{dates.length} days · {guardList.length} guards · From rotation scheduling</p>
+                <div className="bg-surface rounded-2xl shadow-sm border border-line overflow-hidden">
+                  <div className="px-6 py-4 border-b border-line">
+                    <h2 className="text-lg font-bold text-ink">Generated Shift Schedule</h2>
+                    <p className="text-xs text-muted mt-0.5">{dates.length} days · {guardList.length} guards · From rotation scheduling</p>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs border-collapse">
                       <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase w-12 border border-gray-200">#</th>
-                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-gray-400 uppercase w-20 border border-gray-200">Date</th>
+                        <tr className="bg-subtle border-b border-line">
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-muted uppercase w-12 border border-line">#</th>
+                          <th className="px-3 py-2.5 text-left text-[10px] font-bold text-muted uppercase w-20 border border-line">Date</th>
                           {guardList.map((g) => (
-                            <th key={g.id} className="px-2 py-2.5 text-center text-[10px] font-bold text-gray-700 uppercase min-w-[80px] border border-gray-200">
+                            <th key={g.id} className="px-2 py-2.5 text-center text-[10px] font-bold text-ink uppercase min-w-[80px] border border-line">
                               <div className="underline decoration-red-400 decoration-1 underline-offset-2">{g.name}</div>
                             </th>
                           ))}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-line">
                         {dates.map((dateKey, di) => {
                           const dayAssigns = groups[dateKey] || [];
                           const dayDate = new Date(dateKey + 'T12:00:00');
@@ -604,20 +545,20 @@ export default function SiteDetail() {
                           });
 
                           return (
-                            <tr key={dateKey} className={`hover:bg-gray-50/50 ${isToday ? 'bg-indigo-50/60 font-semibold' : ''}`}>
-                              <td className="px-3 py-2 font-bold text-gray-400 border border-gray-200">{di + 1}.</td>
-                              <td className={`px-3 py-2 font-medium border border-gray-200 ${isToday ? 'text-indigo-700' : 'text-gray-700'}`}>
+                            <tr key={dateKey} className={`hover:bg-subtle/60 ${isToday ? 'bg-primary-50/60 font-semibold' : ''}`}>
+                              <td className="px-3 py-2 font-bold text-muted border border-line">{di + 1}.</td>
+                              <td className={`px-3 py-2 font-medium border border-line ${isToday ? 'text-primary-700' : 'text-ink'}`}>
                                 {dayDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                               </td>
                               {guardList.map((g) => {
                                 const a = byGuard[g.id];
-                                if (!a) return <td key={g.id} className="px-3 py-2 text-center border border-gray-200"><span className="text-gray-300">-</span></td>;
+                                if (!a) return <td key={g.id} className="px-3 py-2 text-center border border-line"><span className="text-subtext">-</span></td>;
                                 const isDay = a.shiftType === 'DAY';
                                 const time = a.shiftTime || (isDay ? '06:00-18:00' : '18:00-06:00');
                                 const startTime = time.split('-')[0] || (isDay ? '06:00' : '18:00');
                                 return (
-                                  <td key={g.id} className="px-3 py-2 text-center border border-gray-200">
-                                    <span className={`inline-block px-1.5 py-0.5 rounded font-bold text-[11px] ${isDay ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-indigo-800'}`}>
+                                  <td key={g.id} className="px-3 py-2 text-center border border-line">
+                                    <span className={`inline-block px-1.5 py-0.5 rounded font-bold text-[11px] ${isDay ? 'bg-yellow-100 text-yellow-800' : 'bg-indigo-100 text-primary-800'}`}>
                                       {startTime}
                                     </span>
                                   </td>
@@ -634,47 +575,48 @@ export default function SiteDetail() {
             })()}
 
             {/* Active Shift Assignments */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900">Active Shift Assignments ({activeAssignments.length})</h2>
+            <div className="bg-surface rounded-2xl shadow-sm border border-line overflow-hidden">
+              <div className="px-6 py-4 border-b border-line">
+                <h2 className="text-lg font-bold text-ink">Active Shift Assignments ({activeAssignments.length})</h2>
+                <p className="text-xs text-muted mt-0.5">Shift assignments generated for this site</p>
               </div>
               {activeAssignments.length === 0 ? (
-                <div className="py-16 text-center text-sm text-gray-400">No active shift assignments</div>
+                <div className="py-16 text-center text-sm text-muted">No active shift assignments</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50/50 border-b border-gray-100">
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Guard</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Shift</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Time</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Start Date</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Source</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                      <tr className="bg-canvas border-b border-line">
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Guard</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Shift</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Time</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Start Date</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Source</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-line">
                       {activeAssignments.map(a => (
-                        <tr key={a._id} className="hover:bg-gray-50/50 transition-colors">
+                        <tr key={a._id} className="hover:bg-subtle/60 transition-colors">
                           <td className="py-3 px-6">
                             <div className="flex items-center gap-2">
-                              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">{getGuardName(a.guardId).split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
+                              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary-400 to-primary-600 text-white flex items-center justify-center text-[10px] font-bold">{getGuardName(a.guardId).split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
                               <div>
-                                <span className="font-medium text-gray-900 text-sm">{getGuardName(a.guardId)}</span>
-                                <span className="text-[10px] text-gray-400 ml-1.5">{getGuardCode(a.guardId)}</span>
+                                <span className="font-medium text-ink text-sm">{getGuardName(a.guardId)}</span>
+                                <span className="text-[10px] text-muted ml-1.5">{getGuardCode(a.guardId)}</span>
                               </div>
                             </div>
                           </td>
                           <td className="py-3 px-6">
-                            <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700">{getTemplateName(a.shiftTemplateId)}</span>
+                            <span className="px-2 py-0.5 rounded-lg text-xs font-medium bg-primary-50 text-primary-700">{getTemplateName(a.shiftTemplateId)}</span>
                           </td>
-                          <td className="py-3 px-6 text-gray-600 text-xs">{getTemplateTime(a.shiftTemplateId)}</td>
-                          <td className="py-3 px-6 text-gray-600 text-xs">{new Date(a.startDate).toLocaleDateString()}</td>
+                          <td className="py-3 px-6 text-muted text-xs">{getTemplateTime(a.shiftTemplateId)}</td>
+                          <td className="py-3 px-6 text-muted text-xs">{new Date(a.startDate).toLocaleDateString()}</td>
                           <td className="py-3 px-6">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${a.source === 'ROTATION' ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-600'}`}>{a.source || 'MANUAL'}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${a.source === 'ROTATION' ? 'bg-violet-100 text-violet-700' : 'bg-subtle text-muted'}`}>{a.source || 'MANUAL'}</span>
                           </td>
                           <td className="py-3 px-6">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${a.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>{a.status}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${a.status === 'ACTIVE' ? 'bg-success-subtle text-success-text' : 'bg-subtle text-muted'}`}>{a.status}</span>
                           </td>
                         </tr>
                       ))}
@@ -689,47 +631,61 @@ export default function SiteDetail() {
         {/* ═══ GUARDS TAB ═══ */}
         {activeTab === 'guards' && (
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="text-lg font-bold text-gray-900">Assigned Guards ({currentAssignments.length})</h2>
-                <p className="text-xs text-gray-500 mt-0.5">Guards with primary site assignment at this location</p>
+            <div className="bg-surface rounded-2xl shadow-sm border border-line overflow-hidden">
+              <div className="px-6 py-4 border-b border-line">
+                <h2 className="text-lg font-bold text-ink">
+                  {isInactive ? `Guards Who Worked Here (${guardsList.length})` : `Assigned Guards (${guardsList.length})`}
+                </h2>
+                <p className="text-xs text-muted mt-0.5">
+                  {isInactive
+                    ? 'Site is inactive — showing guards who were assigned before deactivation (history)'
+                    : 'Guards with primary site assignment at this location'}
+                </p>
               </div>
-              {currentAssignments.length === 0 ? (
-                <div className="py-16 text-center text-sm text-gray-400">No guards currently assigned to this site</div>
+              {guardsList.length === 0 ? (
+                <div className="py-16 text-center text-sm text-muted">
+                  {isInactive ? 'No guard history for this site' : 'No guards currently assigned to this site'}
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50/50 border-b border-gray-100">
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Guard</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Role</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Monthly Hours</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Hourly Rate</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Effective From</th>
+                      <tr className="bg-canvas border-b border-line">
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Guard</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Role</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Status</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Monthly Hours</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Hourly Rate</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Effective From</th>
+                        {isInactive && (
+                          <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Relieved</th>
+                        )}
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {currentAssignments.map(a => (
-                        <tr key={a._id} className="hover:bg-gray-50/50 transition-colors">
+                    <tbody className="divide-y divide-line">
+                      {guardsList.map(a => (
+                        <tr key={a._id} className="hover:bg-subtle/60 transition-colors">
                           <td className="py-3 px-6">
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white flex items-center justify-center text-xs font-bold">{getGuardName(a.guardId).split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
+                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-400 to-primary-600 text-white flex items-center justify-center text-xs font-bold">{getGuardName(a.guardId).split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
                               <div>
-                                <span className="font-medium text-gray-900">{getGuardName(a.guardId)}</span>
-                                <div className="text-[10px] text-gray-400">{getGuardCode(a.guardId)}</div>
+                                <span className="font-medium text-ink">{getGuardName(a.guardId)}</span>
+                                <div className="text-[10px] text-muted">{getGuardCode(a.guardId)}</div>
                               </div>
                             </div>
                           </td>
                           <td className="py-3 px-6">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${a.role === 'SUPERVISOR' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>{a.role}</span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${a.role === 'SUPERVISOR' ? 'bg-amber-100 text-amber-700' : 'bg-subtle text-muted'}`}>{a.role}</span>
                           </td>
                           <td className="py-3 px-6">
-                            <span className="text-xs text-gray-600">{(a.guardId as any)?.status || '—'}</span>
+                            <span className="text-xs text-muted">{(a.guardId as any)?.status || '—'}</span>
                           </td>
-                          <td className="py-3 px-6 text-xs text-gray-600">{a.standardMonthlyHours}h</td>
-                          <td className="py-3 px-6 text-xs text-gray-600">{a.hourlyRate > 0 ? `${a.hourlyRate.toFixed(2)}/hr` : '—'}</td>
-                          <td className="py-3 px-6 text-xs text-gray-600">{new Date(a.effectiveFrom).toLocaleDateString()}</td>
+                          <td className="py-3 px-6 text-xs text-muted">{a.standardMonthlyHours}h</td>
+                          <td className="py-3 px-6 text-xs text-muted">{a.hourlyRate > 0 ? `${a.hourlyRate.toFixed(2)}/hr` : '—'}</td>
+                          <td className="py-3 px-6 text-xs text-muted">{localDate(a.effectiveFrom)}</td>
+                          {isInactive && (
+                            <td className="py-3 px-6 text-xs text-danger-text">{a.effectiveTo ? localDate(a.effectiveTo) : localDate(site.deactivatedAt)}</td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -740,29 +696,29 @@ export default function SiteDetail() {
 
             {/* Rotation Assignments */}
             {rotationAssignments.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h2 className="text-lg font-bold text-gray-900">Recent Rotation Assignments ({rotationAssignments.length})</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">Auto-generated from rotation patterns</p>
+              <div className="bg-surface rounded-2xl shadow-sm border border-line overflow-hidden">
+                <div className="px-6 py-4 border-b border-line">
+                  <h2 className="text-lg font-bold text-ink">Recent Rotation Assignments ({rotationAssignments.length})</h2>
+                  <p className="text-xs text-muted mt-0.5">Auto-generated from rotation patterns</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50/50 border-b border-gray-100">
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Guard</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Shift</th>
-                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Date</th>
+                      <tr className="bg-canvas border-b border-line">
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Guard</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Shift</th>
+                        <th className="text-left py-3 px-6 text-[11px] font-semibold text-muted uppercase tracking-wider">Date</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-50">
+                    <tbody className="divide-y divide-line">
                       {rotationAssignments.map(a => (
-                        <tr key={a._id} className="hover:bg-gray-50/50 transition-colors">
+                        <tr key={a._id} className="hover:bg-subtle/60 transition-colors">
                           <td className="py-3 px-6">
-                            <span className="font-medium text-gray-900">{getGuardName(a.guardId)}</span>
-                            <span className="text-[10px] text-gray-400 ml-1.5">{getGuardCode(a.guardId)}</span>
+                            <span className="font-medium text-ink">{getGuardName(a.guardId)}</span>
+                            <span className="text-[10px] text-muted ml-1.5">{getGuardCode(a.guardId)}</span>
                           </td>
-                          <td className="py-3 px-6 text-xs text-gray-600">{getTemplateName(a.shiftTemplateId)} ({getTemplateTime(a.shiftTemplateId)})</td>
-                          <td className="py-3 px-6 text-xs text-gray-600">{new Date(a.date).toLocaleDateString()}</td>
+                          <td className="py-3 px-6 text-xs text-muted">{getTemplateName(a.shiftTemplateId)} ({getTemplateTime(a.shiftTemplateId)})</td>
+                          <td className="py-3 px-6 text-xs text-muted">{new Date(a.date).toLocaleDateString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -773,78 +729,27 @@ export default function SiteDetail() {
           </div>
         )}
 
-        {/* ═══ ATTENDANCE TAB ═══ */}
-        {activeTab === 'attendance' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">Recent Attendance ({recentAttendance.length})</h2>
-            </div>
-            {recentAttendance.length === 0 ? (
-              <div className="py-16 text-center text-sm text-gray-400">No attendance records yet</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-gray-50/50 border-b border-gray-100">
-                      <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Guard</th>
-                      <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Date</th>
-                      <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Clock In</th>
-                      <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Clock Out</th>
-                      <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Hours</th>
-                      <th className="text-left py-3 px-6 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Source</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {recentAttendance.map(a => (
-                      <tr key={a._id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="py-3 px-6">
-                          <span className="font-medium text-gray-900">{getGuardName(a.guardId)}</span>
-                          <span className="text-[10px] text-gray-400 ml-1.5">{getGuardCode(a.guardId)}</span>
-                        </td>
-                        <td className="py-3 px-6 text-xs text-gray-600">{new Date(a.date).toLocaleDateString()}</td>
-                        <td className="py-3 px-6 text-xs text-gray-600 font-mono">{a.clockIn ? new Date(a.clockIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                        <td className="py-3 px-6 text-xs text-gray-600 font-mono">{a.clockOut ? new Date(a.clockOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                        <td className="py-3 px-6">
-                          <span className={`text-xs font-bold ${a.totalHours >= 8 ? 'text-emerald-600' : a.totalHours > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{a.totalHours}h</span>
-                        </td>
-                        <td className="py-3 px-6">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${
-                            a.source === 'MANUAL_ENTRY' ? 'bg-blue-100 text-blue-700' :
-                            a.source === 'ROTATION' ? 'bg-violet-100 text-violet-700' :
-                            a.source === 'OPERATIONS_EDIT' ? 'bg-amber-100 text-amber-700' :
-                            'bg-gray-100 text-gray-600'
-                          }`}>{a.source}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ═══ NOTES TAB ═══ */}
         {activeTab === 'notes' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-900">Site Notes ({recentNotes.length})</h2>
-              <button onClick={() => setAddNoteOpen(true)} className="h-9 px-4 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-all flex items-center gap-2">
+          <div className="bg-surface rounded-2xl shadow-sm border border-line overflow-hidden">
+            <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+              <h2 className="text-lg font-bold text-ink">Site Notes ({recentNotes.length})</h2>
+              <button onClick={() => setAddNoteOpen(true)} className="h-9 px-4 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-all flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
                 Add Note
               </button>
             </div>
             {recentNotes.length === 0 ? (
-              <div className="py-16 text-center text-sm text-gray-400">No notes recorded for this site</div>
+              <div className="py-16 text-center text-sm text-muted">No notes recorded for this site</div>
             ) : (
-              <div className="divide-y divide-gray-50">
+              <div className="divide-y divide-line">
                 {recentNotes.map(n => (
-                  <div key={n._id} className="px-6 py-4 hover:bg-gray-50/50 transition-colors">
+                  <div key={n._id} className="px-6 py-4 hover:bg-subtle/60 transition-colors">
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="text-xs font-mono text-gray-400">{n.date}</span>
-                      {n.recordedById && <span className="text-xs text-gray-400">by {n.recordedById.firstName} {n.recordedById.lastName}</span>}
+                      <span className="text-xs font-mono text-muted">{n.date}</span>
+                      {n.recordedById && <span className="text-xs text-muted">by {n.recordedById.firstName} {n.recordedById.lastName}</span>}
                     </div>
-                    <p className="text-sm text-gray-700">{n.noteText}</p>
+                    <p className="text-sm text-ink">{n.noteText}</p>
                   </div>
                 ))}
               </div>
@@ -855,15 +760,15 @@ export default function SiteDetail() {
         {/* Delete Modal */}
         <Modal open={deleteOpen} onClose={() => { setDeleteOpen(false); setDeleteConfirm(''); }} title="Deactivate Site">
           <div className="space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-700">
-              This will deactivate <strong>{site.siteName}</strong> ({site.siteCode}). The site will no longer appear in active listings. This action can be reversed by editing the site status.
+            <div className="bg-warning-subtle border border-warning-line rounded-xl p-3 text-sm text-warning-text">
+              This will deactivate <strong>{site.siteName}</strong> ({site.siteCode}). All guards assigned to this site will be <strong>relieved</strong> (their assignment history is kept). The deactivation date will be recorded. You can reactivate later by editing the status.
             </div>
-            <p className="text-sm text-gray-600">Type <strong>{site.siteCode}</strong> to confirm:</p>
+            <p className="text-sm text-muted">Type <strong>{site.siteCode}</strong> to confirm:</p>
             <input value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)} placeholder={site.siteCode}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-red-500/20 focus:border-red-400 outline-none transition-all" />
+              className="v-input" />
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => { setDeleteOpen(false); setDeleteConfirm(''); }} className="h-10 px-5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
-              <button onClick={handleDelete} disabled={deleteConfirm !== site.siteCode} className="h-10 px-5 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-all disabled:opacity-50 shadow-lg shadow-red-200">Deactivate</button>
+              <button onClick={() => { setDeleteOpen(false); setDeleteConfirm(''); }} className="h-10 px-5 rounded-xl border border-line text-sm font-medium text-ink hover:bg-subtle transition-colors">Cancel</button>
+              <button onClick={handleDelete} disabled={deleteConfirm !== site.siteCode} className="h-10 px-5 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-all disabled:opacity-50 shadow-lg">Deactivate</button>
             </div>
           </div>
         </Modal>
@@ -872,75 +777,18 @@ export default function SiteDetail() {
         <Modal open={addNoteOpen} onClose={() => setAddNoteOpen(false)} title="Add Site Note">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <label className="block text-sm font-medium text-ink mb-1">Date</label>
               <input type="date" value={noteDate} onChange={e => setNoteDate(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
+                className="v-input" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Note</label>
+              <label className="block text-sm font-medium text-ink mb-1">Note</label>
               <textarea value={noteText} onChange={e => setNoteText(e.target.value)} rows={4} placeholder="Enter note..."
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none resize-none transition-all" />
+                className="v-input resize-none transition-all" />
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setAddNoteOpen(false)} className="h-10 px-5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
-              <button onClick={handleAddNote} disabled={!noteText.trim()} className="h-10 px-5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-200">Save Note</button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Add Shift Template Modal */}
-        <Modal open={addTemplateOpen} onClose={() => setAddTemplateOpen(false)} title="Create Shift Template">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
-              <input value={templateForm.name} onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
-                placeholder="e.g. Morning Shift, Night Watch" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
-                <input type="time" value={templateForm.startTime} onChange={(e) => setTemplateForm({ ...templateForm, startTime: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
-                <input type="time" value={templateForm.endTime} onChange={(e) => setTemplateForm({ ...templateForm, endTime: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Max Guards</label>
-                <input type="number" min={1} value={templateForm.maxGuards} onChange={(e) => setTemplateForm({ ...templateForm, maxGuards: parseInt(e.target.value) || 1 })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
-                <div className="flex items-center gap-2">
-                  <input type="color" value={templateForm.color} onChange={(e) => setTemplateForm({ ...templateForm, color: e.target.value })}
-                    className="w-10 h-10 rounded-lg border border-gray-200 cursor-pointer" />
-                  <span className="text-xs text-gray-400 font-mono">{templateForm.color}</span>
-                </div>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Active Days</label>
-              <div className="flex gap-1.5">
-                {DAY_NAMES.map((day, i) => (
-                  <button key={i} type="button" onClick={() => toggleTemplateDay(i)}
-                    className={`w-10 h-10 rounded-lg text-xs font-bold transition-all ${templateForm.daysOfWeek.includes(i) ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-                    {day}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <button onClick={() => setAddTemplateOpen(false)} className="h-10 px-5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
-              <button onClick={handleAddTemplate} disabled={templateSaving || !templateForm.name.trim()}
-                className="h-10 px-5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-200 flex items-center gap-2">
-                {templateSaving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : null}
-                {templateSaving ? 'Creating...' : 'Create Template'}
-              </button>
+              <button onClick={() => setAddNoteOpen(false)} className="h-10 px-5 rounded-xl border border-line text-sm font-medium text-ink hover:bg-subtle transition-colors">Cancel</button>
+              <button onClick={handleAddNote} disabled={!noteText.trim()} className="h-10 px-5 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-all disabled:opacity-50 shadow-lg">Save Note</button>
             </div>
           </div>
         </Modal>
@@ -952,15 +800,15 @@ export default function SiteDetail() {
 function InfoField({ label, value, mono, badge }: { label: string; value?: string; mono?: boolean; badge?: string }) {
   return (
     <div>
-      <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-[11px] text-muted font-medium uppercase tracking-wider mb-1">{label}</p>
       {value ? (
         badge ? (
           <span className={`inline-flex px-2.5 py-0.5 rounded-lg text-xs font-semibold ${badge}`}>{value}</span>
         ) : (
-          <p className={`text-sm font-medium text-gray-900 ${mono ? 'font-mono' : ''}`}>{value}</p>
+          <p className={`text-sm font-medium text-ink ${mono ? 'font-mono' : ''}`}>{value}</p>
         )
       ) : (
-        <p className="text-sm text-gray-400 italic">—</p>
+        <p className="text-sm text-muted italic">—</p>
       )}
     </div>
   );

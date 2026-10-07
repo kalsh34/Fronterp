@@ -107,12 +107,12 @@ export default function MyProfilePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas ">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <button onClick={() => navigate('/my-shift')} className="hover:text-blue-600 transition-colors">HR &amp; People</button>
+            <button onClick={() => navigate('/my-sites')} className="hover:text-blue-600 transition-colors">HR &amp; People</button>
             <span>/</span>
             <span className="text-gray-900 font-medium">Employee Profile Lifecycle</span>
           </div>

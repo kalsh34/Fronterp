@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
       mode === 'development'
         ? {
             '/api': {
-              target:'https://erpback-tnsv.onrender.com',
+              target:'http://localhost:5000',
               changeOrigin: true,
             },
           }

@@ -1,6 +1,6 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-import { useAuthStore } from '../stores/authStore';
+import { useAuthStore, can } from '../stores/authStore';
 import { UserRole } from '../types';
 
 interface NavItem {
@@ -23,17 +23,8 @@ const PayrollIcon = () => (
 const OpsIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
 );
-const FinanceIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-);
-const ReportsIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-);
 const AdminIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-.786-.426-1.756-.426-2.532 0a1.724 1.724 0 00-1.066 2.573c.94 1.543.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426.786-.426 1.756 0 2.532a1.724 1.724 0 001.066 2.573c.94 1.543.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-.426 2.924 0 3.35" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-);
-const AttendanceIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
 );
 const SitesIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
@@ -63,6 +54,9 @@ const ProjectsIcon = () => (
 const DocsIcon = () => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
 );
+const ReportsIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-6m4 6V7m4 10v-3M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
+);
 
 const lockedModules = [
   { label: 'Sales & CRM', icon: <SalesIcon /> },
@@ -76,46 +70,42 @@ const lockedModules = [
 const SIDEBAR_COLORS: Record<string, { activeBg: string; activeText: string; childActiveBg: string; childActiveText: string }> = {
   '/':           { activeBg: 'bg-slate-500/15',   activeText: 'text-slate-400',   childActiveBg: 'bg-slate-500/15',   childActiveText: 'text-slate-400' },
   '/employees':  { activeBg: 'bg-violet-500/15',  activeText: 'text-violet-400',  childActiveBg: 'bg-violet-500/15',  childActiveText: 'text-violet-400' },
-  '/attendance': { activeBg: 'bg-blue-500/15',    activeText: 'text-blue-400',    childActiveBg: 'bg-blue-500/15',    childActiveText: 'text-blue-400' },
+  '/guards':    { activeBg: 'bg-blue-500/15',    activeText: 'text-blue-400',    childActiveBg: 'bg-blue-500/15',    childActiveText: 'text-blue-400' },
   '/guard-payroll': { activeBg: 'bg-amber-500/15', activeText: 'text-amber-400',  childActiveBg: 'bg-amber-500/15',  childActiveText: 'text-amber-400' },
-  '/finance':    { activeBg: 'bg-emerald-500/15', activeText: 'text-emerald-400', childActiveBg: 'bg-emerald-500/15', childActiveText: 'text-emerald-400' },
-  '/reports':    { activeBg: 'bg-indigo-500/15',  activeText: 'text-indigo-400',  childActiveBg: 'bg-indigo-500/15',  childActiveText: 'text-indigo-400' },
   '/settings':   { activeBg: 'bg-rose-500/15',    activeText: 'text-rose-400',    childActiveBg: 'bg-rose-500/15',    childActiveText: 'text-rose-400' },
 };
 
 function getSidebarColors(path: string) {
   if (SIDEBAR_COLORS[path]) return SIDEBAR_COLORS[path];
   if (path.startsWith('/employees') || path.startsWith('/staff-attendance') || path.startsWith('/contracts')) return SIDEBAR_COLORS['/employees'];
-  if (path.startsWith('/attendance') || path.startsWith('/rotations') || path === '/guards') return SIDEBAR_COLORS['/attendance'];
-  if (path.startsWith('/guard-payroll') || path.startsWith('/staff-payroll') || path === '/guard-payroll/review') return SIDEBAR_COLORS['/guard-payroll'];
-  if (path.startsWith('/finance') || path.startsWith('/admin/payroll-config')) return SIDEBAR_COLORS['/finance'];
-  if (path.startsWith('/reports')) return SIDEBAR_COLORS['/reports'];
+  if (path.startsWith('/rotations') || path.startsWith('/guards') || path.startsWith('/attendance')) return SIDEBAR_COLORS['/guards'];
+  if (path.startsWith('/guard-payroll') || path.startsWith('/staff-payroll')) return SIDEBAR_COLORS['/guard-payroll'];
   if (path.startsWith('/settings')) return SIDEBAR_COLORS['/settings'];
   return SIDEBAR_COLORS['/'];
 }
 
-function getNavItems(opsAlerts: number): NavItem[] {
+function getNavItems(opsAlerts: number, perms?: string[]): NavItem[] {
   return [
     { path: '/', label: 'Dashboard', icon: <DashboardIcon /> },
     {
       path: '/employees',
-      label: 'HR & People',
+      label: 'HR and People',
       icon: <PeopleIcon />,
       children: [
         { path: '/employees', label: 'Employees' },
-        { path: '/employees?tab=onboarding', label: 'Onboarding' },
+        { path: '/departments', label: 'Departments & Positions' },
         { path: '/staff-attendance', label: 'Staff Attendance' },
       ],
     },
     { path: '/sites', label: 'Sites', icon: <SitesIcon /> },
     {
-      path: '/attendance',
+      path: '/guards',
       label: 'Operations',
       icon: <OpsIcon />,
       badge: opsAlerts || undefined,
       children: [
-        { path: '/attendance', label: 'Guard Attendance' },
         { path: '/guards', label: 'Guards' },
+        { path: '/attendance', label: 'Guard Attendance' },
         { path: '/rotations', label: 'Shift Scheduling' },
       ],
     },
@@ -128,20 +118,18 @@ function getNavItems(opsAlerts: number): NavItem[] {
         { path: '/staff-payroll', label: 'Staff Payroll' },
       ],
     },
-    { path: '/finance', label: 'Finance', icon: <FinanceIcon /> },
-    { path: '/reports', label: 'Reports', icon: <ReportsIcon /> },
     { path: '/settings', label: 'Administration', icon: <AdminIcon /> },
-    { path: '/admin/payroll-config', label: 'Payroll Config', icon: <PayrollIcon /> },
+    ...(can(perms, 'report.read') ? [{ path: '/reports', label: 'Reports', icon: <ReportsIcon /> }] : []),
   ];
 }
 
 function getGuardNavItems(): NavItem[] {
   return [
-    { path: '/my-shift', label: 'My Shift', icon: <DashboardIcon /> },
-    { path: '/my-hours', label: 'My Hours', icon: <AttendanceIcon /> },
+    { path: '/guard', label: 'Dashboard', icon: <DashboardIcon /> },
+    { path: '/guard/scan', label: 'Scan QR', icon: <OpsIcon /> },
+    { path: '/guard/shifts', label: 'My Shifts', icon: <PayrollIcon /> },
     { path: '/my-sites', label: 'My Sites', icon: <SitesIcon /> },
-    { path: '/my-payroll', label: 'My Payroll', icon: <PayrollIcon /> },
-    { path: '/my-profile', label: 'My Profile', icon: <PeopleIcon /> },
+    { path: '/profile', label: 'My Profile', icon: <PeopleIcon /> },
   ];
 }
 
@@ -156,10 +144,10 @@ export default function Sidebar() {
   if (!user) return null;
 
   const isGuard = user.role === UserRole.GUARD;
-  const navItems = isGuard ? getGuardNavItems() : getNavItems(0);
+  const navItems = isGuard ? getGuardNavItems() : getNavItems(0, user?.permissions);
   const isPayrollActive = location.pathname.startsWith('/guard-payroll') || location.pathname.startsWith('/staff-payroll');
-  const isHrActive = location.pathname.startsWith('/employees') || location.pathname.startsWith('/staff-attendance');
-  const isOpsActive = location.pathname.startsWith('/attendance') || location.pathname.startsWith('/rotations') || location.pathname === '/guards';
+  const isHrActive = location.pathname.startsWith('/employees') || location.pathname.startsWith('/staff-attendance') || location.pathname.startsWith('/departments');
+  const isOpsActive = location.pathname.startsWith('/rotations') || location.pathname.startsWith('/attendance') || location.pathname === '/guards';
 
   return (
     <aside className="fixed top-0 left-0 bottom-0 w-64 bg-[#0f172a] text-gray-300 flex flex-col select-none sidebar-scrollbar overflow-y-auto z-40">
@@ -180,7 +168,7 @@ export default function Sidebar() {
           if (item.children) {
             const isHrItem = item.path === '/employees';
             const isPayrollItem = item.path === '/guard-payroll';
-            const isOpsItem = item.path === '/attendance' && item.children;
+            const isOpsItem = item.path === '/guards' && item.children;
             const isOpen = isHrItem ? (hrOpen || isHrActive) : isPayrollItem ? (payrollOpen || isPayrollActive) : isOpsItem ? (opsOpen || isOpsActive) : false;
             const setIsOpen = isHrItem ? setHrOpen : isPayrollItem ? setPayrollOpen : isOpsItem ? setOpsOpen : () => {};
             const isActive = isHrItem ? isHrActive : isPayrollItem ? isPayrollActive : isOpsItem ? isOpsActive : false;

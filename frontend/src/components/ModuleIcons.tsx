@@ -292,21 +292,6 @@ export const ControlTowerIcon: React.FC<IconProps> = ({ size = 56, className }) 
   </svg>
 );
 
-export const GuardFilingIcon: React.FC<IconProps> = ({ size = 56, className }) => (
-  <svg width={size} height={size} viewBox="0 0 56 56" fill="none" className={className}>
-    <circle cx="28" cy="28" r="28" fill="#EEF2FF" />
-    <circle cx="28" cy="18" r="7" fill="#6366F1" />
-    <circle cx="28" cy="16" r="4.5" fill="#E0E7FF" />
-    <circle cx="28" cy="15.5" r="2.5" fill="#818CF8" />
-    <path d="M18 44c0-6 4.5-10 10-10s10 4 10 10" fill="#4F46E5" />
-    <rect x="22" y="28" width="12" height="8" rx="2" fill="#818CF8" />
-    <path d="M28 11l3-4h-6l3 4" fill="#FCD34D" />
-    <rect x="12" y="38" width="8" height="6" rx="1" fill="#C7D2FE" />
-    <rect x="36" y="38" width="8" height="6" rx="1" fill="#C7D2FE" />
-    <path d="M14 40l2 2 4-4" stroke="#4F46E5" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
 export const SiteCoverageIcon: React.FC<IconProps> = ({ size = 56, className }) => (
   <svg width={size} height={size} viewBox="0 0 56 56" fill="none" className={className}>
     <circle cx="28" cy="28" r="28" fill="#FEF2F2" />

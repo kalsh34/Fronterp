@@ -1,10 +1,25 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
+/**
+ * Single source of truth for the API base URL.
+ *
+ * Set VITE_API_URL in one of:
+ *   - frontend/.env.local          → loaded in dev (gitignored)
+ *   - frontend/.env.production     → used by `vite build`
+ *   - hosting env var              → overrides at deploy time if you build on Render/Vercel
+ *
+ * The app points at the deployed Render API by default (in dev and prod).
+ * Examples:
+ *   VITE_API_URL=https://erpback-wx8b.onrender.com
+ *   VITE_API_URL=http://localhost:5000   (only if you want a local backend)
+ */
 export const getApiBaseUrl = () => {
-  const configured = import.meta.env.VITE_API_URL as string | undefined;
-  const fallback = import.meta.env.DEV ? 'http://localhost:5000' : 'https://erpback-tnsv.onrender.com';
-  return ((configured || fallback).replace(/\/$/, '') + '/api');
+  const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  // Fallback only if VITE_API_URL is missing (never prefer this over env).
+  const fallback = 'https://erpback-wx8b.onrender.com';
+  const base = (configured || fallback).replace(/\/+$/, '');
+  return `${base}/api`;
 };
 
 const api = axios.create({

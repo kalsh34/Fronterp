@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../stores/authStore';
 import api from '../../lib/api';
-import { Card, PageHeader, StatusBadge, LoadingSpinner } from '../../components/ui';
-import { Button } from '../../components/ui';
+import { Card, StatusBadge, LoadingSpinner } from '../../components/ui';
+import GuardLayout from './GuardLayout';
+import { useT } from '../../i18n';
 
 interface SiteAssignment {
   _id: string;
@@ -16,8 +15,7 @@ interface SiteAssignment {
 }
 
 export default function MySitesPage() {
-  const navigate = useNavigate();
-  const { logout } = useAuthStore();
+  const t = useT();
   const [sites, setSites] = useState<SiteAssignment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,27 +36,15 @@ export default function MySitesPage() {
     }
   };
 
-  if (loading) return <LoadingSpinner text="Loading sites..." />;
+  if (loading) return <GuardLayout><LoadingSpinner text={t('loading')} /></GuardLayout>;
 
   const activeSites = sites.filter((s) => s.isCurrent);
   const pastSites = sites.filter((s) => !s.isCurrent);
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-lg mx-auto">
-        <PageHeader
-          title="My Sites"
-          action={
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => { logout(); navigate('/login'); }}
-              className="text-red-500 hover:text-red-700"
-            >
-              Logout
-            </Button>
-          }
-        />
+    <GuardLayout>
+      <div className="max-w-lg mx-auto px-4 py-6">
+        <h1 className="text-lg font-bold text-ink mb-4">{t('mySites')}</h1>
 
         {activeSites.length > 0 && (
           <div className="mb-6">
@@ -105,6 +91,6 @@ export default function MySitesPage() {
           </Card>
         )}
       </div>
-    </div>
+    </GuardLayout>
   );
 }

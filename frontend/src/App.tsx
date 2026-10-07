@@ -10,29 +10,27 @@ import DashboardPage from './features/dashboard/DashboardPage';
 import EmployeeList from './features/employees/EmployeeList';
 import EmployeeForm from './features/employees/EmployeeForm';
 import { SiteList } from './features/sites/SiteList';
-import { SiteForm } from './features/sites/SiteForm';
 import SiteDetail from './features/sites/SiteDetail';
-import AttendancePage from './features/attendance/AttendancePage';
-import RotationPage from './features/attendance/RotationPage';
-import AttendanceTracker from './features/attendance/AttendanceTracker';
+import CompanyList from './features/companies/CompanyList';
+import RotationListPage from './features/rotations/RotationListPage';
+import RotationWizardPage from './features/rotations/RotationWizardPage';
+import RotationDetailPage from './features/rotations/RotationDetailPage';
 import StaffAttendancePage from './features/staff-attendance/StaffAttendancePage';
-import FinanceStaffSummaryPage from './features/staff-attendance/FinanceStaffSummaryPage';
-import GuardPayrollList from './features/guard-payroll/GuardPayrollList';
-import StaffPayrollList from './features/office-payroll/StaffPayrollList';
-import { ReportsPage } from './features/reports/ReportsPage';
+import GuardAttendancePage from './features/attendance/GuardAttendancePage';
 import { SettingsPage } from './features/settings/SettingsPage';
-import { FinanceReview } from './features/finance/FinanceReview';
-import FinancePage from './features/finance/FinancePage';
+import OrganizationStructurePage from './features/organization/OrganizationStructurePage';
 import GuardsPage from './features/guards/GuardsPage';
-import MyShiftPage from './features/guard/MyShiftPage';
-import MyHoursPage from './features/guard/MyHoursPage';
-import MySitesPage from './features/guard/MySitesPage';
-import MyProfilePage from './features/guard/MyProfilePage';
-import { MyPayrollPage } from './features/guard-payroll/MyPayrollPage';
+import MySitesPage from './features/guard/MySitesPage';import MyProfilePage from './features/guard/MyProfilePage';
+import GuardDashboardPage from './features/guard/GuardDashboardPage';
+import GuardScanPage from './features/guard/GuardScanPage';
+import GuardShiftsPage from './features/guard/GuardShiftsPage';
+import ProfilePage from './features/profile/ProfilePage';
+import SiteQRCodesPage from './features/organization/SiteQRCodesPage';
 import ContractForm from './features/contracts/ContractForm';
 import GuarantorPage from './features/guarantor/GuarantorPage';
-import PayrollConfigPage from './features/admin/PayrollConfigPage';
-import SalaryStructurePage from './features/admin/SalaryStructurePage';
+import StaffPayrollPage from './features/staff-payroll/StaffPayrollPage';
+import GuardPayrollPage from './features/guard-payroll/GuardPayrollPage';
+import ModuleReportsPage from './features/reports/ModuleReportsPage';
 
 function AppLayout() {
   const { user } = useAuthStore();
@@ -42,12 +40,13 @@ function AppLayout() {
   if (isGuard) {
     return (
       <Routes>
-        <Route path="/my-shift" element={<MyShiftPage />} />
-        <Route path="/my-hours" element={<MyHoursPage />} />
+        <Route path="/guard" element={<GuardDashboardPage />} />
+        <Route path="/guard/scan" element={<GuardScanPage />} />
+        <Route path="/guard/shifts" element={<GuardShiftsPage />} />
         <Route path="/my-sites" element={<MySitesPage />} />
-        <Route path="/my-payroll" element={<MyPayrollPage />} />
         <Route path="/my-profile" element={<MyProfilePage />} />
-        <Route path="*" element={<Navigate to="/my-shift" />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="*" element={<Navigate to="/guard" />} />
       </Routes>
     );
   }
@@ -55,7 +54,7 @@ function AppLayout() {
   const moduleGroup = getModuleGroupForRoute(location.pathname);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas ">
       {moduleGroup && <ModuleNavbar moduleGroup={moduleGroup} />}
       <main className={moduleGroup ? '' : 'min-h-screen'}>
         <Routes>
@@ -66,28 +65,30 @@ function AppLayout() {
           <Route path="/employees/:id/edit" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN]}><EmployeeForm /></ProtectedRoute>} />
           <Route path="/employees/:id/guarantor" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.CEO]}><GuarantorPage /></ProtectedRoute>} />
 
+          <Route path="/companies" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><CompanyList /></ProtectedRoute>} />
           <Route path="/sites" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><SiteList /></ProtectedRoute>} />
-          <Route path="/sites/new" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS]}><SiteForm /></ProtectedRoute>} />
+          <Route path="/sites/qr-codes" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.OPERATIONS, UserRole.CEO]}><SiteQRCodesPage /></ProtectedRoute>} />
+          <Route path="/sites/new" element={<Navigate to="/sites" replace />} />
           <Route path="/sites/:id" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><SiteDetail /></ProtectedRoute>} />
 
           <Route path="/guards" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.OPERATIONS, UserRole.CEO]}><GuardsPage /></ProtectedRoute>} />
-          <Route path="/attendance" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><AttendancePage /></ProtectedRoute>} />
-          <Route path="/attendance/tracker" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><AttendanceTracker /></ProtectedRoute>} />
-          <Route path="/rotations" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.CEO]}><RotationPage /></ProtectedRoute>} />
+          <Route path="/rotations" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.HR_ADMIN, UserRole.OPERATIONS, UserRole.HEAD, UserRole.CEO]}><RotationListPage /></ProtectedRoute>} />
+          <Route path="/rotations/new" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.HR_ADMIN, UserRole.OPERATIONS]}><RotationWizardPage /></ProtectedRoute>} />
+          <Route path="/rotations/:id" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.HR_ADMIN, UserRole.OPERATIONS, UserRole.HEAD, UserRole.CEO]}><RotationDetailPage /></ProtectedRoute>} />
 
           <Route path="/staff-attendance" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.CEO]}><StaffAttendancePage /></ProtectedRoute>} />
-          <Route path="/staff-attendance/summary" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO]}><FinanceStaffSummaryPage /></ProtectedRoute>} />
+          <Route path="/attendance" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.OPERATIONS, UserRole.FINANCE_OFFICER, UserRole.CEO]}><GuardAttendancePage /></ProtectedRoute>} />
 
-          <Route path="/guard-payroll" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><GuardPayrollList /></ProtectedRoute>} />
-          <Route path="/guard-payroll/review" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO]}><FinanceReview /></ProtectedRoute>} />
-          <Route path="/staff-payroll" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><StaffPayrollList /></ProtectedRoute>} />
+          <Route path="/departments" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.CEO]}><OrganizationStructurePage /></ProtectedRoute>} />
 
-          <Route path="/reports" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.HEAD, UserRole.CEO]}><ReportsPage /></ProtectedRoute>} />
+          {/* Payroll v2 — staff (contract-driven) and guard (attendance-driven), separate systems */}
+          <Route path="/staff-payroll" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><StaffPayrollPage /></ProtectedRoute>} />
+          <Route path="/guard-payroll" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><GuardPayrollPage /></ProtectedRoute>} />
+
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO]}><SettingsPage /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.HEAD, UserRole.CEO]}><ModuleReportsPage /></ProtectedRoute>} />
           <Route path="/contracts/:employeeId" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO]}><ContractForm /></ProtectedRoute>} />
-          <Route path="/finance" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO]}><FinancePage /></ProtectedRoute>} />
-          <Route path="/admin/payroll-config" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN]}><PayrollConfigPage /></ProtectedRoute>} />
-          <Route path="/admin/salary-structures" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.CEO]}><SalaryStructurePage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

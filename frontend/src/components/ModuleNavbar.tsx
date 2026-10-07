@@ -1,7 +1,12 @@
-import { NavLink, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import { useT } from '../i18n';
+import { ThemeToggle, LanguageToggle } from './ThemeToggle';
+import { NotificationBell } from './NotificationBell';
 import { LogOut, Home } from 'lucide-react';
 import type { ModuleGroup } from '../config/modules';
+import type { DictKey } from '../i18n';
+
 interface Props {
   moduleGroup: ModuleGroup;
 }
@@ -10,9 +15,10 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const t = useT();
 
   return (
-    <div className="bg-white border-b border-gray-100 sticky top-0 z-50">
+    <div className="bg-surface border-b border-line sticky top-0 z-50">
       {/* Top bar: logo + module name + user */}
       <div className="flex items-center justify-between px-6 py-2.5">
         <div className="flex items-center gap-4">
@@ -22,11 +28,11 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
           >
             <img src="/logo.png" alt="Vital Security" className="w-8 h-8 rounded-lg object-contain" />
             <div>
-              <p className="text-xs font-bold text-gray-900 leading-tight">Vital Security</p>
-              <p className="text-[10px] text-gray-400 leading-tight">Enterprise resource planning</p>
+              <p className="text-xs font-bold text-ink leading-tight">Vital Security</p>
+              <p className="text-[10px] text-muted leading-tight">Enterprise resource planning</p>
             </div>
           </button>
-          <div className="h-6 w-px bg-gray-200" />
+          <div className="h-6 w-px bg-line" />
           <span
             className="text-sm font-semibold px-3 py-1 rounded-full"
             style={{
@@ -34,31 +40,42 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
               color: moduleGroup.color,
             }}
           >
-            {moduleGroup.label}
+            {moduleGroup.labelKey ? t(moduleGroup.labelKey as DictKey) : moduleGroup.label}
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <LanguageToggle />
+          <ThemeToggle />
           <button
             onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition-colors px-2 py-1 rounded-lg hover:bg-gray-50"
+            className="flex items-center gap-1.5 text-xs text-muted hover:text-ink transition-colors px-2 py-1 rounded-lg hover:bg-subtle"
           >
             <Home className="w-3.5 h-3.5" />
-            Dashboard
+            {t('dashboard')}
           </button>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-[11px]">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
-            </div>
+          <NotificationBell />
+          <Link
+            to="/profile"
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            title="My Profile"
+          >
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold text-[11px]">
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </div>
+            )}
             <div className="text-right">
-              <p className="text-xs font-semibold text-gray-900 leading-tight">{user?.firstName} {user?.lastName}</p>
-              <p className="text-[10px] text-gray-400 leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
+              <p className="text-xs font-semibold text-ink leading-tight">{user?.firstName} {user?.lastName}</p>
+              <p className="text-[10px] text-muted leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
-          </div>
+          </Link>
           <button
             onClick={() => { logout(); navigate('/login'); }}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="Logout"
+            className="p-1.5 text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
+            title={t('logout')}
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -81,12 +98,12 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
               className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-150 ${
                 isActive
                   ? 'border-current'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
+                  : 'border-transparent text-muted hover:text-ink hover:border-line'
               }`}
               style={isActive ? { color: moduleGroup.color, borderColor: moduleGroup.color } : undefined}
             >
               {Icon && <Icon size={18} />}
-              {sf.label}
+              {sf.labelKey ? t(sf.labelKey as DictKey) : sf.label}
             </NavLink>
           );
         })}

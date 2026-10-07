@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../../lib/api';
+import { useT } from '../../i18n';
+import type { DictKey } from '../../i18n';
 
 interface Employee {
   _id: string;
@@ -42,20 +44,42 @@ interface GuarantorRecord {
   createdAt: string;
 }
 
-const TYPE_OPTIONS = [
-  { value: 'PERSON', label: 'Person', icon: '👤', desc: 'Personal guarantor' },
-  { value: 'VEHICLE_COLLATERAL', label: 'Vehicle Collateral', icon: '🚗', desc: 'Vehicle as collateral' },
-  { value: 'PROPERTY_COLLATERAL', label: 'Property Collateral', icon: '🏠', desc: 'Property as collateral' },
+const TYPE_OPTIONS: { value: string; icon: string; labelKey: DictKey; descKey: DictKey }[] = [
+  { value: 'PERSON', icon: '👤', labelKey: 'typePerson', descKey: 'typePersonDesc' },
+  { value: 'VEHICLE_COLLATERAL', icon: '🚗', labelKey: 'typeVehicle', descKey: 'typeVehicleDesc' },
+  { value: 'PROPERTY_COLLATERAL', icon: '🏠', labelKey: 'typeProperty', descKey: 'typePropertyDesc' },
 ];
 
+const VEHICLE_TYPES: { value: string; labelKey: DictKey }[] = [
+  { value: 'Sedan', labelKey: 'sedan' },
+  { value: 'SUV', labelKey: 'suv' },
+  { value: 'Truck', labelKey: 'truck' },
+  { value: 'Van', labelKey: 'van' },
+  { value: 'Motorcycle', labelKey: 'motorcycle' },
+];
+
+const PROPERTY_TYPES: { value: string; labelKey: DictKey }[] = [
+  { value: 'House', labelKey: 'house' },
+  { value: 'Apartment', labelKey: 'apartment' },
+  { value: 'Land', labelKey: 'land' },
+  { value: 'Commercial', labelKey: 'commercialBuilding' },
+];
+
+const VERIFY_STATUS_KEYS: Record<string, DictKey> = {
+  PENDING: 'verifyPending',
+  VERIFIED: 'verifyVerified',
+  REJECTED: 'verifyRejected',
+};
+
 const STATUS_STYLES: Record<string, string> = {
-  PENDING: 'bg-amber-50 text-amber-700 border border-amber-200',
-  VERIFIED: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  REJECTED: 'bg-red-50 text-red-700 border border-red-200',
+  PENDING: 'bg-warning-subtle text-warning-text border border-warning-line',
+  VERIFIED: 'bg-success-subtle text-success-text border border-success-line',
+  REJECTED: 'bg-danger-subtle text-danger-text border border-danger-line',
 };
 
 export default function GuarantorPage() {
   const { id: employeeId } = useParams<{ id: string }>();
+  const t = useT();
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [guarantors, setGuarantors] = useState<GuarantorRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,7 +168,7 @@ export default function GuarantorPage() {
       setShowForm(false);
       fetchData();
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to save guarantor');
+      alert(err.response?.data?.message || t('failedSaveGuarantor'));
     } finally { setSaving(false); }
   };
 
@@ -152,7 +176,7 @@ export default function GuarantorPage() {
     try {
       await api.put(`/guarantors/${id}/verify`);
       fetchData();
-    } catch (err: any) { alert(err.response?.data?.message || 'Failed'); }
+    } catch (err: any) { alert(err.response?.data?.message || t('genericFailed')); }
   };
 
   const handleReject = async (id: string) => {
@@ -162,15 +186,15 @@ export default function GuarantorPage() {
       setRejectingId(null);
       setRejectReason('');
       fetchData();
-    } catch (err: any) { alert(err.response?.data?.message || 'Failed'); }
+    } catch (err: any) { alert(err.response?.data?.message || t('genericFailed')); }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this guarantor record?')) return;
+    if (!confirm(t('deleteGuarantorConfirm'))) return;
     try {
       await api.delete(`/guarantors/${id}`);
       fetchData();
-    } catch (err: any) { alert(err.response?.data?.message || 'Failed'); }
+    } catch (err: any) { alert(err.response?.data?.message || t('genericFailed')); }
   };
 
   const addDocument = () => {
@@ -187,16 +211,40 @@ export default function GuarantorPage() {
     setDocuments(documents.filter((_, i) => i !== idx));
   };
 
+  const typeLabel = (guarantorType: string) => {
+    const opt = TYPE_OPTIONS.find(tp => tp.value === guarantorType);
+    return opt ? t(opt.labelKey) : guarantorType;
+  };
+
+  const verifyStatusLabel = (status: string) => {
+    const key = VERIFY_STATUS_KEYS[status];
+    return key ? t(key) : status;
+  };
+
+  const inputCls =
+    'w-full h-10 px-3 rounded-lg border border-line bg-surface text-sm text-ink placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400';
+  const labelCls = 'block text-sm font-medium text-ink mb-1.5';
+  const selectCls =
+    'w-full h-10 px-3 rounded-lg border border-line bg-surface text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400';
+  const secondaryBtn =
+    'h-10 px-5 flex items-center rounded-lg border border-line text-sm font-medium text-muted hover:bg-subtle transition-colors';
+  const spinner = (
+    <div className="w-8 h-8 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+  );
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
-      </div>
+      <div className="flex items-center justify-center py-20">{spinner}</div>
     );
   }
 
   if (!employee) {
-    return <div className="text-center py-20 text-gray-500">Employee not found</div>;
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <Link to="/employees" className={secondaryBtn + ' mb-6'}>{t('backToEmployees')}</Link>
+        <div className="text-center py-20 text-muted">{t('employeeNotFound')}</div>
+      </div>
+    );
   }
 
   const hasVerified = guarantors.some(g => g.verificationStatus === 'VERIFIED');
@@ -204,26 +252,27 @@ export default function GuarantorPage() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
+          <div className="flex items-center gap-2 text-xs text-subtext mb-2">
             <span>Vital Security PLC</span><span>/</span>
-            <span>HR & People</span><span>/</span>
-            <span>Guarantor</span>
+            <span>{t('hrPeople')}</span><span>/</span>
+            <span>{t('tabGuarantor')}</span>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">Guarantor Management</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-ink">{t('guarantorManagement')}</h1>
+          <p className="text-sm text-muted mt-1">
             {employee.firstName} {employee.lastName} ({employee.employeeCode})
           </p>
         </div>
         <div className="flex gap-3">
-          <Link to={`/employees/${employeeId}/edit`}
-            className="h-10 px-5 flex items-center rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-            Back to Employee
+          <Link to="/employees"
+            className="h-10 px-5 flex items-center gap-2 rounded-lg border border-line text-sm font-medium text-muted hover:bg-subtle transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            {t('backToEmployees')}
           </Link>
           <Link to={`/contracts/${employeeId}`}
-            className="h-10 px-5 flex items-center gap-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm">
-            Next: Create Contract
+            className="h-10 px-5 flex items-center gap-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm">
+            {t('nextCreateContract')}
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
           </Link>
         </div>
@@ -231,13 +280,13 @@ export default function GuarantorPage() {
 
       {/* Status Banner */}
       {hasVerified && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+        <div className="bg-success-subtle border border-success-line rounded-xl p-4 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-success-subtle flex items-center justify-center">
+            <svg className="w-5 h-5 text-success-text" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           </div>
           <div>
-            <p className="text-sm font-medium text-emerald-800">Guarantor verified</p>
-            <p className="text-xs text-emerald-600">This employee has a verified guarantor on file.</p>
+            <p className="text-sm font-medium text-success-text">{t('guarantorVerified')}</p>
+            <p className="text-xs text-success-text opacity-80">{t('guarantorVerifiedHint')}</p>
           </div>
         </div>
       )}
@@ -245,35 +294,35 @@ export default function GuarantorPage() {
       {/* Add Guarantor Button */}
       {!showForm && (
         <button onClick={() => setShowForm(true)}
-          className="w-full h-12 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 text-sm font-medium text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+          className="w-full h-12 flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-line-strong text-sm font-medium text-muted hover:border-primary-400 hover:text-primary-600 hover:bg-primary-500/5 transition-all">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-          Add Guarantor
+          {t('addGuarantor')}
         </button>
       )}
 
       {/* Add Guarantor Form */}
       {showForm && (
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="bg-surface rounded-xl border border-line p-6 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">New Guarantor</h2>
+            <h2 className="text-base font-semibold text-ink">{t('newGuarantor')}</h2>
             <button type="button" onClick={() => { setShowForm(false); resetForm(); }}
-              className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+              className="text-sm text-muted hover:text-ink">{t('cancel')}</button>
           </div>
 
           {/* Type Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">Guarantor Type *</label>
+            <label className="block text-sm font-medium text-ink mb-3">{t('guarantorType')} *</label>
             <div className="grid grid-cols-3 gap-3">
               {TYPE_OPTIONS.map(opt => (
                 <button key={opt.value} type="button" onClick={() => setType(opt.value)}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     type === opt.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      ? 'border-primary-500 bg-primary-500/10'
+                      : 'border-line hover:border-line-strong hover:bg-subtle'
                   }`}>
                   <span className="text-2xl">{opt.icon}</span>
-                  <p className="text-sm font-semibold text-gray-900 mt-2">{opt.label}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{opt.desc}</p>
+                  <p className="text-sm font-semibold text-ink mt-2">{t(opt.labelKey)}</p>
+                  <p className="text-xs text-muted mt-0.5">{t(opt.descKey)}</p>
                 </button>
               ))}
             </div>
@@ -282,24 +331,24 @@ export default function GuarantorPage() {
           {/* Common Fields */}
           <div className="grid grid-cols-2 gap-5">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name *</label>
+              <label className={labelCls}>{t('fullName')} *</label>
               <input type="text" value={form.fullName} onChange={e => setForm({ ...form, fullName: e.target.value })}
-                required className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                required className={inputCls} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone *</label>
+              <label className={labelCls}>{t('phone')} *</label>
               <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-                required className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                required className={inputCls} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
+              <label className={labelCls}>{t('address')}</label>
               <input type="text" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-                className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                className={inputCls} />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Relationship</label>
+              <label className={labelCls}>{t('relationship')}</label>
               <input type="text" value={form.relationship} onChange={e => setForm({ ...form, relationship: e.target.value })}
-                placeholder="e.g. Parent, Sibling, Friend" className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                placeholder={t('relationshipPlaceholder')} className={inputCls} />
             </div>
           </div>
 
@@ -307,14 +356,14 @@ export default function GuarantorPage() {
           {type === 'PERSON' && (
             <div className="grid grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Occupation</label>
+                <label className={labelCls}>{t('occupation')}</label>
                 <input type="text" value={form.occupation} onChange={e => setForm({ ...form, occupation: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  className={inputCls} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">ID Number</label>
+                <label className={labelCls}>{t('idNumber')}</label>
                 <input type="text" value={form.idNumber} onChange={e => setForm({ ...form, idNumber: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  className={inputCls} />
               </div>
             </div>
           )}
@@ -323,31 +372,29 @@ export default function GuarantorPage() {
           {type === 'VEHICLE_COLLATERAL' && (
             <div className="grid grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Vehicle Type</label>
+                <label className={labelCls}>{t('vehicleType')}</label>
                 <select value={form.vehicleType} onChange={e => setForm({ ...form, vehicleType: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400">
-                  <option value="">Select type</option>
-                  <option value="Sedan">Sedan</option>
-                  <option value="SUV">SUV</option>
-                  <option value="Truck">Truck</option>
-                  <option value="Van">Van</option>
-                  <option value="Motorcycle">Motorcycle</option>
+                  className={selectCls}>
+                  <option value="">{t('selectType')}</option>
+                  {VEHICLE_TYPES.map(v => (
+                    <option key={v.value} value={v.value}>{t(v.labelKey)}</option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Plate Number</label>
+                <label className={labelCls}>{t('plateNumber')}</label>
                 <input type="text" value={form.vehiclePlateNumber} onChange={e => setForm({ ...form, vehiclePlateNumber: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  className={inputCls} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Make / Brand</label>
+                <label className={labelCls}>{t('makeBrand')}</label>
                 <input type="text" value={form.vehicleMake} onChange={e => setForm({ ...form, vehicleMake: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  className={inputCls} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Year</label>
+                <label className={labelCls}>{t('yearLabel')}</label>
                 <input type="number" value={form.vehicleYear} onChange={e => setForm({ ...form, vehicleYear: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  className={inputCls} />
               </div>
             </div>
           )}
@@ -356,30 +403,29 @@ export default function GuarantorPage() {
           {type === 'PROPERTY_COLLATERAL' && (
             <div className="grid grid-cols-2 gap-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Property Type</label>
+                <label className={labelCls}>{t('propertyType')}</label>
                 <select value={form.propertyType} onChange={e => setForm({ ...form, propertyType: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400">
-                  <option value="">Select type</option>
-                  <option value="House">House</option>
-                  <option value="Apartment">Apartment</option>
-                  <option value="Land">Land</option>
-                  <option value="Commercial">Commercial Building</option>
+                  className={selectCls}>
+                  <option value="">{t('selectType')}</option>
+                  {PROPERTY_TYPES.map(p => (
+                    <option key={p.value} value={p.value}>{t(p.labelKey)}</option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Location</label>
+                <label className={labelCls}>{t('location')}</label>
                 <input type="text" value={form.propertyLocation} onChange={e => setForm({ ...form, propertyLocation: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  className={inputCls} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Title Number</label>
+                <label className={labelCls}>{t('titleNumber')}</label>
                 <input type="text" value={form.propertyTitleNumber} onChange={e => setForm({ ...form, propertyTitleNumber: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  className={inputCls} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Estimated Value (ETB)</label>
+                <label className={labelCls}>{t('estimatedValueEtb')}</label>
                 <input type="number" value={form.estimatedValue} onChange={e => setForm({ ...form, estimatedValue: e.target.value })}
-                  className="w-full h-10 px-3 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400" />
+                  className={inputCls} />
               </div>
             </div>
           )}
@@ -387,32 +433,32 @@ export default function GuarantorPage() {
           {/* Documents */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-gray-700">Documents</label>
+              <label className="text-sm font-medium text-ink">{t('documents')}</label>
               <button type="button" onClick={addDocument}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700 flex items-center gap-1">
+                className="text-xs font-medium text-primary-600 hover:text-primary-700 flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                Add Document
+                {t('addDocument')}
               </button>
             </div>
             {documents.length === 0 && (
-              <p className="text-xs text-gray-400">No documents added yet.</p>
+              <p className="text-xs text-subtext">{t('noDocumentsYet')}</p>
             )}
             <div className="space-y-3">
               {documents.map((doc, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <div key={idx} className="flex items-center gap-3 p-3 bg-subtle rounded-lg">
                   {doc.uploadedUrl ? (
-                    <svg className="w-5 h-5 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    <svg className="w-5 h-5 text-success-text flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   ) : (
-                    <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    <svg className="w-5 h-5 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                   )}
                   <input type="text" value={doc.description} onChange={e => updateDoc(idx, 'description', e.target.value)}
-                    placeholder="Document description" className="flex-1 h-8 px-2 rounded border border-gray-200 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500/20" />
+                    placeholder={t('documentDescription')} className="flex-1 h-8 px-2 rounded border border-line bg-surface text-xs text-ink placeholder-muted focus:outline-none focus:ring-1 focus:ring-primary-500/20" />
                   {doc.uploadedUrl ? (
-                    <span className="text-xs text-emerald-600 font-medium">Uploaded</span>
+                    <span className="text-xs text-success-text font-medium">{t('uploaded')}</span>
                   ) : (
-                    <label className="h-8 px-3 flex items-center gap-1 rounded border border-dashed border-gray-300 text-xs text-gray-500 cursor-pointer hover:bg-gray-100">
+                    <label className="h-8 px-3 flex items-center gap-1 rounded border border-dashed border-line-strong text-xs text-muted cursor-pointer hover:bg-surface-hover">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                      {doc.file ? doc.file.name : 'Choose file'}
+                      {doc.file ? doc.file.name : t('chooseFileShort')}
                       <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
                         onChange={e => {
                           const file = e.target.files?.[0] || null;
@@ -422,7 +468,7 @@ export default function GuarantorPage() {
                         }} />
                     </label>
                   )}
-                  <button type="button" onClick={() => removeDoc(idx)} className="text-gray-400 hover:text-red-500">
+                  <button type="button" onClick={() => removeDoc(idx)} className="text-muted hover:text-danger-text">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 </div>
@@ -432,19 +478,19 @@ export default function GuarantorPage() {
 
           {/* Notes */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
+            <label className={labelCls}>{t('notes')}</label>
             <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-              rows={3} className="w-full px-3 py-2.5 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 resize-none" />
+              rows={3} className="w-full px-3 py-2.5 rounded-lg border border-line bg-surface text-sm text-ink placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 resize-none" />
           </div>
 
           <div className="flex justify-end gap-3">
             <button type="button" onClick={() => { setShowForm(false); resetForm(); }}
-              className="h-10 px-5 flex items-center rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-              Cancel
+              className={secondaryBtn}>
+              {t('cancel')}
             </button>
             <button type="submit" disabled={saving}
-              className="h-10 px-5 flex items-center gap-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50">
-              {saving ? 'Saving...' : 'Save Guarantor'}
+              className="h-10 px-5 flex items-center gap-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50">
+              {saving ? t('saving') : t('save')}
             </button>
           </div>
         </form>
@@ -453,44 +499,44 @@ export default function GuarantorPage() {
       {/* Existing Guarantors */}
       {guarantors.length > 0 && (
         <div className="space-y-4">
-          <h2 className="text-base font-semibold text-gray-900">Submitted Guarantors ({guarantors.length})</h2>
+          <h2 className="text-base font-semibold text-ink">{t('submittedGuarantors', { count: guarantors.length })}</h2>
           {guarantors.map(g => (
-            <div key={g._id} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div key={g._id} className="bg-surface rounded-xl border border-line p-6 space-y-4">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-bold">
                     {g.fullName?.[0]}
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-gray-900">{g.fullName}</h3>
-                    <p className="text-sm text-gray-500">{g.phone} {g.relationship ? `• ${g.relationship}` : ''}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {TYPE_OPTIONS.find(t => t.value === g.guarantorType)?.label || g.guarantorType}
+                    <h3 className="text-base font-semibold text-ink">{g.fullName}</h3>
+                    <p className="text-sm text-muted">{g.phone} {g.relationship ? `• ${g.relationship}` : ''}</p>
+                    <p className="text-xs text-subtext mt-0.5">
+                      {typeLabel(g.guarantorType)}
                       {g.occupation ? ` • ${g.occupation}` : ''}
-                      {g.idNumber ? ` • ID: ${g.idNumber}` : ''}
+                      {g.idNumber ? ` • ${t('detailId')} ${g.idNumber}` : ''}
                     </p>
                   </div>
                 </div>
                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${STATUS_STYLES[g.verificationStatus] || ''}`}>
-                  {g.verificationStatus}
+                  {verifyStatusLabel(g.verificationStatus)}
                 </span>
               </div>
 
               {/* Vehicle / Property details */}
               {g.guarantorType === 'VEHICLE_COLLATERAL' && (
                 <div className="grid grid-cols-4 gap-3 text-xs">
-                  {g.vehicleType && <div><span className="text-gray-400">Type:</span> <span className="font-medium">{g.vehicleType}</span></div>}
-                  {g.vehiclePlateNumber && <div><span className="text-gray-400">Plate:</span> <span className="font-medium">{g.vehiclePlateNumber}</span></div>}
-                  {g.vehicleMake && <div><span className="text-gray-400">Make:</span> <span className="font-medium">{g.vehicleMake}</span></div>}
-                  {g.vehicleYear && <div><span className="text-gray-400">Year:</span> <span className="font-medium">{g.vehicleYear}</span></div>}
+                  {g.vehicleType && <div><span className="text-subtext">{t('detailType')}</span> <span className="font-medium text-ink">{g.vehicleType}</span></div>}
+                  {g.vehiclePlateNumber && <div><span className="text-subtext">{t('detailPlate')}</span> <span className="font-medium text-ink">{g.vehiclePlateNumber}</span></div>}
+                  {g.vehicleMake && <div><span className="text-subtext">{t('detailMake')}</span> <span className="font-medium text-ink">{g.vehicleMake}</span></div>}
+                  {g.vehicleYear && <div><span className="text-subtext">{t('detailYear')}</span> <span className="font-medium text-ink">{g.vehicleYear}</span></div>}
                 </div>
               )}
               {g.guarantorType === 'PROPERTY_COLLATERAL' && (
                 <div className="grid grid-cols-4 gap-3 text-xs">
-                  {g.propertyType && <div><span className="text-gray-400">Type:</span> <span className="font-medium">{g.propertyType}</span></div>}
-                  {g.propertyLocation && <div><span className="text-gray-400">Location:</span> <span className="font-medium">{g.propertyLocation}</span></div>}
-                  {g.propertyTitleNumber && <div><span className="text-gray-400">Title:</span> <span className="font-medium">{g.propertyTitleNumber}</span></div>}
-                  {g.estimatedValue && <div><span className="text-gray-400">Value:</span> <span className="font-medium">ETB {g.estimatedValue.toLocaleString()}</span></div>}
+                  {g.propertyType && <div><span className="text-subtext">{t('detailType')}</span> <span className="font-medium text-ink">{g.propertyType}</span></div>}
+                  {g.propertyLocation && <div><span className="text-subtext">{t('detailLocation')}</span> <span className="font-medium text-ink">{g.propertyLocation}</span></div>}
+                  {g.propertyTitleNumber && <div><span className="text-subtext">{t('detailTitle')}</span> <span className="font-medium text-ink">{g.propertyTitleNumber}</span></div>}
+                  {g.estimatedValue && <div><span className="text-subtext">{t('detailValue')}</span> <span className="font-medium text-ink">ETB {g.estimatedValue.toLocaleString()}</span></div>}
                 </div>
               )}
 
@@ -499,8 +545,8 @@ export default function GuarantorPage() {
                 <div className="flex flex-wrap gap-2">
                   {g.documents.map((d, i) => (
                     <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 rounded-lg text-xs text-gray-600 hover:bg-gray-100 transition-colors">
-                      <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-subtle rounded-lg text-xs text-muted hover:bg-surface-hover transition-colors">
+                      <svg className="w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                       {d.description || d.fileName}
                     </a>
                   ))}
@@ -509,42 +555,42 @@ export default function GuarantorPage() {
 
               {/* Rejection reason */}
               {g.verificationStatus === 'REJECTED' && g.rejectionReason && (
-                <div className="bg-red-50 rounded-lg p-3">
-                  <p className="text-xs font-medium text-red-700">Rejection Reason:</p>
-                  <p className="text-sm text-red-600 mt-0.5">{g.rejectionReason}</p>
+                <div className="bg-danger-subtle rounded-lg p-3">
+                  <p className="text-xs font-medium text-danger-text">{t('rejectionReason')}:</p>
+                  <p className="text-sm text-danger-text opacity-90 mt-0.5">{g.rejectionReason}</p>
                 </div>
               )}
 
               {/* Notes */}
               {g.notes && (
-                <p className="text-xs text-gray-500 italic">{g.notes}</p>
+                <p className="text-xs text-muted italic">{g.notes}</p>
               )}
 
               {/* Actions */}
               {g.verificationStatus === 'PENDING' && (
-                <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+                <div className="flex items-center gap-3 pt-2 border-t border-line">
                   <button onClick={() => handleVerify(g._id)}
-                    className="h-8 px-4 flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 transition-colors">
+                    className="h-8 px-4 flex items-center gap-1.5 rounded-lg bg-success-text text-white text-xs font-medium hover:opacity-90 transition-opacity">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    Verify
+                    {t('verify')}
                   </button>
                   {rejectingId === g._id ? (
                     <div className="flex items-center gap-2">
                       <input type="text" value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-                        placeholder="Rejection reason" className="h-8 px-3 rounded-lg border border-red-200 text-xs text-gray-700 focus:outline-none focus:ring-1 focus:ring-red-500/20 w-48" />
-                      <button onClick={() => handleReject(g._id)} className="h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700">Confirm</button>
-                      <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="h-8 px-3 rounded-lg border border-gray-200 text-xs text-gray-600 hover:bg-gray-50">Cancel</button>
+                        placeholder={t('rejectionReason')} className="h-8 px-3 rounded-lg border border-danger-line bg-surface text-xs text-ink placeholder-muted focus:outline-none focus:ring-1 focus:ring-danger-text/20 w-48" />
+                      <button onClick={() => handleReject(g._id)} className="h-8 px-3 rounded-lg bg-danger-text text-white text-xs font-medium hover:opacity-90">{t('confirmAction')}</button>
+                      <button onClick={() => { setRejectingId(null); setRejectReason(''); }} className="h-8 px-3 rounded-lg border border-line text-xs text-muted hover:bg-subtle">{t('cancel')}</button>
                     </div>
                   ) : (
                     <button onClick={() => setRejectingId(g._id)}
-                      className="h-8 px-4 flex items-center gap-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-medium hover:bg-red-50 transition-colors">
+                      className="h-8 px-4 flex items-center gap-1.5 rounded-lg border border-danger-line text-danger-text text-xs font-medium hover:bg-danger-subtle transition-colors">
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                      Reject
+                      {t('reject')}
                     </button>
                   )}
                   <button onClick={() => handleDelete(g._id)}
-                    className="h-8 px-3 rounded-lg text-gray-400 hover:text-red-500 text-xs ml-auto">
-                    Delete
+                    className="h-8 px-3 rounded-lg text-muted hover:text-danger-text text-xs ml-auto">
+                    {t('delete')}
                   </button>
                 </div>
               )}
@@ -554,10 +600,10 @@ export default function GuarantorPage() {
       )}
 
       {guarantors.length === 0 && !showForm && (
-        <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-          <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-          <p className="text-sm text-gray-500">No guarantors on file</p>
-          <p className="text-xs text-gray-400 mt-1">Add a guarantor to proceed with the onboarding process.</p>
+        <div className="text-center py-12 bg-surface rounded-xl border border-line">
+          <svg className="w-12 h-12 text-subtext mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <p className="text-sm text-muted">{t('noGuarantorsOnFile')}</p>
+          <p className="text-xs text-subtext mt-1">{t('noGuarantorsHint')}</p>
         </div>
       )}
     </div>

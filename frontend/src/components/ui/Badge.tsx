@@ -6,12 +6,13 @@ interface BadgeProps {
   className?: string;
 }
 
+// Semantic palette: success=green, warning=amber, error=red, info=blue, default=subtle neutral.
 const variantStyles = {
-  default: 'bg-gray-100 text-gray-700',
-  success: 'bg-green-100 text-green-700',
-  warning: 'bg-amber-100 text-amber-700',
-  danger: 'bg-red-100 text-red-700',
-  info: 'bg-blue-100 text-blue-700',
+  default: 'bg-subtle text-muted border border-line',
+  success: 'bg-success-subtle text-success-text border border-success-line',
+  warning: 'bg-warning-subtle text-warning-text border border-warning-line',
+  danger: 'bg-danger-subtle text-danger-text border border-danger-line',
+  info: 'bg-info-subtle text-info-text border border-info-line',
 };
 
 export function Badge({ variant = 'default', children, className = '' }: BadgeProps) {

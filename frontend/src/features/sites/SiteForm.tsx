@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 
@@ -14,10 +14,19 @@ export function SiteForm() {
   const [form, setForm] = useState({
     siteCode: '', siteName: '', client: '', location: '',
     siteType: 'COMMERCIAL', agreedManpower: 0, actualManpower: 0,
+    maleCount: 0, femaleCount: 0,
     contactPerson: '', contactPhone: '', address: '',
+    companyId: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [companies, setCompanies] = useState<{ _id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    api.get('/companies', { params: { page: 1, limit: 200, sort: 'name', dir: 'asc' } })
+      .then((r) => setCompanies(r.data.data || []))
+      .catch(() => setCompanies([]));
+  }, []);
 
   const update = (field: string, value: any) => setForm((p) => ({ ...p, [field]: value }));
 
@@ -26,7 +35,13 @@ export function SiteForm() {
     setError('');
     setLoading(true);
     try {
-      await api.post('/sites', form);
+      await api.post('/sites', {
+              ...form,
+              companyId: form.companyId || null,
+              // only send gender counts when provided (optional fields)
+              maleCount: form.maleCount || undefined,
+              femaleCount: form.femaleCount || undefined,
+            });
       navigate('/sites');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to create site');
@@ -146,6 +161,19 @@ export function SiteForm() {
               </div>
             </div>
             <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Company</label>
+              <select
+                value={form.companyId}
+                onChange={(e) => update('companyId', e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all bg-white"
+              >
+                <option value="">— No company —</option>
+                {companies.map((c) => (
+                  <option key={c._id} value={c._id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Full Address</label>
               <input type="text" value={form.address} onChange={(e) => update('address', e.target.value)}
                 placeholder="e.g. Bole Road, near Edna Mall, 4th floor"
@@ -183,6 +211,29 @@ export function SiteForm() {
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
                 <p className="text-[10px] text-gray-400 mt-1">Currently deployed guards</p>
               </div>
+            </div>
+
+            {/* Optional gender split of actual manpower */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-3">
+                <label className="block text-xs font-medium text-gray-500">Gender Split of Actual Manpower <span className="text-gray-400 font-normal">(optional)</span></label>
+                <span className="text-[10px] text-gray-400">
+                  {(form.maleCount || 0) + (form.femaleCount || 0)} / {form.actualManpower} filled
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">Male Guards</label>
+                  <input type="number" min={0} value={form.maleCount} onChange={(e) => update('maleCount', parseInt(e.target.value) || 0)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">Female Guards</label>
+                  <input type="number" min={0} value={form.femaleCount} onChange={(e) => update('femaleCount', parseInt(e.target.value) || 0)}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-400 mt-1.5">Leave blank if gender breakdown is unknown. Not required for site creation.</p>
             </div>
             {form.agreedManpower > 0 && (
               <div className="mt-4 p-3 bg-gray-50 rounded-xl">

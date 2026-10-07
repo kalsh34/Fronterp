@@ -16,23 +16,23 @@ interface TabsProps {
 
 export function Tabs({ tabs, active, onChange, className = '' }: TabsProps) {
   return (
-    <div className={`flex bg-gray-100 rounded-lg p-0.5 ${className}`}>
+    <div className={`flex bg-subtle rounded-lg p-0.5 ${className}`}>
       {tabs.map((tab) => (
         <button
           key={tab.key}
           onClick={() => onChange(tab.key)}
           className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-sm font-medium rounded-md transition-all ${
             active === tab.key
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
+              ? 'bg-surface text-ink shadow-sm'
+              : 'text-muted hover:text-ink'
           }`}
         >
           {tab.icon}
           {tab.label}
           {tab.count !== undefined && (
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${active === tab.key ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-500'}`}>
-              {tab.count}
-            </span>
+          <span className={`text-xs px-1.5 py-0.5 rounded-full ${active === tab.key ? 'bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300' : 'bg-subtle-hover text-muted'}`}>
+            {tab.count}
+          </span>
           )}
         </button>
       ))}
