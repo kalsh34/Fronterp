@@ -89,6 +89,99 @@ export default function ModuleReportsPage() {
       const res = await api.get(endpoint);
       setResult(res.data?.data ?? null);
     } catch (e: any) {
+      if (e?.response?.status === 404) {
+        try {
+          if (tab === 'HR') {
+            const res = await api.get('/employees');
+            const emps = res.data?.data || res.data || [];
+            const rows = (Array.isArray(emps) ? emps : []).map((emp: any) => ({
+              employeeCode: emp.employeeCode || emp.code || '—',
+              fullName: `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || '—',
+              category: emp.category || '—',
+              status: emp.status || 'ACTIVE',
+              joinDate: emp.hireDate ? String(emp.hireDate).slice(0, 10) : '—',
+              basicSalary: emp.compensation?.basicSalary || emp.salary || 0,
+              department: emp.department?.name || emp.department || '—',
+              phone: emp.phone || '—',
+              bankName: emp.bankInfo?.bankName || '—',
+              accountNumber: emp.bankInfo?.accountNumber || '—',
+            }));
+            setResult({
+              report: 'HR',
+              summary: { totalEmployees: rows.length, active: rows.filter((r: any) => r.status === 'ACTIVE' || r.status === 'CONTRACTED').length },
+              rows,
+            });
+            setError('');
+            return;
+          } else if (tab === 'SITES') {
+            const res = await api.get('/sites');
+            const sitesList = res.data?.data || res.data || [];
+            const rows = (Array.isArray(sitesList) ? sitesList : []).map((s: any) => ({
+              siteCode: s.siteCode || '—',
+              siteName: s.siteName || '—',
+              client: s.client || '—',
+              location: s.location || '—',
+              siteType: s.siteType || 'COMMERCIAL',
+              status: s.status || 'ACTIVE',
+              agreedManpower: s.agreedManpower || 0,
+              actualManpower: s.actualManpower || 0,
+              currentCompensation: s.currentCompensation?.amount || 0,
+            }));
+            setResult({
+              report: 'SITES',
+              summary: { totalSites: rows.length },
+              rows,
+            });
+            setError('');
+            return;
+          } else if (tab === 'GUARDS') {
+            const res = await api.get('/guards');
+            const guardsList = res.data?.data || res.data || [];
+            const rows = (Array.isArray(guardsList) ? guardsList : []).map((g: any) => ({
+              employeeCode: g.employeeCode || g.employeeId?.employeeCode || '—',
+              fullName: `${g.firstName || g.employeeId?.firstName || ''} ${g.lastName || g.employeeId?.lastName || ''}`.trim() || '—',
+              status: g.status || g.employeeId?.status || 'CONTRACTED',
+              siteName: g.homeSite?.siteName || g.primarySite?.siteName || '—',
+              phone: g.phone || g.employeeId?.phone || '—',
+            }));
+            setResult({
+              report: 'GUARDS',
+              summary: { totalGuards: rows.length },
+              rows,
+            });
+            setError('');
+            return;
+          } else if (tab === 'PAYROLL') {
+            const res = await api.get('/reports/payroll-summary');
+            const pData = res.data?.data || res.data || {};
+            setResult({
+              report: 'PAYROLL',
+              summary: pData.summary || { totalPaid: pData.totalPaid || 0 },
+              rows: pData.history || pData.records || [],
+            });
+            setError('');
+            return;
+          } else if (tab === 'USERS') {
+            const res = await api.get('/users');
+            const usersList = res.data?.data || res.data || [];
+            const rows = (Array.isArray(usersList) ? usersList : []).map((u: any) => ({
+              email: u.email,
+              fullName: `${u.firstName || ''} ${u.lastName || ''}`.trim() || '—',
+              role: u.role,
+              isActive: u.isActive !== false ? 'Active' : 'Inactive',
+            }));
+            setResult({
+              report: 'USERS',
+              summary: { totalUsers: rows.length },
+              rows,
+            });
+            setError('');
+            return;
+          }
+        } catch {
+          // ignore and fallback to error below
+        }
+      }
       setError(e?.response?.data?.message || 'Failed to load report');
       setResult(null);
     } finally {

@@ -3,7 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useT } from '../i18n';
 import { ThemeToggle, LanguageToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
-import { LogOut, Home } from 'lucide-react';
+import { LogOut, Home, ArrowLeft } from 'lucide-react';
 import type { ModuleGroup } from '../config/modules';
 import type { DictKey } from '../i18n';
 
@@ -21,20 +21,34 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
     <div className="bg-surface border-b border-line sticky top-0 z-50">
       {/* Top bar: logo + module name + user */}
       <div className="flex items-center justify-between px-6 py-2.5">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
-          >
-            <img src="/logo.png" alt="Vital Security" className="w-8 h-8 rounded-lg object-contain" />
-            <span className="text-sm font-bold text-ink tracking-tight">Vital Security</span>
-          </button>
-          <div className="h-5 w-px bg-line" />
-          <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white tracking-wide shadow-xs flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-            {moduleGroup.labelKey ? t(moduleGroup.labelKey as DictKey) : moduleGroup.label}
-          </span>
-        </div>
+        {/* Brand & Modern Interactive Back Trigger */}
+        <button
+          onClick={() => navigate('/')}
+          className="group flex items-center gap-3 p-1.5 -ml-1.5 rounded-xl hover:bg-subtle transition-all duration-200 cursor-pointer text-left"
+          title="Back to Dashboard"
+        >
+          {/* Morphing Logo / Back Arrow badge */}
+          <div className="relative w-8 h-8 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 group-hover:bg-primary-600 dark:group-hover:bg-primary-600 transition-all duration-200 shrink-0">
+            <img
+              src="/logo.png"
+              alt="Vital Security"
+              className="w-full h-full object-contain transition-all duration-200 group-hover:opacity-0 group-hover:scale-50"
+            />
+            <ArrowLeft
+              className="w-4 h-4 text-white absolute opacity-0 scale-50 -translate-x-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-ink tracking-tight group-hover:text-primary-600 transition-colors">
+              Vital Security
+            </span>
+            <span className="text-muted/40 font-light text-xs">/</span>
+            <span className="text-xs font-semibold text-muted group-hover:text-ink transition-colors">
+              {moduleGroup.labelKey ? t(moduleGroup.labelKey as DictKey) : moduleGroup.label}
+            </span>
+          </div>
+        </button>
 
         <div className="flex items-center gap-3">
           <LanguageToggle />
@@ -74,31 +88,33 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
         </div>
       </div>
 
-      {/* Sub-feature tabs */}
-      <div className="flex items-center gap-1 px-6 border-t border-line/60 bg-subtle/30">
-        {moduleGroup.subFeatures.map((sf) => {
-          const sfPath = sf.route.split('?')[0];
-          const isActive =
-            location.pathname === sfPath ||
-            (sfPath !== '/' && location.pathname.startsWith(sfPath));
-          const Icon = sf.icon;
+      {/* Sub-feature tabs — only rendered when multiple tabs exist to avoid redundant visual layers */}
+      {moduleGroup.subFeatures && moduleGroup.subFeatures.length > 1 && (
+        <div className="flex items-center gap-1 px-6 border-t border-line/60 bg-subtle/30">
+          {moduleGroup.subFeatures.map((sf) => {
+            const sfPath = sf.route.split('?')[0];
+            const isActive =
+              location.pathname === sfPath ||
+              (sfPath !== '/' && location.pathname.startsWith(sfPath));
+            const Icon = sf.icon;
 
-          return (
-            <NavLink
-              key={sf.route}
-              to={sf.route}
-              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold border-b-2 transition-all duration-150 ${
-                isActive
-                  ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-surface shadow-xs -mb-px'
-                  : 'border-transparent text-muted hover:text-ink hover:border-line'
-              }`}
-            >
-              {Icon && <Icon size={16} className={isActive ? 'text-primary-600 dark:text-primary-400' : 'text-muted'} />}
-              {sf.labelKey ? t(sf.labelKey as DictKey) : sf.label}
-            </NavLink>
-          );
-        })}
-      </div>
+            return (
+              <NavLink
+                key={sf.route}
+                to={sf.route}
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold border-b-2 transition-all duration-150 ${
+                  isActive
+                    ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-surface shadow-xs -mb-px'
+                    : 'border-transparent text-muted hover:text-ink hover:border-line'
+                }`}
+              >
+                {Icon && <Icon size={16} className={isActive ? 'text-primary-600 dark:text-primary-400' : 'text-muted'} />}
+                {sf.labelKey ? t(sf.labelKey as DictKey) : sf.label}
+              </NavLink>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
