@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../lib/api';
 import { UserRole } from '../../types';
-import { Card, FormField, Modal, Select, Tabs } from '../../components/ui';
+import { Card, FormField, Modal, Select } from '../../components/ui';
 import { useT, type DictKey, type TParams } from '../../i18n';
 
 type T = (key: DictKey, params?: TParams) => string;
@@ -147,16 +147,12 @@ export function SettingsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-xs text-subtext">
-        <span>Vital Security PLC</span>
-        <span>/</span>
-        <span>{t('settingsAdminCrumb')}</span>
-      </div>
-
       {/* Page Title */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-ink">{t('settingsTitle')}</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-ink">{t('settingsTitle')}</h1>
+          <p className="text-xs text-muted mt-1">Manage system users, access roles, system integrations, and audit logs.</p>
+        </div>
         <button
           onClick={() => setShowProvisionModal(true)}
           className="h-10 px-5 flex items-center gap-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
@@ -168,7 +164,22 @@ export function SettingsPage() {
         </button>
       </div>
 
-      <Tabs tabs={TAB_ITEMS.map((tab) => ({ key: tab.key, label: t(tab.labelKey) }))} active={activeTab} onChange={setActiveTab} className="w-fit" />
+      {/* Navigation Tabs (matching HR and Reports) */}
+      <div className="flex flex-wrap gap-1 border-b border-line">
+        {TAB_ITEMS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
+              activeTab === tab.key
+                ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-primary-500/5'
+                : 'border-transparent text-muted hover:text-ink hover:border-line'
+            }`}
+          >
+            {t(tab.labelKey)}
+          </button>
+        ))}
+      </div>
 
       {/* Users Tab Content */}
       {activeTab === 'users' && (
