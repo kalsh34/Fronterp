@@ -87,7 +87,7 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
 
       {/* Sub-feature tabs — only rendered when multiple tabs exist to avoid redundant visual layers */}
       {moduleGroup.subFeatures && moduleGroup.subFeatures.length > 1 && (
-        <div className="flex items-center gap-1 px-4 sm:px-6 md:px-8 border-t border-line/60 bg-subtle/30 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 px-4 sm:px-6 md:px-8 border-t border-line/60 bg-subtle/30 overflow-x-auto overflow-y-hidden no-scrollbar">
           {moduleGroup.subFeatures.map((sf) => {
             const sfPath = sf.route.split('?')[0];
             const isActive =
@@ -101,7 +101,7 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
                 to={sf.route}
                 className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold border-b-2 transition-all duration-150 shrink-0 ${
                   isActive
-                    ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-surface shadow-xs -mb-px'
+                    ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-surface shadow-xs'
                     : 'border-transparent text-muted hover:text-ink hover:border-line'
                 }`}
               >

@@ -197,3 +197,12 @@ html[lang='am'] textarea {
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.15) transparent;
 }
+
+/* Hide scrollbars completely while preserving smooth scrolling */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
