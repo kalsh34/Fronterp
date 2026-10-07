@@ -126,7 +126,16 @@ export default function StaffPayrollPage() {
     setCalculating(true);
     setError(null);
     try {
-      const res = await api.post('/staff-payroll/runs', { periodKey });
+      let res;
+      try {
+        res = await api.post('/staff-payroll/runs', { periodKey });
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          res = await api.post(`/staff-payroll/generate/${periodKey}`);
+        } else {
+          throw err;
+        }
+      }
       setNotice(`${t('spRuns')} · ${periodKey}`);
       await loadRuns();
       setDetail(res.data.data);

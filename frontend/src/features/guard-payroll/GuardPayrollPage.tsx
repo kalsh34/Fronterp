@@ -129,7 +129,16 @@ export default function GuardPayrollPage() {
     setCalculating(true);
     setError(null);
     try {
-      const res = await api.post('/guard-payroll/runs', { periodKey });
+      let res;
+      try {
+        res = await api.post('/guard-payroll/runs', { periodKey });
+      } catch (err: any) {
+        if (err?.response?.status === 404) {
+          res = await api.post(`/guard-payroll/generate/${periodKey}`);
+        } else {
+          throw err;
+        }
+      }
       setNotice(`${t('gpRuns')} · ${periodKey}`);
       await loadRuns();
       setDetail(res.data.data);
