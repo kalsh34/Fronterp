@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { QrCode } from 'lucide-react';
 import api from '../../lib/api';
+import { InfoTooltip } from '../../components/ui';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import { useT } from '../../i18n';
@@ -272,8 +273,10 @@ export default function OrganizationStructurePage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
         {/* Departments (parents) */}
         <div className="lg:col-span-2 bg-surface rounded-xl border border-line p-5">
-          <h2 className="text-base font-semibold text-ink">{t('departmentsCol')}</h2>
-          <p className="text-xs text-subtext mt-1 mb-4">{t('parentOfPositions')}</p>
+          <div className="flex items-center gap-1.5 mb-4">
+            <h2 className="text-base font-semibold text-ink">{t('departmentsCol')}</h2>
+            <InfoTooltip content={t('parentOfPositions')} />
+          </div>
 
           {canManage && (
             <div className="flex gap-2 mb-4">
@@ -432,10 +435,10 @@ export default function OrganizationStructurePage() {
       <div className="bg-surface rounded-xl border border-line p-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h2 className="text-base font-semibold text-ink">{t('payGrades')}</h2>
-            <p className="text-xs text-subtext mt-1">
-              {t('payGradesHint')}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-base font-semibold text-ink">{t('payGrades')}</h2>
+              <InfoTooltip content={t('payGradesHint')} />
+            </div>
           </div>
           <span className="flex-shrink-0 text-[11px] px-2 py-1 rounded-full bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300">
             {t('usedInContracts')}

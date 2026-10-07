@@ -10,3 +10,4 @@ export { StatusBadge } from './StatusBadge';
 export { EmptyState } from './EmptyState';
 export { PageHeader } from './PageHeader';
 export { LoadingSpinner } from './LoadingSpinner';
+export { Tooltip, InfoTooltip } from './Tooltip';

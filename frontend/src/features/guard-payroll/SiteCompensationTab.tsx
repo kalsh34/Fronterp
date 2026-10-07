@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { History, Lock, Pencil, Plus, Save } from 'lucide-react';
 import api from '../../lib/api';
-import { Badge, Button, Card, FormField, LoadingSpinner, Select } from '../../components/ui';
+import { Badge, Button, Card, FormField, LoadingSpinner, Select, InfoTooltip } from '../../components/ui';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import { useT } from '../../i18n';
@@ -156,13 +156,16 @@ export function SiteCompensationTab({ onError }: { onError: (msg: string | null)
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="max-w-xs w-full">
+        <div className="flex items-center gap-2 max-w-xs w-full">
           <Select label={t('gpSite')} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
             <option value="">{t('gpAllSites')}</option>
             {sites.map((s) => (
               <option key={s._id} value={s._id}>{s.siteName}</option>
             ))}
           </Select>
+          <div className="mt-6">
+            <InfoTooltip content="OT rate = compensation ÷ 240 · Sunday structural = OT × 32 · transport = 20% (not taxable) · basic hourly = basic ÷ 208" />
+          </div>
         </div>
         {!canEdit && (
           <p className="flex items-center gap-1.5 text-xs text-subtext">
@@ -300,10 +303,6 @@ export function SiteCompensationTab({ onError }: { onError: (msg: string | null)
           </tbody>
         </table>
       </Card>
-
-      <p className="text-xs text-subtext">
-        OT rate = compensation ÷ 240 · Sunday structural = OT × 32 · transport = 20% (not taxable) · basic hourly = basic ÷ 208
-      </p>
     </div>
   );
 }

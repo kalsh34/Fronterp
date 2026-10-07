@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { CalendarClock, Eye, UserX } from 'lucide-react';
-import { Badge, Button, Card } from '../../components/ui';
+import { Badge, Button, Card, InfoTooltip } from '../../components/ui';
 import { useT } from '../../i18n';
 
 export interface StaffAttRow {
@@ -70,11 +70,14 @@ export function AttendanceSummarySection({ kind, rows, daysInMonth, nameOf, onAd
   return (
     <Card className="overflow-hidden">
       <div className="px-4 py-3 border-b border-line flex flex-wrap items-center justify-between gap-2">
-        <h4 className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <CalendarClock size={15} className="text-primary-600" />
-          {t('attSummary')}
-          <span className="text-xs font-normal text-subtext">· {t('attPeriodDays', { days: daysInMonth })}</span>
-        </h4>
+        <div className="flex items-center gap-2">
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <CalendarClock size={15} className="text-primary-600" />
+            {t('attSummary')}
+            <span className="text-xs font-normal text-subtext">· {t('attPeriodDays', { days: daysInMonth })}</span>
+          </h4>
+          <InfoTooltip content={t('attSummaryNote')} />
+        </div>
         <div className="flex items-center gap-2">
           <Badge variant={flagged.length > 0 ? 'warning' : 'success'}>
             {kind === 'STAFF'
@@ -173,9 +176,6 @@ export function AttendanceSummarySection({ kind, rows, daysInMonth, nameOf, onAd
           </table>
         </div>
       )}
-      <p className="px-4 py-2 text-[11px] text-subtext border-t border-line">
-        {t('attSummaryNote')}
-      </p>
     </Card>
   );
 }

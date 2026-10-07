@@ -1,5 +1,5 @@
-import { AlertTriangle, Building2, Info } from 'lucide-react';
-import { Badge, Card } from '../../components/ui';
+import { AlertTriangle, Building2 } from 'lucide-react';
+import { Badge, Card, InfoTooltip } from '../../components/ui';
 import { useT } from '../../i18n';
 import { AdditionalSiteSnapshot, fmtHours, fmtMoney, PayrollRecord, PrimarySiteSnapshot } from './guardPayroll.types';
 
@@ -40,6 +40,7 @@ export function PayrollRecordDetail({ record }: { record: PayrollRecord }) {
             {t('gpPension')}: {record.snapshot.pensionEnrolled ? '✓' : '—'}
           </Badge>
           {record.snapshot.contractType && <span className="text-muted">{record.snapshot.contractType}</span>}
+          <InfoTooltip content={t('gpSnapshotNote')} />
         </div>
         {record.warnings.length > 0 && (
           <div className="mt-3 space-y-1.5">
@@ -51,10 +52,6 @@ export function PayrollRecordDetail({ record }: { record: PayrollRecord }) {
             ))}
           </div>
         )}
-        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-subtext">
-          <Info size={12} />
-          {t('gpSnapshotNote')}
-        </p>
       </Card>
 
       {/* PRIMARY SITE */}

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import api, { getApiBaseUrl } from '../../lib/api';
 import ContractList from '../contracts/ContractList';
 import EmployeeFormModal from './EmployeeFormModal';
+import { InfoTooltip } from '../../components/ui';
 import { useT, useLang, formatDate, getMonthNames } from '../../i18n';
 import type { DictKey } from '../../i18n';
 
@@ -287,7 +288,7 @@ export default function EmployeeList() {
       <div className="bg-surface rounded-xl border border-line p-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-ink">{t('employees')}</h2>
-          <div className="flex flex-wrap gap-2 mt-2">
+          <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-subtle text-xs font-medium text-ink">
               {t('totalBadge', { count: (analytics?.total ?? stats.total).toLocaleString() })}
             </span>
@@ -303,10 +304,8 @@ export default function EmployeeList() {
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-info-subtle text-xs font-medium text-info-text">
               {t('newThisMonthBadge', { count: stats.newThisMonth })}
             </span>
+            <InfoTooltip content={t('directoryNote')} />
           </div>
-          <p className="text-xs text-subtext mt-2 max-w-xl">
-            {t('directoryNote')}
-          </p>
         </div>
         <button
           onClick={() => openFormModal()}
@@ -943,9 +942,11 @@ function AttendanceTab() {
       </div>
 
       <div className="bg-surface rounded-xl border border-line overflow-hidden">
-        <div className="px-6 py-4 border-b border-line">
-          <h3 className="text-sm font-semibold text-ink">{t('staffAttendanceLog')}</h3>
-          <p className="text-xs text-subtext mt-0.5">{t('staffAttendanceLogHint')}</p>
+        <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-ink">{t('staffAttendanceLog')}</h3>
+            <InfoTooltip content={t('staffAttendanceLogHint')} />
+          </div>
         </div>
         {loading ? (
           <div className="flex justify-center py-12">{spinner}</div>
@@ -1112,9 +1113,11 @@ function PerformanceTab() {
           </div>
 
           <div className="bg-surface rounded-xl border border-line overflow-hidden">
-            <div className="px-6 py-4 border-b border-line">
-              <h3 className="text-sm font-semibold text-ink">{t('staffPerformance')}</h3>
-              <p className="text-xs text-subtext mt-0.5">{t('staffPerformanceHint')}</p>
+            <div className="px-6 py-4 border-b border-line flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-ink">{t('staffPerformance')}</h3>
+                <InfoTooltip content={t('staffPerformanceHint')} />
+              </div>
             </div>
             {loading ? (
               <div className="flex justify-center py-12">{spinner}</div>

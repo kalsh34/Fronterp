@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../lib/api';
-import { Button, LoadingSpinner, Modal } from '../../components/ui';
+import { Button, LoadingSpinner, Modal, InfoTooltip } from '../../components/ui';
 import { formatDate, useLang, useT, type DictKey, type TParams } from '../../i18n';
 
 type T = (key: DictKey, params?: TParams) => string;
@@ -530,7 +530,10 @@ export default function GuardsPage() {
           )}
 
           <div className="mb-3">
-            <label className="v-label v-label--required">{t('guardsNewSite')}</label>
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <label className="v-label v-label--required !mb-0">{t('guardsNewSite')}</label>
+              <InfoTooltip content={t('guardsAlwaysAssignedAsGuard')} />
+            </div>
             <select
               value={assignSiteId}
               onChange={(e) => setAssignSiteId(e.target.value)}
@@ -548,7 +551,6 @@ export default function GuardsPage() {
                   </option>
                 ))}
             </select>
-            <p className="mt-1.5 text-[11px] text-subtext">{t('guardsAlwaysAssignedAsGuard')}</p>
           </div>
 
           <div className="flex gap-3">

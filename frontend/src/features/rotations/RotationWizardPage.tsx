@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Button, Card, LoadingSpinner } from '../../components/ui';
+import { PageHeader, Button, Card, LoadingSpinner, InfoTooltip } from '../../components/ui';
 import api from '../../lib/api';
 import { useT } from '../../i18n';
 import { rotationsApi } from './api';
@@ -302,8 +302,10 @@ export default function RotationWizardPage() {
 
         {step === 2 && (
           <Card>
-            <h2 className="font-semibold text-ink mb-1">{t('rotShiftDesign')}</h2>
-            <p className="text-xs text-muted mb-4">{t('rotShiftDesignHint')}</p>
+            <div className="flex items-center gap-1.5 mb-4">
+              <h2 className="font-semibold text-ink">{t('rotShiftDesign')}</h2>
+              <InfoTooltip content={t('rotShiftDesignHint')} />
+            </div>
 
             <div className="flex flex-wrap gap-2 mb-4">
               {(
@@ -451,8 +453,10 @@ export default function RotationWizardPage() {
 
             {/* Rest rules */}
             <div className="mt-6 pt-4 border-t border-line">
-              <h3 className="text-sm font-semibold text-ink mb-1">{t('rotRecoveryRules')}</h3>
-              <p className="text-xs text-muted mb-3">{t('rotRecoveryHint')}</p>
+              <div className="flex items-center gap-1.5 mb-3">
+                <h3 className="text-sm font-semibold text-ink">{t('rotRecoveryRules')}</h3>
+                <InfoTooltip content={t('rotRecoveryHint')} />
+              </div>
               <div className="space-y-2">
                 {restRules.map((r, i) => (
                   <div key={i} className="flex flex-wrap items-center gap-3 text-sm">

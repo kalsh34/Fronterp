@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../lib/api';
+import { InfoTooltip } from '../../components/ui';
 import { EmployeeCategory } from '../../types';
 import { useT } from '../../i18n';
 
@@ -374,11 +375,11 @@ export default function ContractForm() {
 
         {/* Salary Grade — fetched from the backend (managed by HR on the Departments & Positions page) */}
         <div className="bg-surface rounded-xl border border-line p-6">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-4">
             <div className="w-1 h-5 bg-primary-600 rounded-full" />
             <h2 className="text-base font-semibold text-ink">{t('salaryGrade')}</h2>
+            <InfoTooltip content={t('gradesHint')} />
           </div>
-          <p className="text-xs text-subtext mb-5 ml-3">{t('gradesHint')}</p>
 
           {payGrades.length === 0 ? (
             <div className="border-2 border-dashed border-line rounded-lg p-6 text-center">
@@ -452,7 +453,10 @@ export default function ContractForm() {
             {isGuard ? (
               /* Guard: only Transport Allowance */
               <div className="max-w-sm">
-                <label className={labelCls}>{t('transportAllowanceEtb')}</label>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <label className="text-sm font-medium text-ink">{t('transportAllowanceEtb')}</label>
+                  <InfoTooltip content={t('guardAllowanceNote')} />
+                </div>
                 <input
                   type="number"
                   value={form.transportAllowance || ''}
@@ -460,7 +464,6 @@ export default function ContractForm() {
                   placeholder="0.00"
                   className={inputCls}
                 />
-                <p className="text-xs text-subtext mt-1.5">{t('guardAllowanceNote')}</p>
               </div>
             ) : (
               /* Office Staff: all four allowances */

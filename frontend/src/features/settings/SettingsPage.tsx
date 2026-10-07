@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import api from '../../lib/api';
 import { UserRole } from '../../types';
-import { Card, FormField, Modal, Select } from '../../components/ui';
+import { Card, FormField, Modal, Select, InfoTooltip } from '../../components/ui';
 import { useT, type DictKey, type TParams } from '../../i18n';
 
 type T = (key: DictKey, params?: TParams) => string;
@@ -506,8 +506,10 @@ function ProvisionModal({ onClose }: { onClose: () => void }) {
 
         {/* Module access — grant or deny per module (deny wins at runtime) */}
         <div>
-          <p className="text-sm font-medium text-ink mb-1">{t('settingsModuleAccessTitle')}</p>
-          <p className="text-xs text-subtext mb-3">{t('settingsModuleAccessHint')}</p>
+          <div className="flex items-center gap-1.5 mb-2">
+            <p className="text-sm font-medium text-ink">{t('settingsModuleAccessTitle')}</p>
+            <InfoTooltip content={t('settingsModuleAccessHint')} />
+          </div>
           <div className="space-y-2 max-h-72 overflow-y-auto border border-line rounded-lg p-3">
             {modules.map((m) => (
               <div key={m.key} className="flex items-center justify-between gap-3 py-1.5">
@@ -627,8 +629,10 @@ function EditAccessModal({ user, onClose, onSaved }: { user: User; onClose: () =
           ))}
         </Select>
         <div>
-          <p className="text-sm font-medium text-ink mb-1">{t('settingsModuleAccessTitle')}</p>
-          <p className="text-xs text-subtext mb-3">{t('settingsModuleAccessHint')}</p>
+          <div className="flex items-center gap-1.5 mb-2">
+            <p className="text-sm font-medium text-ink">{t('settingsModuleAccessTitle')}</p>
+            <InfoTooltip content={t('settingsModuleAccessHint')} />
+          </div>
           <div className="space-y-2 max-h-72 overflow-y-auto border border-line rounded-lg p-3">
             {modules.map((m) => (
               <div key={m.key} className="flex items-center justify-between gap-3 py-1.5">
@@ -843,9 +847,11 @@ function RolesPermissionsTab() {
 
       {/* Compact matrix */}
       <div className="bg-surface rounded-xl border border-line overflow-hidden">
-        <div className="px-5 py-4 border-b border-line">
-          <h3 className="text-base font-semibold text-ink">{t('settingsPermissionSummary')}</h3>
-          <p className="text-xs text-subtext mt-0.5">{t('settingsClickRoleHint')}</p>
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-ink">{t('settingsPermissionSummary')}</h3>
+            <InfoTooltip content={t('settingsClickRoleHint')} />
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
