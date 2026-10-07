@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
@@ -6,32 +6,47 @@ import { MODULES } from '../../config/modules';
 import { useT } from '../../i18n';
 import { ThemeToggle, LanguageToggle } from '../../components/ThemeToggle';
 import { NotificationBell } from '../../components/NotificationBell';
-import { Search, ChevronRight } from 'lucide-react';
+import { Search, ChevronRight, Shield, Users, MapPin, CalendarCheck, Receipt } from 'lucide-react';
+
+type ModuleCategory = 'ALL' | 'ops' | 'hr' | 'payroll' | 'admin' | 'reports';
+
+const CATEGORIES: { id: ModuleCategory; label: string }[] = [
+  { id: 'ALL', label: 'All Modules' },
+  { id: 'ops', label: 'Operations & Sites' },
+  { id: 'hr', label: 'HR & Personnel' },
+  { id: 'payroll', label: 'Payroll' },
+  { id: 'admin', label: 'Administration' },
+];
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const t = useT();
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState<ModuleCategory>('ALL');
 
   if (user?.role === UserRole.GUARD) {
     return (
-      <div className="min-h-screen bg-canvas ">
-        <header className="bg-white border-b border-line px-8 py-3 flex items-center justify-between">
+      <div className="min-h-screen bg-canvas">
+        <header className="bg-surface border-b border-line px-8 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Vital Security" className="w-10 h-10 rounded-xl object-contain" />
+            <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center p-1 shadow-xs ring-1 ring-slate-900/10">
+              <img src="/logo.png" alt="Vital Security" className="w-full h-full object-contain" />
+            </div>
             <div>
               <p className="text-sm font-bold text-ink leading-tight">Vital Security</p>
-              <p className="text-[11px] text-muted leading-tight">Enterprise resource planning</p>
+              <p className="text-[11px] text-muted leading-tight">Security Officer Portal</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <LanguageToggle />
+            <ThemeToggle />
             <NotificationBell />
             <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity" title="My Profile">
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold text-sm">
+                <div className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs ring-2 ring-blue-500/20">
                   {user?.firstName?.[0]}{user?.lastName?.[0]}
                 </div>
               )}
@@ -42,11 +57,19 @@ export default function DashboardPage() {
             </Link>
           </div>
         </header>
-        <div className="p-6 flex items-center justify-center min-h-[calc(100vh-60px)]">
-          <div className="v-card p-10 text-center max-w-md">
-            <img src="/logo.png" alt="Vital Security" className="w-16 h-16 mx-auto mb-4 object-contain" />
+        <div className="p-6 flex items-center justify-center min-h-[calc(100vh-70px)]">
+          <div className="v-card p-10 text-center max-w-md shadow-card">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 text-blue-600 flex items-center justify-center mx-auto mb-5 shadow-xs">
+              <Shield className="w-8 h-8 stroke-[2]" />
+            </div>
             <h2 className="text-xl font-bold text-ink mb-2">{t('welcomeGuard')}, {user?.firstName}!</h2>
-            <p className="text-muted text-sm">{t('guardDashboardHint')}</p>
+            <p className="text-muted text-sm leading-relaxed mb-6">{t('guardDashboardHint')}</p>
+            <button
+              onClick={() => navigate('/guard')}
+              className="w-full py-2.5 px-4 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2"
+            >
+              Go to Guard Portal <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -60,85 +83,120 @@ export default function DashboardPage() {
     return t('goodEvening');
   };
 
-  // `hidden` module cards are left out of the grid - they stay reachable from
-  // their parent module (e.g. Payroll > Configuration, HR & People > Staff Attendance)
-  const modules = MODULES.filter((m) => !m.hidden && m.roles.includes(user?.role as UserRole));
+  const allowedModules = useMemo(() => {
+    return MODULES.filter((m) => !m.hidden && m.roles.includes(user?.role as UserRole));
+  }, [user?.role]);
 
-  const filteredModules = searchQuery.trim()
-    ? modules.filter(
+  const filteredModules = useMemo(() => {
+    let result = allowedModules;
+
+    if (activeCategory !== 'ALL') {
+      result = result.filter((m) => m.groupId === activeCategory);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
         (m) =>
-          m.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          m.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : modules;
+          m.label.toLowerCase().includes(q) ||
+          m.subtitle.toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [allowedModules, activeCategory, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-canvas ">
-      {/* Header */}
-      <header className="bg-surface border-b border-line px-8 py-3 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="Vital Security" className="w-10 h-10 rounded-xl object-contain" />
-            <div>
-              <p className="text-sm font-bold text-ink leading-tight">Vital Security</p>
-              <p className="text-[11px] text-muted leading-tight">Enterprise resource planning</p>
+    <div className="min-h-screen bg-canvas">
+      {/* Top Header */}
+      <header className="bg-surface border-b border-line px-8 py-3.5 flex items-center justify-between sticky top-0 z-50 shadow-xs">
+        <div className="flex items-center gap-3.5">
+          <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center p-1 shadow-xs ring-1 ring-slate-900/10">
+            <img src="/logo.png" alt="Vital Security" className="w-full h-full object-contain" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-bold text-ink leading-tight tracking-tight">Vital Security</p>
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-subtle text-muted border border-line uppercase tracking-wider">
+                ERP Command
+              </span>
             </div>
+            <p className="text-[11px] text-muted font-medium leading-tight">Operations, Workforce & Payroll</p>
+          </div>
         </div>
 
+        {/* Global Search Bar */}
         <div className="flex-1 max-w-xl mx-8">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+          <div className="relative group">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-primary-600 transition-colors" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('searchPlaceholder')}
-              className="w-full pl-11 pr-4 py-2.5 text-sm bg-canvas  border border-line rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all placeholder:text-muted"
+              className="w-full pl-10 pr-16 py-2 text-xs bg-canvas hover:bg-subtle/50 focus:bg-surface border border-line rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 transition-all placeholder:text-muted font-medium"
             />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-0.5 text-[10px] text-muted font-semibold bg-surface border border-line px-1.5 py-0.5 rounded shadow-xs">
+              <span>Ctrl</span><span>K</span>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-5">
+        {/* Status, Language, Theme & Profile */}
+        <div className="flex items-center gap-4">
+          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            System Live
+          </div>
+
           <LanguageToggle />
           <ThemeToggle />
           <NotificationBell />
+
+          <div className="h-6 w-px bg-line" />
+
           <Link to="/profile" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" title="My Profile">
             {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+              <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
             ) : (
-              <div className="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold text-sm">
+              <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs ring-2 ring-blue-500/20">
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </div>
             )}
             <div className="text-right">
-              <p className="text-sm font-semibold text-ink leading-tight">{user?.firstName} {user?.lastName}</p>
-              <p className="text-[11px] text-muted leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
+              <p className="text-xs font-semibold text-ink leading-tight">{user?.firstName} {user?.lastName}</p>
+              <p className="text-[10px] text-muted font-medium leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
           </Link>
         </div>
       </header>
 
-      <div className="px-8 py-8 max-w-[1600px] mx-auto">
-        {/* Welcome Banner */}
-        <div className="flex items-center justify-between mb-8">
+      {/* Main Container */}
+      <div className="px-8 py-8 max-w-[1600px] mx-auto space-y-6">
+        {/* Welcome & Command Banner */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-line/60">
           <div>
-            <h1 className="text-[26px] font-bold text-ink mb-1">
-              {greeting()}, {user?.firstName}!{' '}
-              <span className="inline-block" role="img" aria-label="wave">
-                <svg width="32" height="32" viewBox="0 0 32 32" fill="none" className="inline-block -mt-1">
-                  <text x="2" y="26" fontSize="26">👋</text>
-                </svg>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="p-1 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
+                <Shield className="w-4 h-4" />
               </span>
-            </h1>
-            <p className="text-sm text-muted">{t('dashboardSubtitle')}</p>
+              <h1 className="text-2xl font-bold text-ink tracking-tight">
+                {greeting()}, {user?.firstName}
+              </h1>
+            </div>
+            <p className="text-xs text-muted font-medium">
+              Enterprise management dashboard for security deployments, attendance logs, and payroll validation.
+            </p>
           </div>
-          <div className="text-right flex-shrink-0">
-            <div className="inline-flex items-center gap-2 bg-surface border border-line rounded-xl px-4 py-2.5 shadow-card">
-              <span className="text-base">📅</span>
-              <div>
-                <p className="text-sm font-semibold text-ink leading-tight">
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-3 bg-surface border border-line rounded-xl px-4 py-2 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-blue-600" />
+              <div className="text-right">
+                <p className="text-xs font-semibold text-ink leading-tight">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
-                <p className="text-xs text-muted mt-0.5">
+                <p className="text-[10px] text-muted font-mono leading-tight">
                   {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
@@ -146,8 +204,90 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Module Grid — uniform card size, generous breathing room */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        {/* Operational Overview Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div
+            onClick={() => navigate('/employees')}
+            className="bg-surface border border-line rounded-xl p-4 shadow-xs hover:border-primary-400 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-muted">Workforce</span>
+              <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-navy-800 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-xl font-bold text-ink">Directory</p>
+            <p className="text-[11px] text-muted mt-0.5">Active personnel & staff</p>
+          </div>
+
+          <div
+            onClick={() => navigate('/sites')}
+            className="bg-surface border border-line rounded-xl p-4 shadow-xs hover:border-primary-400 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-muted">Client Sites</span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-navy-800 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <MapPin className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-xl font-bold text-ink">Active Posts</p>
+            <p className="text-[11px] text-muted mt-0.5">Deployment stations</p>
+          </div>
+
+          <div
+            onClick={() => navigate('/guards')}
+            className="bg-surface border border-line rounded-xl p-4 shadow-xs hover:border-primary-400 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-muted">Guards</span>
+              <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-navy-800 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                <CalendarCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-xl font-bold text-ink">Rosters</p>
+            <p className="text-[11px] text-muted mt-0.5">Shifts & attendance</p>
+          </div>
+
+          <div
+            onClick={() => navigate('/guard-payroll')}
+            className="bg-surface border border-line rounded-xl p-4 shadow-xs hover:border-primary-400 transition-all cursor-pointer group"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-muted">Payroll</span>
+              <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-navy-800 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                <Receipt className="w-4 h-4" />
+              </div>
+            </div>
+            <p className="text-xl font-bold text-ink">Processing</p>
+            <p className="text-[11px] text-muted mt-0.5">Monthly calculations</p>
+          </div>
+        </div>
+
+        {/* Category Filter Pills */}
+        <div className="flex items-center justify-between gap-3 flex-wrap pt-2">
+          <div className="flex items-center gap-1.5 p-1 bg-subtle/60 rounded-xl border border-line">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActiveCategory(cat.id)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                  activeCategory === cat.id
+                    ? 'bg-surface text-ink shadow-xs border border-line font-bold'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          <p className="text-xs text-muted font-medium">
+            Showing <span className="font-bold text-ink">{filteredModules.length}</span> active modules
+          </p>
+        </div>
+
+        {/* Modules Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredModules.map((mod) => {
             const Icon = mod.icon;
             const isClickable = mod.active && mod.route;

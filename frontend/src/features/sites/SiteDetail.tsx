@@ -78,10 +78,10 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const SITE_TYPE_COLORS: Record<string, string> = {
-  COMMERCIAL: 'bg-indigo-100 text-primary-700',
-  RESIDENTIAL: 'bg-violet-100 text-violet-700',
-  INDUSTRIAL: 'bg-amber-100 text-amber-700',
-  GOVERNMENT: 'bg-teal-100 text-teal-700',
+  COMMERCIAL: 'bg-slate-100 text-slate-800 border border-slate-200 dark:bg-navy-800 dark:text-slate-200 dark:border-navy-700',
+  RESIDENTIAL: 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
+  INDUSTRIAL: 'bg-slate-900 text-white shadow-xs dark:bg-navy-700',
+  GOVERNMENT: 'bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900',
 };
 
 const TABS = [

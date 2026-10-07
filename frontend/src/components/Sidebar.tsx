@@ -2,6 +2,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { useAuthStore, can } from '../stores/authStore';
 import { UserRole } from '../types';
+import { ThemeToggle, LanguageToggle } from './ThemeToggle';
 
 interface NavItem {
   path: string;
@@ -68,20 +69,11 @@ const lockedModules = [
 ];
 
 const SIDEBAR_COLORS: Record<string, { activeBg: string; activeText: string; childActiveBg: string; childActiveText: string }> = {
-  '/':           { activeBg: 'bg-slate-500/15',   activeText: 'text-slate-400',   childActiveBg: 'bg-slate-500/15',   childActiveText: 'text-slate-400' },
-  '/employees':  { activeBg: 'bg-violet-500/15',  activeText: 'text-violet-400',  childActiveBg: 'bg-violet-500/15',  childActiveText: 'text-violet-400' },
-  '/guards':    { activeBg: 'bg-blue-500/15',    activeText: 'text-blue-400',    childActiveBg: 'bg-blue-500/15',    childActiveText: 'text-blue-400' },
-  '/guard-payroll': { activeBg: 'bg-amber-500/15', activeText: 'text-amber-400',  childActiveBg: 'bg-amber-500/15',  childActiveText: 'text-amber-400' },
-  '/settings':   { activeBg: 'bg-rose-500/15',    activeText: 'text-rose-400',    childActiveBg: 'bg-rose-500/15',    childActiveText: 'text-rose-400' },
+  default: { activeBg: 'bg-blue-600/20', activeText: 'text-blue-400', childActiveBg: 'bg-blue-600/15', childActiveText: 'text-blue-300' },
 };
 
-function getSidebarColors(path: string) {
-  if (SIDEBAR_COLORS[path]) return SIDEBAR_COLORS[path];
-  if (path.startsWith('/employees') || path.startsWith('/staff-attendance') || path.startsWith('/contracts')) return SIDEBAR_COLORS['/employees'];
-  if (path.startsWith('/rotations') || path.startsWith('/guards') || path.startsWith('/attendance')) return SIDEBAR_COLORS['/guards'];
-  if (path.startsWith('/guard-payroll') || path.startsWith('/staff-payroll')) return SIDEBAR_COLORS['/guard-payroll'];
-  if (path.startsWith('/settings')) return SIDEBAR_COLORS['/settings'];
-  return SIDEBAR_COLORS['/'];
+function getSidebarColors(_path: string) {
+  return SIDEBAR_COLORS.default;
 }
 
 function getNavItems(opsAlerts: number, perms?: string[]): NavItem[] {
@@ -260,7 +252,11 @@ export default function Sidebar() {
       )}
 
       {/* User Footer */}
-      <div className="p-3 border-t border-gray-700/50 flex-shrink-0">
+      <div className="p-3 border-t border-gray-700/50 flex-shrink-0 space-y-2">
+        <div className="flex items-center justify-between px-2 pt-1">
+          <LanguageToggle className="bg-gray-800/80 border-gray-700 text-gray-300" />
+          <ThemeToggle className="bg-gray-800/80 border-gray-700 text-gray-300 hover:text-white hover:bg-gray-700" />
+        </div>
         <div className="flex items-center gap-3 px-3 py-2">
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             {user.firstName?.[0]}{user.lastName?.[0]}

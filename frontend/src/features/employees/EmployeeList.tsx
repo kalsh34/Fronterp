@@ -70,8 +70,8 @@ const categoryLabels: Record<string, DictKey> = {
 
 /** Category chip: semantic info/violet accents that read well on both themes. */
 const categoryChip: Record<string, string> = {
-  GUARD: 'bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-300',
-  OFFICE_STAFF: 'bg-primary-50 text-primary-700 dark:bg-primary-500/10 dark:text-primary-300',
+  GUARD: 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
+  OFFICE_STAFF: 'bg-slate-100 text-slate-800 border border-slate-200 dark:bg-navy-800 dark:text-slate-200 dark:border-navy-700',
 };
 
 const tabs: DictKey[] = ['tabDirectory', 'tabGuarantor', 'tabContract', 'tabAttendance', 'tabPerformance'];

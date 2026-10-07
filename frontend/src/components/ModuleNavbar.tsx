@@ -32,14 +32,9 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
               <p className="text-[10px] text-muted leading-tight">Enterprise resource planning</p>
             </div>
           </button>
-          <div className="h-6 w-px bg-line" />
-          <span
-            className="text-sm font-semibold px-3 py-1 rounded-full"
-            style={{
-              backgroundColor: `${moduleGroup.color}12`,
-              color: moduleGroup.color,
-            }}
-          >
+          <div className="h-5 w-px bg-line" />
+          <span className="text-xs font-bold px-3 py-1 rounded-full bg-slate-900 text-white tracking-wide shadow-xs flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
             {moduleGroup.labelKey ? t(moduleGroup.labelKey as DictKey) : moduleGroup.label}
           </span>
         </div>
@@ -83,7 +78,7 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
       </div>
 
       {/* Sub-feature tabs */}
-      <div className="flex items-center gap-1 px-6 pb-0">
+      <div className="flex items-center gap-1 px-6 border-t border-line/60 bg-subtle/30">
         {moduleGroup.subFeatures.map((sf) => {
           const sfPath = sf.route.split('?')[0];
           const isActive =
@@ -95,14 +90,13 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
             <NavLink
               key={sf.route}
               to={sf.route}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-all duration-150 ${
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold border-b-2 transition-all duration-150 ${
                 isActive
-                  ? 'border-current'
+                  ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-surface shadow-xs -mb-px'
                   : 'border-transparent text-muted hover:text-ink hover:border-line'
               }`}
-              style={isActive ? { color: moduleGroup.color, borderColor: moduleGroup.color } : undefined}
             >
-              {Icon && <Icon size={18} />}
+              {Icon && <Icon size={16} className={isActive ? 'text-primary-600 dark:text-primary-400' : 'text-muted'} />}
               {sf.labelKey ? t(sf.labelKey as DictKey) : sf.label}
             </NavLink>
           );
