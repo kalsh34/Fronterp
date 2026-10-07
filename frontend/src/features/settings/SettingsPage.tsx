@@ -147,38 +147,38 @@ export function SettingsPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Page Title */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-ink">{t('settingsTitle')}</h1>
-          <p className="text-xs text-muted mt-1">Manage system users, access roles, system integrations, and audit logs.</p>
+      {/* Navigation Tabs + Action Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-2">
+        <div className="flex flex-wrap items-center gap-1">
+          {TAB_ITEMS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-2.5 whitespace-nowrap ${
+                activeTab === tab.key
+                  ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-primary-500/5'
+                  : 'border-transparent text-muted hover:text-ink hover:border-line'
+              }`}
+            >
+              {t(tab.labelKey)}
+            </button>
+          ))}
+          <div className="ml-2">
+            <InfoTooltip content="Manage system users, access roles, system integrations, and audit logs." />
+          </div>
         </div>
-        <button
-          onClick={() => setShowProvisionModal(true)}
-          className="h-10 px-5 flex items-center gap-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          {t('settingsProvisionNewUser')}
-        </button>
-      </div>
 
-      {/* Navigation Tabs (matching HR and Reports) */}
-      <div className="flex flex-wrap gap-1 border-b border-line">
-        {TAB_ITEMS.map((tab) => (
+        {activeTab === 'users' && (
           <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px whitespace-nowrap ${
-              activeTab === tab.key
-                ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-primary-500/5'
-                : 'border-transparent text-muted hover:text-ink hover:border-line'
-            }`}
+            onClick={() => setShowProvisionModal(true)}
+            className="h-9 px-4 flex items-center gap-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm"
           >
-            {t(tab.labelKey)}
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            {t('settingsProvisionNewUser')}
           </button>
-        ))}
+        )}
       </div>
 
       {/* Users Tab Content */}
