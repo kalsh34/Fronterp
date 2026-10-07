@@ -3,6 +3,21 @@
  * Both operate on data the run detail already fetched (no extra API surface).
  */
 
+import api from '../../lib/api';
+
+/** Download a remote binary/CSV file through authenticated API */
+export async function downloadReport(url: string, filename: string) {
+  const res = await api.get(url, { responseType: 'blob' });
+  const blob = new Blob([res.data]);
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+}
+
 /** Download a 2D array as CSV (UTF-8 BOM so Excel opens it cleanly). */
 export function downloadCsv(filename: string, rows: (string | number | null | undefined)[][]) {
   const esc = (v: string | number | null | undefined) => {

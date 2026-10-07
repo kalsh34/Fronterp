@@ -1,4 +1,4 @@
-import { AlertTriangle, Calculator, CheckCircle2, ChevronLeft, CirclePlus, Download, Eye, Printer, Undo2, Wallet } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckCircle2, ChevronLeft, CirclePlus, Download, Eye, FileText, Printer, Undo2, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
@@ -14,7 +14,8 @@ import { StaffConfigTab } from './StaffConfigTab';
 import { AttendanceSummarySection, StaffAttRow, GuardAttRow, RunAttendanceSummary } from '../payroll-shared/AttendanceSummarySection';
 import { AddDeductionModal } from '../payroll-shared/AddDeductionModal';
 import { PayrollAuditCard } from '../payroll-shared/PayrollAuditCard';
-import { downloadCsv, printPayslip } from '../payroll-shared/export';
+import { downloadCsv, downloadReport, printPayslip } from '../payroll-shared/export';
+import PayslipModal from '../../components/payroll/PayslipModal';
 
 const now = new Date();
 const YEARS = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 2 + i);
@@ -53,6 +54,28 @@ export default function StaffPayrollPage() {
     amount?: number | null;
     label?: string;
   } | null>(null);
+  const [payslipModalOpen, setPayslipModalOpen] = useState(false);
+  const [payslipRecordId, setPayslipRecordId] = useState<string | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
+  const handleExportBank = async (bank: string) => {
+    if (!detail?.run._id) return;
+    const filterQuery = bank !== 'ALL' ? `?bank=${encodeURIComponent(bank)}` : '';
+    await downloadReport(`/staff-payroll/runs/${detail.run._id}/export/bank${filterQuery}`, `staff-bank-disbursement-${bank}-${detail.run.periodKey}.csv`);
+    setExportMenuOpen(false);
+  };
+
+  const handleExportTax = async () => {
+    if (!detail?.run._id) return;
+    await downloadReport(`/staff-payroll/runs/${detail.run._id}/export/tax`, `staff-tax-declaration-${detail.run.periodKey}.csv`);
+    setExportMenuOpen(false);
+  };
+
+  const handleExportPension = async () => {
+    if (!detail?.run._id) return;
+    await downloadReport(`/staff-payroll/runs/${detail.run._id}/export/pension`, `staff-pension-poessa-${detail.run.periodKey}.csv`);
+    setExportMenuOpen(false);
+  };
 
   const errMsg = (e: any, fallback: string) => e?.response?.data?.message || e?.message || fallback;
 
@@ -356,9 +379,47 @@ export default function StaffPayrollPage() {
                 {['DRAFT', 'CALCULATED', 'RETURNED'].includes(run.status) && canCalculate && (
                   <Button variant="secondary" size="sm" disabled={busy} onClick={() => runAction(run._id, 'recalculate')}>{t('gpRecalculate')}</Button>
                 )}
-                <Button variant="secondary" size="sm" onClick={() => exportRegister()}>
-                  <Download size={14} className="mr-1" />CSV
-                </Button>
+                <div className="relative inline-block text-left">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setExportMenuOpen(!exportMenuOpen)}
+                    className="flex items-center gap-1.5"
+                  >
+                    <Download size={14} />
+                    Export
+                  </Button>
+                  {exportMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-64 bg-surface border border-line rounded-xl shadow-card z-50 py-2 divide-y divide-line/60">
+                      <div className="py-1">
+                        <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Bank Batch Transfers</p>
+                        <button onClick={() => handleExportBank('CBE')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          Commercial Bank of Ethiopia (CBE)
+                        </button>
+                        <button onClick={() => handleExportBank('Awash')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          Awash Bank Batch
+                        </button>
+                        <button onClick={() => handleExportBank('ALL')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          All Banks Combined
+                        </button>
+                      </div>
+                      <div className="py-1">
+                        <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Statutory Compliance</p>
+                        <button onClick={handleExportTax} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          Tax Declaration Schedule (ERCA)
+                        </button>
+                        <button onClick={handleExportPension} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          POESSA Pension Remittance (18%)
+                        </button>
+                      </div>
+                      <div className="py-1">
+                        <button onClick={() => { exportRegister(); setExportMenuOpen(false); }} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors font-semibold">
+                          Full Payroll Register (CSV)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Totals */}
@@ -477,6 +538,17 @@ export default function StaffPayrollPage() {
                               <CirclePlus size={14} />
                             </Button>
                           )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setPayslipRecordId(rec._id);
+                              setPayslipModalOpen(true);
+                            }}
+                            title="Official Payslip"
+                          >
+                            <FileText size={14} className="text-primary-600" />
+                          </Button>
                           <Button variant="ghost" size="sm" onClick={() => openPayslip(rec)} title={t('payslip')}>
                             <Printer size={14} />
                           </Button>
@@ -561,6 +633,14 @@ export default function StaffPayrollPage() {
           )}
         </div>
       </Modal>
+
+      {/* Official Payslip Modal with Print/Download */}
+      <PayslipModal
+        isOpen={payslipModalOpen}
+        onClose={() => setPayslipModalOpen(false)}
+        recordId={payslipRecordId}
+        type="STAFF"
+      />
     </div>
   );
 }
