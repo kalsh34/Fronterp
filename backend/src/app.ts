@@ -60,6 +60,7 @@ app.use('/api/sites', siteRoutes);
 app.use('/api/guards', guardRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/guard-payroll', guardPayrollRoutes);
+app.use('/api/staff-payroll', officePayrollRoutes);
 app.use('/api/office-payroll', officePayrollRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/rules', rulesRoutes);
