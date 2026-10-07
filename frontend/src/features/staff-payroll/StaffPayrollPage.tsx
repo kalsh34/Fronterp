@@ -1,8 +1,7 @@
-import { AlertTriangle, Calculator, CheckCircle2, ChevronLeft, CirclePlus, Download, Eye, FileText, Printer, Undo2, Wallet } from 'lucide-react';
+import { AlertTriangle, Calculator, ChevronLeft, CirclePlus, Download, Eye, FileText, Printer, Undo2, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
-import { Badge, Button, Card, EmptyState, LoadingSpinner, Modal, PageHeader, Select, Tabs } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, LoadingSpinner, Modal, Select, Tabs } from '../../components/ui';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import { useT } from '../../i18n';
@@ -22,7 +21,6 @@ const YEARS = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 2 + i);
 
 export default function StaffPayrollPage() {
   const t = useT();
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [tab, setTab] = useState('runs');
 
@@ -265,16 +263,29 @@ export default function StaffPayrollPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <button onClick={() => (detail ? setDetail(null) : navigate(-1))} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors">
-        <ChevronLeft size={16} />
-        {t('back')}
-      </button>
-
-      <PageHeader
-        title={t('navStaffPayroll')}
-        subtitle={t('spPageSubtitle')}
-      />
+    <div className="p-6 space-y-5">
+      {detail ? (
+        <button
+          onClick={() => setDetail(null)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-surface text-sm font-medium text-muted hover:text-ink hover:bg-subtle transition-colors mb-2"
+        >
+          <ChevronLeft size={16} />
+          {t('back')}
+        </button>
+      ) : (
+        <div className="border-b border-line">
+          <Tabs
+            tabs={[
+              { key: 'runs', label: t('spRuns') },
+              { key: 'entries', label: t('spOvertimeBonus') },
+              { key: 'deductions', label: t('spDeductionsTab') },
+              { key: 'config', label: t('spConfigTab') },
+            ]}
+            active={tab}
+            onChange={setTab}
+          />
+        </div>
+      )}
 
       {error && (
         <div className="flex items-center gap-2 p-3 rounded-lg bg-danger-subtle border border-danger-line text-danger-text text-sm">
@@ -284,17 +295,6 @@ export default function StaffPayrollPage() {
       {notice && (
         <div className="p-3 rounded-lg bg-success-subtle border border-success-line text-success-text text-sm">{notice}</div>
       )}
-
-      <Tabs
-        tabs={[
-          { key: 'runs', label: t('spRuns'), icon: <Wallet size={14} /> },
-          { key: 'entries', label: t('spOvertimeBonus'), icon: <Calculator size={14} /> },
-          { key: 'deductions', label: t('spDeductionsTab'), icon: <AlertTriangle size={14} /> },
-          { key: 'config', label: t('spConfigTab'), icon: <CheckCircle2 size={14} /> },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
 
       {tab === 'runs' && !detail && (
         <div className="space-y-4">

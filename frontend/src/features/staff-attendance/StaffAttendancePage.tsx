@@ -1,13 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole, StaffAttendanceStatus } from '../../types';
-import { Card, PageHeader, LoadingSpinner, Modal } from '../../components/ui';
-import { Button } from '../../components/ui';
+import { Button, Card, LoadingSpinner, Modal } from '../../components/ui';
+import { InfoTooltip } from '../../components/ui/Tooltip';
 import { useT, useLang, getMonthNames } from '../../i18n';
 import type { DictKey } from '../../i18n';
-import { LanguageToggle, ThemeToggle } from '../../components/ThemeToggle';
 
 interface Employee {
   _id: string;
@@ -255,65 +253,48 @@ export default function StaffAttendancePage() {
     }`;
 
   return (
-    <div className="p-6">
-      {/* Breadcrumb + Back */}
-      <div className="flex items-center gap-2 text-xs text-subtext mb-4">
-        <Link to="/employees" className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-line text-muted hover:bg-subtle hover:text-ink transition-colors">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-          {t('backToEmployees')}
-        </Link>
-        <span>/</span>
-        <span>Vital Security PLC</span>
-        <span>/</span>
-        <span>{t('hrPeople')}</span>
-        <span>/</span>
-        <span>{t('navStaffAttendance')}</span>
-      </div>
-
-      <PageHeader
-        title={t('navStaffAttendance')}
-        subtitle={view === 'grid' ? t('markDailyStatus') : t('payableDaysSummary')}
-        action={
-          <div className="flex items-center gap-2">
-            <LanguageToggle />
-            <ThemeToggle />
-            <Button variant="ghost" size="sm" onClick={handlePrint}>
-              {t('print')}
-            </Button>
-            {canManage && view === 'grid' && (
-              <>
-                <Button variant="ghost" size="sm" onClick={() => handleQuickMarkAll(StaffAttendanceStatus.PRESENT)} disabled={saving}>
-                  {t('markAllPresentToday')}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleQuickMarkAll(StaffAttendanceStatus.ABSENT)} disabled={saving}>
-                  {t('markAllAbsentToday')}
-                </Button>
-              </>
-            )}
-          </div>
-        }
-      />
-
-      {/* View Toggle + Month Nav */}
-      <div className="flex items-center justify-between mb-4">
+    <div className="p-6 space-y-4">
+      {/* View Toggle + Month Nav + Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={prevMonth}>&larr; {t('previous')}</Button>
-          <h2 className="text-lg font-semibold text-ink">{monthNames[month - 1]} {year}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-ink">{monthNames[month - 1]} {year}</h2>
+            <InfoTooltip content={view === 'grid' ? t('markDailyStatus') : t('payableDaysSummary')} />
+          </div>
           <Button variant="ghost" size="sm" onClick={nextMonth}>{t('next')} &rarr;</Button>
         </div>
-        <div className="flex items-center gap-1 bg-subtle rounded-lg p-0.5">
-          <button
-            onClick={() => setView('grid')}
-            className={viewToggleCls(view === 'grid')}
-          >
-            {t('grid')}
-          </button>
-          <button
-            onClick={() => setView('summary')}
-            className={viewToggleCls(view === 'summary')}
-          >
-            {t('summaryView')}
-          </button>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex bg-subtle p-0.5 rounded-lg border border-line">
+            <button
+              onClick={() => setView('grid')}
+              className={viewToggleCls(view === 'grid')}
+            >
+              {t('grid')}
+            </button>
+            <button
+              onClick={() => setView('summary')}
+              className={viewToggleCls(view === 'summary')}
+            >
+              {t('summaryView')}
+            </button>
+          </div>
+
+          <Button variant="secondary" size="sm" onClick={handlePrint}>
+            {t('print')}
+          </Button>
+
+          {canManage && view === 'grid' && (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => handleQuickMarkAll(StaffAttendanceStatus.PRESENT)} disabled={saving}>
+                {t('markAllPresentToday')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => handleQuickMarkAll(StaffAttendanceStatus.ABSENT)} disabled={saving}>
+                {t('markAllAbsentToday')}
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -499,7 +480,12 @@ export default function StaffAttendancePage() {
                   <th className="text-center px-3 py-3 text-xs font-semibold text-purple-700 dark:text-purple-400 uppercase tracking-wider">{t('halfDay')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-muted uppercase tracking-wider">{t('stWeekend')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-info-text uppercase tracking-wider">{t('stHoliday')}</th>
-                  <th className="text-center px-3 py-3 text-xs font-semibold text-success-text uppercase tracking-wider bg-success-subtle">{t('payableDays')}</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-success-text uppercase tracking-wider bg-success-subtle">
+                    <span className="inline-flex items-center justify-center gap-1">
+                      {t('payableDays')}
+                      <InfoTooltip content={`${t('payrollFormula')}: payable_days = PRESENT + HOLIDAY + PAID_LEAVE + SICK_LEAVE + WEEKEND + (HALF_DAY × 0.5). ${t('formulaNote')}`} />
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -528,16 +514,6 @@ export default function StaffAttendancePage() {
               </tbody>
             </table>
           </Card>
-
-          <div className="mt-6 bg-info-subtle border border-info-line rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-info-text mb-2">{t('payrollFormula')}</h3>
-            <p className="text-sm text-info-text font-mono">
-              payable_days = PRESENT + HOLIDAY + PAID_LEAVE + SICK_LEAVE + WEEKEND + (HALF_DAY × 0.5)
-            </p>
-            <p className="text-xs text-info-text opacity-80 mt-2">
-              {t('formulaNote')}
-            </p>
-          </div>
         </div>
       )}
 

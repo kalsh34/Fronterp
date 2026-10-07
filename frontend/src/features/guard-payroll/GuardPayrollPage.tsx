@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Calculator, CheckCircle2, ChevronLeft, CirclePlus, Clock, Download, Eye, Printer, Undo2, Wallet } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
-import { Badge, Button, Card, EmptyState, LoadingSpinner, Modal, PageHeader, Select, Tabs } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, LoadingSpinner, Modal, Select, Tabs } from '../../components/ui';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import { useT } from '../../i18n';
@@ -22,7 +21,6 @@ const YEARS = Array.from({ length: 6 }, (_, i) => now.getFullYear() - 2 + i);
 
 export default function GuardPayrollPage() {
   const t = useT();
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [tab, setTab] = useState('runs');
 
@@ -256,15 +254,17 @@ export default function GuardPayrollPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <button onClick={() => (detail ? setDetail(null) : navigate(-1))} className="flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors">
-        <ChevronLeft size={16} />
-        {detail ? t('back') : t('back')}
-      </button>
-
-      {!detail ? (
-        <>
-          <PageHeader title={t('navGuardPayroll')} subtitle={t('moduleGuardPayrollSub')} />
+    <div className="p-6 space-y-5">
+      {detail ? (
+        <button
+          onClick={() => setDetail(null)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-line bg-surface text-sm font-medium text-muted hover:text-ink hover:bg-subtle transition-colors mb-2"
+        >
+          <ChevronLeft size={16} />
+          {t('back')}
+        </button>
+      ) : (
+        <div className="border-b border-line">
           <Tabs
             tabs={[
               { key: 'runs', label: t('gpRuns') },
@@ -275,6 +275,11 @@ export default function GuardPayrollPage() {
             active={tab}
             onChange={setTab}
           />
+        </div>
+      )}
+
+      {!detail ? (
+        <>
 
           {error && (
             <div className="rounded-xl border border-danger-line bg-danger-subtle px-4 py-3 text-sm text-danger-text flex items-start gap-2">

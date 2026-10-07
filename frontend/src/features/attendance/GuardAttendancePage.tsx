@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Clock, Info, X } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Info, X } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
-import { Badge, Button, Card, EmptyState, FormField, LoadingSpinner, Modal, PageHeader, Select, Tabs } from '../../components/ui';
+import { Badge, Button, Card, EmptyState, FormField, LoadingSpinner, Modal, Select, Tabs } from '../../components/ui';
+import { InfoTooltip } from '../../components/ui/Tooltip';
 import { formatDisplayDate, todayYmd, toYmd } from '../../lib/dates';
 import { useT } from '../../i18n';
 
@@ -430,24 +431,21 @@ export default function GuardAttendancePage() {
   }, [sheet, sheetOnly]);
 
   return (
-    <div className="p-6 space-y-6">
-      <PageHeader
-        title={t('attendanceTitle')}
-        subtitle={t('attendanceSubtitle')}
-        action={
-          <div className="w-80">
-            <Tabs
-              tabs={[
-                { key: 'daily', label: t('attendanceTabDaily'), icon: <Clock size={14} /> },
-                { key: 'hours', label: t('attendanceTabMonthlyHours'), icon: <ClipboardList size={14} /> },
-                { key: 'monthly', label: t('attendanceTabMonthlyTotals'), icon: <CalendarDays size={14} /> },
-              ]}
-              active={tab}
-              onChange={(k) => setTab(k as 'daily' | 'monthly' | 'hours')}
-            />
-          </div>
-        }
-      />
+    <div className="p-6 space-y-5">
+      <div className="border-b border-line flex items-center justify-between">
+        <Tabs
+          tabs={[
+            { key: 'daily', label: t('attendanceTabDaily') },
+            { key: 'hours', label: t('attendanceTabMonthlyHours') },
+            { key: 'monthly', label: t('attendanceTabMonthlyTotals') },
+          ]}
+          active={tab}
+          onChange={(k) => setTab(k as 'daily' | 'monthly' | 'hours')}
+        />
+        <div className="pr-2 pb-2">
+          <InfoTooltip content={t('attendanceSubtitle')} />
+        </div>
+      </div>
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-danger-line bg-danger-subtle px-4 py-3 text-sm text-danger">

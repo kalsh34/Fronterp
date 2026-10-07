@@ -3,6 +3,7 @@ import { Download, Printer } from 'lucide-react';
 import api from '../../lib/api';
 import { LoadingSpinner } from '../../components/ui';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import { InfoTooltip } from '../../components/ui/Tooltip';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import { useLang, formatDate } from '../../i18n';
@@ -287,9 +288,12 @@ export default function ModuleReportsPage() {
       {/* Overview Card (matching HR's overview banner card) */}
       <div className="bg-surface rounded-xl border border-line p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
         <div>
-          <h2 className="text-lg font-semibold text-ink">
-            {t(TABS.find((x) => x.key === tab)?.labelKey || 'repTitle')}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-ink">
+              {t(TABS.find((x) => x.key === tab)?.labelKey || 'repTitle')}
+            </h2>
+            <InfoTooltip content={t('repSubtitle')} />
+          </div>
           <div className="flex flex-wrap items-center gap-2 mt-2">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-subtle text-xs font-medium text-ink">
               Total: {result?.rows?.length ?? 0}
@@ -310,9 +314,6 @@ export default function ModuleReportsPage() {
               );
             })}
           </div>
-          <p className="text-xs text-muted mt-2 max-w-xl">
-            {t('repSubtitle')}
-          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
