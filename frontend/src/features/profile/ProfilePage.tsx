@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, KeyRound, Loader2 } from 'lucide-react';
+import { Camera, KeyRound, Loader2, ArrowLeft, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../stores/authStore';
 import api from '../../lib/api';
 import { useT } from '../../i18n';
+import { ThemeToggle, LanguageToggle } from '../../components/ThemeToggle';
 
 type Feedback = { kind: 'success' | 'error'; text: string } | null;
 
@@ -107,20 +108,44 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-canvas">
       {/* Header */}
-      <header className="bg-surface border-b border-line px-6 py-3 flex items-center justify-between sticky top-0 z-40">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <img src="/logo.png" alt="Vital Security" className="w-9 h-9 rounded-xl object-contain" />
-          <div>
-            <p className="text-sm font-bold text-ink leading-tight">{t('myProfile')}</p>
-            <p className="text-[11px] text-muted leading-tight">Vital Security ERP</p>
+      <header className="h-16 bg-surface border-b border-line px-4 sm:px-6 md:px-8 flex items-center justify-between sticky top-0 z-40 shadow-xs">
+        <button
+          onClick={() => navigate(-1)}
+          className="group flex items-center gap-3 cursor-pointer text-left focus:outline-none"
+          title={t('back') || "Back"}
+        >
+          <div className="relative w-9 h-9 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 group-hover:bg-primary-600 dark:group-hover:bg-primary-600 transition-all duration-200 shrink-0">
+            <img
+              src="/logo.png"
+              alt="Vital Security"
+              className="w-full h-full object-contain transition-all duration-200 group-hover:opacity-0 group-hover:scale-50"
+            />
+            <ArrowLeft
+              className="w-4 h-4 text-white absolute opacity-0 scale-50 -translate-x-1 group-hover:opacity-100 group-hover:scale-100 group-hover:translate-x-0 transition-all duration-200"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-base font-bold text-ink tracking-tight group-hover:text-primary-600 transition-colors">
+              Vital Security
+            </span>
+            <span className="text-muted/40 font-light text-sm">/</span>
+            <span className="text-sm font-semibold text-muted group-hover:text-ink transition-colors">
+              {t('myProfile')}
+            </span>
           </div>
         </button>
-        <button
-          onClick={() => { logout(); navigate('/login'); }}
-          className="text-sm text-red-500 hover:text-red-600 font-medium transition-colors"
-        >
-          {t('logout')}
-        </button>
+
+        <div className="flex items-center gap-3 sm:gap-4">
+          <LanguageToggle />
+          <ThemeToggle />
+          <button
+            onClick={() => { logout(); navigate('/login'); }}
+            className="p-1.5 text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors ml-0.5"
+            title={t('logout')}
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
       </header>
 
       <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">

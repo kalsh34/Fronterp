@@ -3,7 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useT } from '../i18n';
 import { ThemeToggle, LanguageToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
-import { LogOut, Home, ArrowLeft } from 'lucide-react';
+import { LogOut, ArrowLeft } from 'lucide-react';
 import type { ModuleGroup } from '../config/modules';
 import type { DictKey } from '../i18n';
 
@@ -20,15 +20,15 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
   return (
     <div className="bg-surface border-b border-line sticky top-0 z-50">
       {/* Top bar: logo + module name + user */}
-      <div className="flex items-center justify-between px-6 py-2.5">
+      <div className="h-16 px-4 sm:px-6 md:px-8 flex items-center justify-between">
         {/* Brand & Modern Interactive Back Trigger */}
         <button
           onClick={() => navigate('/')}
-          className="group flex items-center gap-3 p-1.5 -ml-1.5 rounded-xl hover:bg-subtle transition-all duration-200 cursor-pointer text-left"
+          className="group flex items-center gap-3 cursor-pointer text-left focus:outline-none"
           title="Back to Dashboard"
         >
           {/* Morphing Logo / Back Arrow badge */}
-          <div className="relative w-8 h-8 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 group-hover:bg-primary-600 dark:group-hover:bg-primary-600 transition-all duration-200 shrink-0">
+          <div className="relative w-9 h-9 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 group-hover:bg-primary-600 dark:group-hover:bg-primary-600 transition-all duration-200 shrink-0">
             <img
               src="/logo.png"
               alt="Vital Security"
@@ -40,47 +40,44 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-ink tracking-tight group-hover:text-primary-600 transition-colors">
+            <span className="text-base font-bold text-ink tracking-tight group-hover:text-primary-600 transition-colors">
               Vital Security
             </span>
-            <span className="text-muted/40 font-light text-xs">/</span>
-            <span className="text-xs font-semibold text-muted group-hover:text-ink transition-colors">
+            <span className="text-muted/40 font-light text-sm">/</span>
+            <span className="text-sm font-semibold text-muted group-hover:text-ink transition-colors">
               {moduleGroup.labelKey ? t(moduleGroup.labelKey as DictKey) : moduleGroup.label}
             </span>
           </div>
         </button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 sm:gap-4">
           <LanguageToggle />
           <ThemeToggle />
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-1.5 text-xs text-muted hover:text-ink transition-colors px-2 py-1 rounded-lg hover:bg-subtle"
-          >
-            <Home className="w-3.5 h-3.5" />
-            {t('dashboard')}
-          </button>
           <NotificationBell />
+
+          <div className="h-6 w-px bg-line" />
+
           <Link
             to="/profile"
-            className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
             title="My Profile"
           >
             {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover" />
+              <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-semibold text-[11px]">
+              <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs ring-2 ring-blue-500/20">
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </div>
             )}
-            <div className="text-right">
+            <div className="text-right hidden sm:block">
               <p className="text-xs font-semibold text-ink leading-tight">{user?.firstName} {user?.lastName}</p>
-              <p className="text-[10px] text-muted leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
+              <p className="text-[10px] text-muted font-medium leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
           </Link>
+
           <button
             onClick={() => { logout(); navigate('/login'); }}
-            className="p-1.5 text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors"
+            className="p-1.5 text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors ml-0.5"
             title={t('logout')}
           >
             <LogOut className="w-4 h-4" />
@@ -90,7 +87,7 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
 
       {/* Sub-feature tabs — only rendered when multiple tabs exist to avoid redundant visual layers */}
       {moduleGroup.subFeatures && moduleGroup.subFeatures.length > 1 && (
-        <div className="flex items-center gap-1 px-6 border-t border-line/60 bg-subtle/30">
+        <div className="flex items-center gap-1 px-4 sm:px-6 md:px-8 border-t border-line/60 bg-subtle/30 overflow-x-auto no-scrollbar">
           {moduleGroup.subFeatures.map((sf) => {
             const sfPath = sf.route.split('?')[0];
             const isActive =
@@ -102,7 +99,7 @@ export default function ModuleNavbar({ moduleGroup }: Props) {
               <NavLink
                 key={sf.route}
                 to={sf.route}
-                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold border-b-2 transition-all duration-150 ${
+                className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold border-b-2 transition-all duration-150 shrink-0 ${
                   isActive
                     ? 'border-primary-600 text-primary-600 dark:text-primary-400 bg-surface shadow-xs -mb-px'
                     : 'border-transparent text-muted hover:text-ink hover:border-line'

@@ -6,7 +6,7 @@ import { MODULES } from '../../config/modules';
 import { useT } from '../../i18n';
 import { ThemeToggle, LanguageToggle } from '../../components/ThemeToggle';
 import { NotificationBell } from '../../components/NotificationBell';
-import { Search, ChevronRight, Shield, Users, MapPin, CalendarCheck, Receipt } from 'lucide-react';
+import { Search, ChevronRight, Shield, Users, MapPin, CalendarCheck, Receipt, LogOut } from 'lucide-react';
 
 type ModuleCategory = 'ALL' | 'ops' | 'hr' | 'payroll' | 'admin' | 'reports';
 
@@ -19,7 +19,7 @@ const CATEGORIES: { id: ModuleCategory; label: string }[] = [
 ];
 
 export default function DashboardPage() {
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const t = useT();
   const [searchQuery, setSearchQuery] = useState('');
@@ -28,33 +28,44 @@ export default function DashboardPage() {
   if (user?.role === UserRole.GUARD) {
     return (
       <div className="min-h-screen bg-canvas">
-        <header className="bg-surface border-b border-line px-8 py-3.5 flex items-center justify-between">
+        <header className="h-16 bg-surface border-b border-line px-4 sm:px-6 md:px-8 flex items-center justify-between sticky top-0 z-50 shadow-xs">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-slate-900 flex items-center justify-center p-1 shadow-xs ring-1 ring-slate-900/10">
+            <div className="w-9 h-9 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 shrink-0">
               <img src="/logo.png" alt="Vital Security" className="w-full h-full object-contain" />
             </div>
             <div>
-              <p className="text-sm font-bold text-ink leading-tight">Vital Security</p>
+              <p className="text-base font-bold text-ink leading-tight tracking-tight">Vital Security</p>
               <p className="text-[11px] text-muted leading-tight">Security Officer Portal</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <LanguageToggle />
             <ThemeToggle />
             <NotificationBell />
-            <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity" title="My Profile">
+
+            <div className="h-6 w-px bg-line" />
+
+            <Link to="/profile" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity" title="My Profile">
               {user?.avatarUrl ? (
-                <img src={user.avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover" />
+                <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
               ) : (
-                <div className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs ring-2 ring-blue-500/20">
+                <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-xs ring-2 ring-blue-500/20">
                   {user?.firstName?.[0]}{user?.lastName?.[0]}
                 </div>
               )}
-              <div className="text-right">
-                <p className="text-sm font-semibold text-ink leading-tight">{user?.firstName} {user?.lastName}</p>
-                <p className="text-[11px] text-muted leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
+              <div className="text-right hidden sm:block">
+                <p className="text-xs font-semibold text-ink leading-tight">{user?.firstName} {user?.lastName}</p>
+                <p className="text-[10px] text-muted font-medium leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
               </div>
             </Link>
+
+            <button
+              onClick={() => { logout(); navigate('/login'); }}
+              className="p-1.5 text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors ml-0.5"
+              title={t('logout')}
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
         <div className="p-6 flex items-center justify-center min-h-[calc(100vh-70px)]">
@@ -109,16 +120,16 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-canvas">
       {/* Top Header */}
-      <header className="bg-surface border-b border-line px-8 py-3.5 flex items-center justify-between sticky top-0 z-50 shadow-xs">
+      <header className="h-16 bg-surface border-b border-line px-4 sm:px-6 md:px-8 flex items-center justify-between sticky top-0 z-50 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-slate-900 flex items-center justify-center p-1 shadow-xs ring-1 ring-slate-900/10 shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-slate-900 dark:bg-navy-800 flex items-center justify-center p-1.5 shadow-xs ring-1 ring-slate-900/10 shrink-0">
             <img src="/logo.png" alt="Vital Security" className="w-full h-full object-contain" />
           </div>
           <span className="text-base font-bold text-ink tracking-tight">Vital Security</span>
         </div>
 
         {/* Global Search Bar */}
-        <div className="flex-1 max-w-xl mx-8">
+        <div className="flex-1 max-w-xl mx-8 hidden md:block">
           <div className="relative group">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted group-focus-within:text-primary-600 transition-colors" />
             <input
@@ -135,7 +146,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Status, Language, Theme & Profile */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             System Live
@@ -155,11 +166,19 @@ export default function DashboardPage() {
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
               </div>
             )}
-            <div className="text-right">
+            <div className="text-right hidden sm:block">
               <p className="text-xs font-semibold text-ink leading-tight">{user?.firstName} {user?.lastName}</p>
               <p className="text-[10px] text-muted font-medium leading-tight capitalize">{user?.role?.replace('_', ' ')}</p>
             </div>
           </Link>
+
+          <button
+            onClick={() => { logout(); navigate('/login'); }}
+            className="p-1.5 text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition-colors ml-0.5"
+            title={t('logout')}
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
