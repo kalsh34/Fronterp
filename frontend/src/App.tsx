@@ -32,6 +32,20 @@ import StaffPayrollPage from './features/staff-payroll/StaffPayrollPage';
 import GuardPayrollPage from './features/guard-payroll/GuardPayrollPage';
 import ModuleReportsPage from './features/reports/ModuleReportsPage';
 
+// Procurement / Purchase Module Pages
+import { PurchaseDashboardPage } from './features/procurement/pages/PurchaseDashboardPage';
+import { SupplierListPage } from './features/procurement/pages/SupplierListPage';
+import { ProductCatalogPage } from './features/procurement/pages/ProductCatalogPage';
+import { RFQListPage } from './features/procurement/pages/RFQListPage';
+import { RFQDetailPage } from './features/procurement/pages/RFQDetailPage';
+import { QuotationComparePage } from './features/procurement/pages/QuotationComparePage';
+import { POListPage } from './features/procurement/pages/POListPage';
+import { PODetailPage } from './features/procurement/pages/PODetailPage';
+import { GoodsReceiptListPage } from './features/procurement/pages/GoodsReceiptListPage';
+import { SupplierBillListPage } from './features/procurement/pages/SupplierBillListPage';
+import { PurchaseReportsPage } from './features/procurement/pages/PurchaseReportsPage';
+import { PurchaseSettingsPage } from './features/procurement/pages/PurchaseSettingsPage';
+
 function AppLayout() {
   const { user } = useAuthStore();
   const location = useLocation();
@@ -89,6 +103,20 @@ function AppLayout() {
           <Route path="/settings" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO]}><SettingsPage /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.OPERATIONS, UserRole.HEAD, UserRole.CEO]}><ModuleReportsPage /></ProtectedRoute>} />
           <Route path="/contracts/:employeeId" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO]}><ContractForm /></ProtectedRoute>} />
+
+          {/* Purchasing & Procurement Module Routes */}
+          <Route path="/purchase" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><PurchaseDashboardPage /></ProtectedRoute>} />
+          <Route path="/purchase/suppliers" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><SupplierListPage /></ProtectedRoute>} />
+          <Route path="/purchase/products" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><ProductCatalogPage /></ProtectedRoute>} />
+          <Route path="/purchase/rfqs" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><RFQListPage /></ProtectedRoute>} />
+          <Route path="/purchase/rfqs/:id" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><RFQDetailPage /></ProtectedRoute>} />
+          <Route path="/purchase/compare" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><QuotationComparePage /></ProtectedRoute>} />
+          <Route path="/purchase/orders" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><POListPage /></ProtectedRoute>} />
+          <Route path="/purchase/orders/:id" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><PODetailPage /></ProtectedRoute>} />
+          <Route path="/purchase/receipts" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><GoodsReceiptListPage /></ProtectedRoute>} />
+          <Route path="/purchase/bills" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><SupplierBillListPage /></ProtectedRoute>} />
+          <Route path="/purchase/reports" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO]}><PurchaseReportsPage /></ProtectedRoute>} />
+          <Route path="/purchase/settings" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO]}><PurchaseSettingsPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

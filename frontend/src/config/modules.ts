@@ -13,6 +13,7 @@ import {
   FleetIcon,
   CRMIcon,
   SettingsIcon,
+  ProcurementIcon,
 } from '../components/ModuleIcons';
 import { UserRole } from '../types';
 import type React from 'react';
@@ -160,6 +161,29 @@ export const MODULE_GROUPS: ModuleGroup[] = [
       { label: 'Settings', route: '/settings', icon: SettingsIcon, labelKey: 'navSettings' },
     ],
     roles: [UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.FINANCE_OFFICER, UserRole.CEO],
+  },
+  {
+    id: 'procurement',
+    label: 'Purchasing',
+    labelKey: 'groupProcurement',
+    color: '#4F46E5',
+    bg: 'bg-indigo-50/50 dark:bg-navy-900',
+    text: 'text-indigo-900 dark:text-indigo-200',
+    borderColor: 'border-indigo-200 dark:border-navy-700',
+    navBg: 'bg-surface border-b border-line',
+    subFeatures: [
+      { label: 'Dashboard', route: '/purchase', icon: ProcurementIcon },
+      { label: 'Orders (PO)', route: '/purchase/orders' },
+      { label: 'RFQs', route: '/purchase/rfqs' },
+      { label: 'Compare Quotes', route: '/purchase/compare' },
+      { label: 'Receipts (GRN)', route: '/purchase/receipts' },
+      { label: 'Vendor Bills', route: '/purchase/bills' },
+      { label: 'Suppliers', route: '/purchase/suppliers' },
+      { label: 'Products', route: '/purchase/products' },
+      { label: 'Reports', route: '/purchase/reports' },
+      { label: 'Settings', route: '/purchase/settings' },
+    ],
+    roles: [UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO],
   },
 ];
 
@@ -377,6 +401,25 @@ export const MODULES: ModuleDef[] = [
     active: false,
   },
   {
+    id: 'procurement',
+    label: 'Purchasing',
+    subtitle: 'End-to-end procurement, RFQs, vendor quotations, POs, GRN and supplier bills.',
+    labelKey: 'moduleProcurement',
+    subtitleKey: 'moduleProcurementSub',
+    route: '/purchase',
+    icon: ProcurementIcon,
+    color: '#4F46E5',
+    bg: 'bg-surface',
+    text: 'text-ink',
+    border: 'border-line',
+    hoverBorder: 'hover:border-primary-400',
+    arrowBg: 'bg-subtle group-hover:bg-primary-600',
+    arrowText: 'text-muted group-hover:text-white',
+    roles: [UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.FINANCE_OFFICER, UserRole.HEAD, UserRole.CEO],
+    active: true,
+    groupId: 'procurement',
+  },
+  {
     id: 'reports',
     label: 'Reports',
     subtitle: 'Filterable report for every module — filter, export to CSV, or print.',
@@ -411,6 +454,7 @@ const ROUTE_OVERRIDES: { pattern: RegExp; groupId: string }[] = [
   { pattern: /^\/settings(\/.*)?$/, groupId: 'admin' },
   { pattern: /^\/contracts(\/.*)?$/, groupId: 'hr' },
   { pattern: /^\/reports(\/.*)?$/, groupId: 'reports' },
+  { pattern: /^\/purchase(\/.*)?$/, groupId: 'procurement' },
 ];
 
 export function getModuleGroupForRoute(pathname: string): ModuleGroup | null {
