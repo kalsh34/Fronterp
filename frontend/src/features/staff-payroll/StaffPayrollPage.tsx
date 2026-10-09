@@ -1,4 +1,4 @@
-import { AlertTriangle, Calculator, ChevronLeft, CirclePlus, Download, Eye, FileText, Printer, Undo2, Wallet } from 'lucide-react';
+import { AlertTriangle, Calculator, ChevronDown, ChevronLeft, ChevronUp, CirclePlus, Download, Eye, FileText, Printer, Undo2, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import api from '../../lib/api';
 import { Badge, Button, Card, EmptyState, LoadingSpinner, Modal, Select, Tabs } from '../../components/ui';
@@ -53,6 +53,8 @@ export default function StaffPayrollPage() {
     label?: string;
   } | null>(null);
   const [payslipModalOpen, setPayslipModalOpen] = useState(false);
+  // Attendance summary stays collapsed until explicitly opened.
+  const [showAttendance, setShowAttendance] = useState(false);
   const [payslipRecordId, setPayslipRecordId] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
@@ -110,6 +112,7 @@ export default function StaffPayrollPage() {
 
   const loadDetail = useCallback(async (runId: string) => {
     setDetailLoading(true);
+    setShowAttendance(false);
     try {
       const res = await api.get(`/staff-payroll/runs/${runId}`);
       setDetail(res.data.data);
@@ -498,15 +501,31 @@ export default function StaffPayrollPage() {
                 </Card>
               )}
 
-              {/* Attendance summary — flag absentees, input deduction */}
+              {/* Attendance summary — collapsed until opened via the toggle button */}
               {detail.attendance && (
-                <AttendanceSummarySection
-                  kind="STAFF"
-                  rows={detail.attendance.rows}
-                  daysInMonth={detail.attendance.daysInMonth}
-                  nameOf={attNameOf}
-                  onAddDeduction={openAttendanceDeduction}
-                />
+                <div>
+                  <button
+                    onClick={() => setShowAttendance((v) => !v)}
+                    className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-line bg-surface text-sm font-medium text-muted hover:text-ink hover:bg-subtle transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      {showAttendance ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      {showAttendance ? 'Hide attendance summary' : 'Show attendance summary'}
+                    </span>
+                    <span className="text-xs text-subtext">{detail.attendance.rows?.length ?? 0} rows</span>
+                  </button>
+                  {showAttendance && (
+                    <div className="mt-3">
+                      <AttendanceSummarySection
+                        kind="STAFF"
+                        rows={detail.attendance.rows}
+                        daysInMonth={detail.attendance.daysInMonth}
+                        nameOf={attNameOf}
+                        onAddDeduction={openAttendanceDeduction}
+                      />
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Audit trail — lifecycle events for this run */}

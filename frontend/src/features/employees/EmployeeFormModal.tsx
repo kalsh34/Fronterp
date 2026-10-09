@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
+import { ETHIOPIAN_BANKS } from '../../lib/ethiopianBanks';
 import { Modal } from '../../components/ui';
 import { useT } from '../../i18n';
 
@@ -404,7 +405,15 @@ export default function EmployeeFormModal({ open, onClose, employee, onSaved }: 
               </div>
               <div>
                 <label className="v-label">{t('bankName')}</label>
-                <input type="text" name="bankName" value={form.bankName} onChange={handleChange} className="v-input" />
+                <select name="bankName" value={form.bankName} onChange={handleChange} className="v-input">
+                  <option value="">Select bank</option>
+                  {ETHIOPIAN_BANKS.map((b) => (
+                    <option key={b.value} value={b.value}>{b.fullName}</option>
+                  ))}
+                  {form.bankName && !ETHIOPIAN_BANKS.some((b) => b.value === form.bankName) && (
+                    <option value={form.bankName}>{form.bankName} (existing)</option>
+                  )}
+                </select>
               </div>
               <div>
                 <label className="v-label">{t('accountNumber')}</label>

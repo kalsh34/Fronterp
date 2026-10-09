@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Calculator, CheckCircle2, ChevronLeft, CirclePlus, Clock, Download, Eye, Printer, Undo2, Wallet } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronUp, CirclePlus, Clock, Download, Eye, Printer, Undo2, Wallet } from 'lucide-react';
 import api from '../../lib/api';
 import { Badge, Button, Card, EmptyState, LoadingSpinner, Modal, Select, Tabs } from '../../components/ui';
 import { useAuthStore } from '../../stores/authStore';
@@ -56,23 +56,49 @@ export default function GuardPayrollPage() {
   const [payslipModalOpen, setPayslipModalOpen] = useState(false);
   const [payslipRecordId, setPayslipRecordId] = useState<string | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  // Attendance summary stays collapsed until explicitly opened.
+  const [showAttendance, setShowAttendance] = useState(false);
+
+  // Banks actually used in this run (staff + guard snapshots) — export menu.
+  const [banksInUse, setBanksInUse] = useState<{ bank: string; count: number }[]>([]);
+  // Site filter for the records table ('ALL' = no filter).
+  const [siteFilter, setSiteFilter] = useState('ALL');
+
+  const siteOptions = (() => {
+    const map = new Map<string, string>();
+    (detail?.records || []).forEach((r) => {
+      const psid = (r.primarySite as any)?.siteId;
+      const id = psid?._id ? String(psid._id) : String(psid || '');
+      if (id && !map.has(id)) map.set(id, r.primarySite.siteName || id);
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  })();
+  const filteredRecords = siteFilter === 'ALL'
+    ? (detail?.records || [])
+    : (detail?.records || []).filter((r) => {
+        const psid = (r.primarySite as any)?.siteId;
+        const id = psid?._id ? String(psid._id) : String(psid || '');
+        return id === siteFilter;
+      });
 
   const handleExportBank = async (bank: string) => {
     if (!detail?.run._id) return;
     const filterQuery = bank !== 'ALL' ? `?bank=${encodeURIComponent(bank)}` : '';
-    await downloadReport(`/guard-payroll/runs/${detail.run._id}/export/bank${filterQuery}`, `guard-bank-disbursement-${bank}-${detail.run.periodKey}.csv`);
+    await downloadReport(`/guard-payroll/runs/${detail.run._id}/export/bank${filterQuery}`, `bank-disbursement-${bank}-${detail.run.periodKey}.csv`);
     setExportMenuOpen(false);
   };
 
-  const handleExportTax = async () => {
+  const handleExportTax = async (taxBranch?: string) => {
     if (!detail?.run._id) return;
-    await downloadReport(`/guard-payroll/runs/${detail.run._id}/export/tax`, `guard-tax-declaration-${detail.run.periodKey}.csv`);
+    const q = taxBranch ? `?taxBranch=${encodeURIComponent(taxBranch)}` : '';
+    await downloadReport(`/guard-payroll/runs/${detail.run._id}/export/tax${q}`, `tax-declaration-${taxBranch || 'ALL'}-${detail.run.periodKey}.csv`);
     setExportMenuOpen(false);
   };
 
-  const handleExportPension = async () => {
+  const handleExportPension = async (pensionCenter?: string) => {
     if (!detail?.run._id) return;
-    await downloadReport(`/guard-payroll/runs/${detail.run._id}/export/pension`, `guard-pension-poessa-${detail.run.periodKey}.csv`);
+    const q = pensionCenter ? `?pensionCenter=${encodeURIComponent(pensionCenter)}` : '';
+    await downloadReport(`/guard-payroll/runs/${detail.run._id}/export/pension${q}`, `pension-remittance-${pensionCenter || 'ALL'}-${detail.run.periodKey}.csv`);
     setExportMenuOpen(false);
   };
 
@@ -113,10 +139,20 @@ export default function GuardPayrollPage() {
 
   const loadDetail = useCallback(async (runId: string) => {
     setDetailLoading(true);
+    setSiteFilter('ALL');
+    setShowAttendance(false);
     try {
       const res = await api.get(`/guard-payroll/runs/${runId}`);
       setDetail(res.data.data);
       setError(null);
+      // Load the distinct banks used in this period (staff + guard combined).
+      const periodKey = res.data.data?.run?.periodKey;
+      try {
+        const b = await api.get('/guard-payroll/banks', { params: periodKey ? { periodKey } : {} });
+        setBanksInUse(b.data?.data || []);
+      } catch {
+        setBanksInUse([]); // non-fatal: menu still shows CBE / Awash / ALL
+      }
     } catch (e) {
       setError(errMsg(e, 'Failed to load run'));
     } finally {
@@ -430,26 +466,50 @@ export default function GuardPayrollPage() {
                     Export
                   </Button>
                   {exportMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-64 bg-surface border border-line rounded-xl shadow-card z-50 py-2 divide-y divide-line/60">
+                    <div className="absolute right-0 mt-2 w-72 bg-surface border border-line rounded-xl shadow-card z-50 py-2 divide-y divide-line/60 max-h-[70vh] overflow-y-auto">
                       <div className="py-1">
                         <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Bank Batch Transfers</p>
-                        <button onClick={() => handleExportBank('CBE')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
-                          Commercial Bank of Ethiopia (CBE)
-                        </button>
-                        <button onClick={() => handleExportBank('Awash')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
-                          Awash Bank Batch
-                        </button>
-                        <button onClick={() => handleExportBank('ALL')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                        <button onClick={() => handleExportBank('ALL')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors font-semibold">
                           All Banks Combined
+                        </button>
+                        {(banksInUse.length > 0
+                          ? banksInUse.map((b) => ({ label: b.bank, count: b.count }))
+                          : [
+                              { label: 'CBE', count: 0 },
+                              { label: 'Awash', count: 0 },
+                            ]
+                        ).map((b) => (
+                          <button
+                            key={b.label}
+                            onClick={() => handleExportBank(b.label)}
+                            className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors"
+                          >
+                            {b.label}{b.count > 0 ? ` (${b.count})` : ''}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="py-1">
+                        <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Statutory Compliance — Tax</p>
+                        <button onClick={() => handleExportTax()} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors font-semibold">
+                          All Tax Branches Combined
+                        </button>
+                        <button onClick={() => handleExportTax('GUARD')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          Guards — Private Org Income Tax
+                        </button>
+                        <button onClick={() => handleExportTax('STAFF')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          Staff Income Tax Branch
                         </button>
                       </div>
                       <div className="py-1">
-                        <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Statutory Compliance</p>
-                        <button onClick={handleExportTax} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
-                          Tax Declaration Schedule (ERCA)
+                        <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Statutory Compliance — Pension</p>
+                        <button onClick={() => handleExportPension()} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors font-semibold">
+                          All Pension Centers Combined
                         </button>
-                        <button onClick={handleExportPension} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
-                          POESSA Pension Remittance (18%)
+                        <button onClick={() => handleExportPension('GUARD')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          POESSA Private Organization (Guards)
+                        </button>
+                        <button onClick={() => handleExportPension('STAFF')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
+                          Staff Pension Center
                         </button>
                       </div>
                       <div className="py-1">
@@ -514,21 +574,52 @@ export default function GuardPayrollPage() {
               </Card>
             )}
 
-            {/* Attendance summary — flag absent/short guards, input deduction */}
+            {/* Attendance summary — collapsed until opened via the toggle button */}
             {detail.attendance && (
-              <AttendanceSummarySection
-                kind="GUARD"
-                rows={detail.attendance.rows}
-                daysInMonth={detail.attendance.daysInMonth}
-                nameOf={attNameOf}
-                onAddDeduction={openAttendanceDeduction}
-              />
+              <div>
+                <button
+                  onClick={() => setShowAttendance((v) => !v)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-line bg-surface text-sm font-medium text-muted hover:text-ink hover:bg-subtle transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    {showAttendance ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    {showAttendance ? 'Hide attendance summary' : 'Show attendance summary'}
+                  </span>
+                  <span className="text-xs text-subtext">{detail.attendance.rows?.length ?? 0} rows</span>
+                </button>
+                {showAttendance && (
+                  <div className="mt-3">
+                    <AttendanceSummarySection
+                      kind="GUARD"
+                      rows={detail.attendance.rows}
+                      daysInMonth={detail.attendance.daysInMonth}
+                      nameOf={attNameOf}
+                      onAddDeduction={openAttendanceDeduction}
+                    />
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Audit trail — lifecycle events for this run */}
             <PayrollAuditCard runId={run._id} />
 
-            {/* Guards */}
+            {/* Guards — filterable by primary site */}
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h3 className="text-sm font-semibold text-muted">{t('gpGuards')} ({filteredRecords.length}{siteFilter !== 'ALL' ? ` of ${detail.records.length}` : ''})</h3>
+              <div className="w-56">
+                <Select
+                  label="Filter by site"
+                  value={siteFilter}
+                  onChange={(e) => setSiteFilter(e.target.value)}
+                >
+                  <option value="ALL">All sites</option>
+                  {siteOptions.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </Select>
+              </div>
+            </div>
             <Card className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -545,7 +636,7 @@ export default function GuardPayrollPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {detail.records.map((rec) => (
+                  {filteredRecords.map((rec) => (
                     <tr key={rec._id} className="border-b border-line last:border-0 hover:bg-subtle/50">
                       <td className="px-4 py-3">
                         <p className="font-medium text-ink">{rec.snapshot.fullName}</p>
@@ -593,11 +684,11 @@ export default function GuardPayrollPage() {
                       </td>
                     </tr>
                   ))}
-                  {detail.records.length === 0 && (
+                  {filteredRecords.length === 0 && (
                     <tr>
                       <td colSpan={9} className="px-4 py-8 text-center text-muted">
                         <CheckCircle2 size={18} className="inline mr-2" />
-                        {t('gpNoProblems')}
+                        {siteFilter !== 'ALL' ? 'No payroll records for this site' : t('gpNoProblems')}
                       </td>
                     </tr>
                   )}

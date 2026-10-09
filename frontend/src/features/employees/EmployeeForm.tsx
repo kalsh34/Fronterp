@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../lib/api';
+import { ETHIOPIAN_BANKS } from '../../lib/ethiopianBanks';
 import { useT } from '../../i18n';
 
 type TabKey = 'personal' | 'employment' | 'documents';
@@ -314,7 +315,15 @@ export default function EmployeeForm() {
                   </div>
                   <div>
                     <label className={labelCls}>{t('bankName')}</label>
-                    <input type="text" name="bankName" value={form.bankName} onChange={handleChange} className={inputCls} />
+                    <select name="bankName" value={form.bankName} onChange={handleChange} className={inputCls}>
+                      <option value="">Select bank</option>
+                      {ETHIOPIAN_BANKS.map((b) => (
+                        <option key={b.value} value={b.value}>{b.fullName}</option>
+                      ))}
+                      {form.bankName && !ETHIOPIAN_BANKS.some((b) => b.value === form.bankName) && (
+                        <option value={form.bankName}>{form.bankName} (existing)</option>
+                      )}
+                    </select>
                   </div>
                   <div>
                     <label className={labelCls}>{t('accountNumber')}</label>
