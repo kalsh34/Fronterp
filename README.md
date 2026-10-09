@@ -1,2 +1,0 @@
-# Vital-ERP
-ERP
