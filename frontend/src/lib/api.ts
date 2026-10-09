@@ -11,13 +11,13 @@ import { useAuthStore } from '../stores/authStore';
  *
  * The app points at the deployed Render API by default (in dev and prod).
  * Examples:
- *   VITE_API_URL=https://erpback-wx8b.onrender.com
+ *   VITE_API_URL=https://erpback-tnsv.onrender.com
  *   VITE_API_URL=http://localhost:5000   (only if you want a local backend)
  */
 export const getApiBaseUrl = () => {
   const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
   // Fallback only if VITE_API_URL is missing (never prefer this over env).
-  const fallback = 'https://erpback-wx8b.onrender.com';
+  const fallback = 'https://erpback-tnsv.onrender.com';
   const base = (configured || fallback).replace(/\/+$/, '');
   return `${base}/api`;
 };

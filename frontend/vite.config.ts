@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '');
   const apiTarget = (
     env.VITE_API_URL ||
-    'https://erpback-wx8b.onrender.com'
+    'https://erpback-tnsv.onrender.com'
   ).replace(/\/+$/, '');
 
   return {
