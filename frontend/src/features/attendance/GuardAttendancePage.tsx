@@ -37,7 +37,9 @@ interface Draft {
 interface MonthlyRow {
   guard: { _id: string; employeeCode: string; firstName: string; lastName: string; status: string };
   primarySiteId: string | null;
-  sites: { siteId: string; siteName: string; siteCode: string; isPrimary: boolean; totalHours: number; holidayHours: number; dayCount: number }[];
+  primarySiteName?: string;
+  warnings?: string[];
+  sites: { siteId: string; siteName: string; siteCode: string; isPrimary: boolean; totalHours: number; normalHours: number; sundayHours: number; holidayHours: number; source?: string; dayCount: number }[];
   totalHours: number;
 }
 
@@ -87,6 +89,10 @@ const HOURS_SECTIONS = [
 
 export default function GuardAttendancePage() {
   const { user } = useAuthStore();
+  const [guardSearch, setGuardSearch] = useState('');
+  const [primaryFilter, setPrimaryFilter] = useState('');
+  const [additionalFilter, setAdditionalFilter] = useState('');
+  const [attendanceStatus, setAttendanceStatus] = useState('');
   const t = useT();
   const [tab, setTab] = useState<'daily' | 'monthly' | 'hours'>('daily');
 
@@ -893,26 +899,37 @@ export default function GuardAttendancePage() {
 
           {!monthlyLoading && totals && (
             <>
+              <Card className="p-3 flex flex-wrap gap-3">
+                <input aria-label="Search attendance guard" placeholder="Guard name or identifier" className="v-input max-w-xs" value={guardSearch} onChange={(e) => setGuardSearch(e.target.value)} />
+                <select aria-label="Primary site filter" className="v-input max-w-xs" value={primaryFilter} onChange={(e) => setPrimaryFilter(e.target.value)}><option value="">All primary sites</option>{sites.map((s) => <option key={s._id} value={s._id}>{s.siteName}</option>)}</select>
+                <select aria-label="Additional site filter" className="v-input max-w-xs" value={additionalFilter} onChange={(e) => setAdditionalFilter(e.target.value)}><option value="">All additional sites</option>{sites.map((s) => <option key={s._id} value={s._id}>{s.siteName}</option>)}</select>
+                <select aria-label="Attendance status filter" className="v-input max-w-xs" value={attendanceStatus} onChange={(e) => setAttendanceStatus(e.target.value)}><option value="">All attendance statuses</option><option value="recorded">Recorded attendance</option><option value="missing">Missing attendance</option></select>
+                <p className="w-full text-xs text-muted">Canonical payroll hours: each site’s monthly sheet overrides only that site’s daily records. Guard/site filters retain all relevant additional-site hours.</p>
+              </Card>
               <Card padding={false} className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-line bg-subtle text-left text-xs font-semibold uppercase tracking-wide text-muted">
                       <th className="px-4 py-3">{t('attendanceGuard')}</th>
                       <th className="px-4 py-3">{t('attendanceSite')}</th>
-                      <th className="px-4 py-3 text-right">{t('attendanceDays')}</th>
+                      <th className="px-4 py-3 text-right">Normal / Sunday hours</th>
                       <th className="px-4 py-3 text-right">{t('attendanceColHolidayHours')}</th>
                       <th className="px-4 py-3 text-right">{t('attendanceTotalHours')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {totals.rows.map((row) =>
-                      row.sites.map((s, idx) => (
+                    {totals.rows.filter((row) => `${row.guard.firstName} ${row.guard.lastName} ${row.guard.employeeCode}`.toLowerCase().includes(guardSearch.toLowerCase()) &&
+                      (!primaryFilter || row.primarySiteId === primaryFilter) &&
+                      (!additionalFilter || row.sites.some((s) => !s.isPrimary && s.siteId === additionalFilter)) &&
+                      (!attendanceStatus || (attendanceStatus === 'missing' ? row.totalHours === 0 : row.totalHours > 0))).map((row) =>
+                      (row.sites.length ? row.sites : [{ siteId: 'missing', siteName: row.primarySiteName || 'Unresolved primary', siteCode: '', isPrimary: true, normalHours: 0, sundayHours: 0, holidayHours: 0, totalHours: 0, dayCount: 0, source: 'NO ATTENDANCE' }]).map((s, idx) => (
                         <tr key={`${row.guard._id}-${s.siteId}`} className="hover:bg-subtle/60">
                           <td className="px-4 py-3 align-top">
                             {idx === 0 && (
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-ink">{row.guard.firstName} {row.guard.lastName}</span>
                                 <span className="text-xs text-subtext font-mono">{row.guard.employeeCode}</span>
+                                <span className="text-xs text-muted">Primary: {row.primarySiteName || 'Unresolved'} · Overall {row.totalHours}h {row.warnings?.join(' ')}</span>
                               </div>
                             )}
                           </td>
@@ -922,7 +939,7 @@ export default function GuardAttendancePage() {
                               {s.isPrimary && <Badge variant="info">{t('attendancePrimary')}</Badge>}
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-right text-muted">{s.dayCount}</td>
+                          <td className="px-4 py-3 text-right text-muted tabular-nums">{s.normalHours} / {s.sundayHours}<small className="block">{s.source}</small></td>
                           <td className="px-4 py-3 text-right text-warning">{s.holidayHours || '—'}</td>
                           <td className="px-4 py-3 text-right font-semibold text-ink">{s.totalHours}</td>
                         </tr>
@@ -938,7 +955,7 @@ export default function GuardAttendancePage() {
                   </tbody>
                   <tfoot>
                     <tr className="border-t-2 border-line bg-subtle text-sm font-semibold text-ink">
-                      <td className="px-4 py-3" colSpan={4}>{t('attendanceGrandTotal')}</td>
+                      <td className="px-4 py-3" colSpan={4}>All loaded guards — filters above do not change this total</td>
                       <td className="px-4 py-3 text-right">{totals.grandTotal}</td>
                     </tr>
                   </tfoot>

@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/api';
 import { useT, useLang, formatDate } from '../../i18n';
 import type { DictKey } from '../../i18n';
+import { EmployeeCategory } from '../../types';
 
 interface Employee {
   _id: string;
@@ -36,6 +37,12 @@ const statusChip: Record<string, string> = {
   TERMINATED: 'bg-danger-subtle text-danger-text border-danger-line',
 };
 
+const CONTRACT_TYPES = ['Full-Time', 'Part-Time', 'Contract', 'Temporary', 'Internship'];
+const EMPLOYEE_STATUSES = ['ACTIVE', 'CONTRACTED', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'];
+
+const filterSelect =
+  'h-10 px-3 pr-8 rounded-lg border border-line bg-surface text-sm text-ink focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 appearance-none cursor-pointer';
+
 export default function ContractList() {
   const navigate = useNavigate();
   const t = useT();
@@ -46,6 +53,13 @@ export default function ContractList() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  // Filters: department / employee status / contract type / role type (category)
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [deptFilter, setDeptFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -78,6 +92,24 @@ export default function ContractList() {
   }, [page, search]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    try {
+      api.get('/departments').then((r) => setDepartments((r.data.data || []).map((d: any) => d.name))).catch(() => {});
+    } catch { /* optional lookup */ }
+  }, []);
+
+  /** Client-side filtering across department / employee status / contract type / role type. */
+  const filteredEmployees = useMemo(() => employees.filter((emp) => {
+    if (deptFilter && (emp.department || '') !== deptFilter) return false;
+    if (statusFilter && emp.status !== statusFilter) return false;
+    if (roleFilter && emp.category !== roleFilter) return false;
+    if (typeFilter) {
+      const contract = contractMap[emp._id];
+      if (typeFilter === '__none__' ? !!contract : (!contract || contract.contractType !== typeFilter)) return false;
+    }
+    return true;
+  }), [employees, contractMap, deptFilter, statusFilter, typeFilter, roleFilter]);
 
   const activeCount = Object.values(contractMap).filter((c) => c.status === 'ACTIVE').length;
   const expiredCount = Object.values(contractMap).filter((c) => c.status === 'EXPIRED').length;
@@ -117,6 +149,28 @@ export default function ContractList() {
             className="w-full h-10 pl-10 pr-4 rounded-lg border border-line bg-surface text-sm text-ink placeholder-muted focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
           />
         </div>
+
+        {/* Filters: department · employee status · contract type · role type */}
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={deptFilter} onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }} className={filterSelect}>
+            <option value="">{t('allDepartments')}</option>
+            {departments.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }} className={filterSelect}>
+            <option value="">{t('activeStatusFilter')}</option>
+            {EMPLOYEE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }} className={filterSelect}>
+            <option value="">{t('contractType')}</option>
+            <option value="__none__">{t('noContract')}</option>
+            {CONTRACT_TYPES.map((ct) => <option key={ct} value={ct}>{ct}</option>)}
+          </select>
+          <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }} className={filterSelect}>
+            <option value="">{t('allRoles')}</option>
+            <option value={EmployeeCategory.GUARD}>{t('guard')}</option>
+            <option value={EmployeeCategory.OFFICE_STAFF}>{t('officeStaff')}</option>
+          </select>
+        </div>
       </div>
 
       {/* Table */}
@@ -125,7 +179,7 @@ export default function ContractList() {
           <div className="flex items-center justify-center py-16">
             <div className="w-7 h-7 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
           </div>
-        ) : employees.length === 0 ? (
+        ) : filteredEmployees.length === 0 ? (
           <div className="py-16 text-center">
             <p className="text-sm text-muted">{t('noEmployees')}</p>
           </div>
@@ -145,7 +199,7 @@ export default function ContractList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {employees.map((emp) => {
+                  {filteredEmployees.map((emp) => {
                     const contract = contractMap[emp._id];
                     return (
                       <tr key={emp._id} className="border-b border-line hover:bg-surface-hover transition-colors">

@@ -69,7 +69,21 @@ interface SiteDetailData {
   recentNotes: SiteNoteRec[];
   rotationAssignments: RotationAssignmentRec[];
   rotations?: { _id: string; name?: string; title?: string; status: string; startDate?: string; endDate?: string }[];
+  /** Full billing-price timeline returned by /sites/:id/detail. */
+  priceHistory?: PriceHistoryRow[];
 }
+
+interface PriceHistoryRow {
+  _id: string;
+  previous?: { paymentPrice?: number; numberOfEmployees?: number } | null;
+  current?: { paymentPrice?: number; numberOfEmployees?: number } | null;
+  reason?: string;
+  changedBy?: { firstName?: string; lastName?: string } | null;
+  createdAt: string;
+}
+
+const money = (n?: number) =>
+  n == null ? '—' : `ETB ${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: 'bg-success-subtle text-success-text border-success-line',
@@ -137,7 +151,8 @@ export default function SiteDetail() {
 
   const [form, setForm] = useState({
     siteCode: '', siteName: '', client: '', location: '', siteType: 'COMMERCIAL',
-    agreedManpower: 0, actualManpower: 0, contactPerson: '', contactPhone: '', address: '',
+    agreedManpower: 0, actualManpower: 0, maleCount: 0, femaleCount: 0,
+    contactPerson: '', contactPhone: '', address: '',
     status: 'ACTIVE',
   });
 
@@ -152,7 +167,8 @@ export default function SiteDetail() {
       setForm({
         siteCode: s.siteCode, siteName: s.siteName, client: s.client || '',
         location: s.location, siteType: s.siteType, agreedManpower: s.agreedManpower,
-        actualManpower: s.actualManpower, contactPerson: s.contactPerson || '',
+        actualManpower: s.actualManpower, maleCount: s.maleCount ?? 0,
+        femaleCount: s.femaleCount ?? 0, contactPerson: s.contactPerson || '',
         contactPhone: s.contactPhone || '', address: s.address || '', status: s.status,
       });
     } catch (e) {
@@ -218,7 +234,7 @@ export default function SiteDetail() {
     );
   }
 
-  const { site, activeAssignments, currentAssignments, pastAssignments, recentNotes, rotationAssignments } = data;
+  const { site, activeAssignments, currentAssignments, pastAssignments, recentNotes, rotationAssignments, priceHistory } = data;
   const isInactive = site.status === 'INACTIVE';
   const guardsList = isInactive ? pastAssignments : currentAssignments;
   const pct = site.agreedManpower > 0 ? Math.round((site.actualManpower / site.agreedManpower) * 100) : 0;
@@ -268,7 +284,7 @@ export default function SiteDetail() {
                     {saving ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>}
                     Save
                   </button>
-                  <button onClick={() => { setEditing(false); setForm({ siteCode: site.siteCode, siteName: site.siteName, client: site.client || '', location: site.location, siteType: site.siteType, agreedManpower: site.agreedManpower, actualManpower: site.actualManpower, contactPerson: site.contactPerson || '', contactPhone: site.contactPhone || '', address: site.address || '', status: site.status }); setError(''); }} className="h-9 px-4 rounded-xl bg-white/15 text-white text-sm font-medium hover:bg-white/25 transition-all border border-white/20">Cancel</button>
+                  <button onClick={() => { setEditing(false); setForm({ siteCode: site.siteCode, siteName: site.siteName, client: site.client || '', location: site.location, siteType: site.siteType, agreedManpower: site.agreedManpower, actualManpower: site.actualManpower, maleCount: site.maleCount ?? 0, femaleCount: site.femaleCount ?? 0, contactPerson: site.contactPerson || '', contactPhone: site.contactPhone || '', address: site.address || '', status: site.status }); setError(''); }} className="h-9 px-4 rounded-xl bg-white/15 text-white text-sm font-medium hover:bg-white/25 transition-all border border-white/20">Cancel</button>
                 </>
               )}
               <button onClick={() => setDeleteOpen(true)} className="h-9 px-4 rounded-xl bg-red-500/20 text-white text-sm font-medium hover:bg-red-500/30 transition-all border border-red-400/30 flex items-center gap-2">
@@ -359,6 +375,23 @@ export default function SiteDetail() {
                       <div>
                         <label className="block text-xs font-medium text-muted mb-1">Agreed Manpower</label>
                         <input type="number" value={form.agreedManpower} onChange={e => setForm({ ...form, agreedManpower: parseInt(e.target.value) || 0 })} className="v-input" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted mb-1">Actual Manpower</label>
+                        <input type="number" value={form.actualManpower} onChange={e => setForm({ ...form, actualManpower: parseInt(e.target.value) || 0 })} className="v-input" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-4 items-end">
+                      <div>
+                        <label className="block text-xs font-medium text-muted mb-1">Male Guards</label>
+                        <input type="number" min={0} value={form.maleCount} onChange={e => setForm({ ...form, maleCount: parseInt(e.target.value) || 0 })} className="v-input" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-muted mb-1">Female Guards</label>
+                        <input type="number" min={0} value={form.femaleCount} onChange={e => setForm({ ...form, femaleCount: parseInt(e.target.value) || 0 })} className="v-input" />
+                      </div>
+                      <div className="col-span-2 text-[11px] text-muted">
+                        Gender split of actual manpower: {(form.maleCount || 0) + (form.femaleCount || 0)} / {form.actualManpower} filled
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
@@ -459,6 +492,34 @@ export default function SiteDetail() {
                     <div className="flex justify-between pt-2 border-t border-line"><span className="text-muted">Deactivated</span><span className="font-medium text-danger-text">{localDate(site.deactivatedAt)}</span></div>
                   )}
                 </div>
+              </div>
+
+              {/* Price history — old prices are kept, never deleted */}
+              <div className="bg-surface rounded-2xl p-6 shadow-sm border border-line">
+                <h2 className="text-lg font-bold text-ink mb-1">Price History</h2>
+                <p className="text-[11px] text-muted mb-4">Previous billing prices, kept for audits and reports</p>
+                {!priceHistory || priceHistory.length === 0 ? (
+                  <p className="text-sm text-muted py-2 text-center">No price changes recorded</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {priceHistory.map((row) => (
+                      <div key={row._id} className="p-2.5 rounded-lg bg-subtle border border-line text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted line-through">{money(row.previous?.paymentPrice)}</span>
+                          <span className="text-muted">→</span>
+                          <span className="font-semibold text-ink">{money(row.current?.paymentPrice)}</span>
+                        </div>
+                        <div className="flex items-center justify-between mt-1 text-[10px] text-subtext">
+                          <span>
+                            {Number(row.previous?.numberOfEmployees ?? 0)} → {Number(row.current?.numberOfEmployees ?? 0)} employees
+                            {row.changedBy?.firstName ? ` · by ${row.changedBy.firstName}${row.changedBy.lastName ? ' ' + row.changedBy.lastName : ''}` : ''}
+                          </span>
+                          <span>{localDate(row.createdAt)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

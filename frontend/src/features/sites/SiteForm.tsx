@@ -12,10 +12,10 @@ const SITE_TYPES = [
 export function SiteForm() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    siteCode: '', siteName: '', client: '', location: '',
+    siteCode: '', siteName: '', location: '',
     siteType: 'COMMERCIAL', agreedManpower: 0, actualManpower: 0,
     maleCount: 0, femaleCount: 0,
-    contactPerson: '', contactPhone: '', address: '',
+    contactPerson: '', contactPhone: '',
     companyId: '',
   });
   const [error, setError] = useState('');
@@ -146,19 +146,11 @@ export function SiteForm() {
             </div>
           </div>
           <div className="p-6 space-y-5">
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Area / Zone *</label>
-                <input type="text" value={form.location} onChange={(e) => update('location', e.target.value)}
-                  required placeholder="e.g. Bole, Addis Ababa"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Client Name</label>
-                <input type="text" value={form.client} onChange={(e) => update('client', e.target.value)}
-                  placeholder="e.g. ABC Corporation"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Location *</label>
+              <input type="text" value={form.location} onChange={(e) => update('location', e.target.value)}
+                required placeholder="e.g. Bole, Addis Ababa"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Company</label>
@@ -172,12 +164,6 @@ export function SiteForm() {
                   <option key={c._id} value={c._id}>{c.name}</option>
                 ))}
               </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Full Address</label>
-              <input type="text" value={form.address} onChange={(e) => update('address', e.target.value)}
-                placeholder="e.g. Bole Road, near Edna Mall, 4th floor"
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 outline-none transition-all" />
             </div>
           </div>
         </div>

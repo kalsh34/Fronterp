@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import api from '../../lib/api';
+import api, { getApiBaseUrl } from '../../lib/api';
 import { useT } from '../../i18n';
 import type { DictKey } from '../../i18n';
 
@@ -95,6 +95,12 @@ export default function GuarantorPage() {
   const [documents, setDocuments] = useState<{ file: File | null; description: string; uploadedUrl?: string; uploadedFileName?: string }[]>([]);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  /** Guarantor currently being edited (reuse the same form). */
+  const [editingGuarantor, setEditingGuarantor] = useState<GuarantorRecord | null>(null);
+
+  /** Uploaded docs are stored as relative /uploads/... paths — they are only
+   * reachable through the API origin, never the Vite dev server. */
+  const fileUrl = (path: string) => `${getApiBaseUrl()}${path.startsWith('/') ? '' : '/'}${path}`;
 
   const fetchData = useCallback(async () => {
     if (!employeeId) return;
@@ -118,12 +124,45 @@ export default function GuarantorPage() {
       propertyType: '', propertyLocation: '', propertyTitleNumber: '', estimatedValue: '', notes: '' });
     setDocuments([]);
     setType('PERSON');
+    setEditingGuarantor(null);
+  };
+
+  const openEdit = (g: GuarantorRecord) => {
+    setEditingGuarantor(g);
+    setType(g.guarantorType);
+    setForm({
+      fullName: g.fullName || '',
+      phone: g.phone || '',
+      address: g.address || '',
+      relationship: g.relationship || '',
+      occupation: g.occupation || '',
+      idNumber: g.idNumber || '',
+      vehicleType: g.vehicleType || '',
+      vehiclePlateNumber: g.vehiclePlateNumber || '',
+      vehicleMake: g.vehicleMake || '',
+      vehicleYear: g.vehicleYear ? String(g.vehicleYear) : '',
+      propertyType: g.propertyType || '',
+      propertyLocation: g.propertyLocation || '',
+      propertyTitleNumber: g.propertyTitleNumber || '',
+      estimatedValue: g.estimatedValue ? String(g.estimatedValue) : '',
+      notes: g.notes || '',
+    });
+    setDocuments(
+      (g.documents || []).map((d) => ({
+        file: null,
+        description: d.description || '',
+        uploadedUrl: d.url,
+        uploadedFileName: d.fileName,
+      }))
+    );
+    setShowForm(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
+      if (editingGuarantor) { await submitEdit(); return; }
       const uploadedDocs: { url: string; fileName: string; description: string }[] = [];
       for (const doc of documents) {
         if (doc.uploadedUrl) {
@@ -164,6 +203,74 @@ export default function GuarantorPage() {
       }
 
       await api.post('/guarantors', payload);
+      resetForm();
+      setShowForm(false);
+      fetchData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || t('failedSaveGuarantor'));
+    } finally { setSaving(false); }
+  };
+
+  /** Update an existing guarantor: PUT the editable fields, keep existing docs
+   * and replace the documents array with whatever the form now holds. */
+  const submitEdit = async () => {
+    try {
+      if (!editingGuarantor) return;
+      const uploadedDocs: { url: string; fileName: string; description: string }[] = [];
+      for (const doc of documents) {
+        if (doc.uploadedUrl) {
+          uploadedDocs.push({ url: doc.uploadedUrl, fileName: doc.uploadedFileName || '', description: doc.description });
+        } else if (doc.file) {
+          const fd = new FormData();
+          fd.append('file', doc.file);
+          fd.append('entityType', 'guarantor');
+          fd.append('title', doc.description || doc.file.name);
+          const uploadRes = await api.post('/files', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          uploadedDocs.push({ url: uploadRes.data.data.path, fileName: uploadRes.data.data.filename, description: doc.description });
+        }
+      }
+
+      const payload: any = {
+        guarantorType: type,
+        fullName: form.fullName,
+        phone: form.phone,
+        address: form.address,
+        relationship: form.relationship,
+        occupation: form.occupation,
+        idNumber: form.idNumber,
+        notes: form.notes,
+        documents: uploadedDocs,
+      };
+      if (type === 'VEHICLE_COLLATERAL') {
+        payload.vehicleType = form.vehicleType;
+        payload.vehiclePlateNumber = form.vehiclePlateNumber;
+        payload.vehicleMake = form.vehicleMake;
+        payload.vehicleYear = form.vehicleYear ? Number(form.vehicleYear) : undefined;
+        payload.propertyType = undefined;
+        payload.propertyLocation = undefined;
+        payload.propertyTitleNumber = undefined;
+        payload.estimatedValue = undefined;
+      } else if (type === 'PROPERTY_COLLATERAL') {
+        payload.propertyType = form.propertyType;
+        payload.propertyLocation = form.propertyLocation;
+        payload.propertyTitleNumber = form.propertyTitleNumber;
+        payload.estimatedValue = form.estimatedValue ? Number(form.estimatedValue) : undefined;
+        payload.vehicleType = undefined;
+        payload.vehiclePlateNumber = undefined;
+        payload.vehicleMake = undefined;
+        payload.vehicleYear = undefined;
+      } else {
+        payload.vehicleType = undefined;
+        payload.vehiclePlateNumber = undefined;
+        payload.vehicleMake = undefined;
+        payload.vehicleYear = undefined;
+        payload.propertyType = undefined;
+        payload.propertyLocation = undefined;
+        payload.propertyTitleNumber = undefined;
+        payload.estimatedValue = undefined;
+      }
+
+      await api.put(`/guarantors/${editingGuarantor._id}`, payload);
       resetForm();
       setShowForm(false);
       fetchData();
@@ -299,7 +406,7 @@ export default function GuarantorPage() {
       {showForm && (
         <form onSubmit={handleSubmit} className="bg-surface rounded-xl border border-line p-6 space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-ink">{t('newGuarantor')}</h2>
+            <h2 className="text-base font-semibold text-ink">{editingGuarantor ? t('editGuarantor') : t('newGuarantor')}</h2>
             <button type="button" onClick={() => { setShowForm(false); resetForm(); }}
               className="text-sm text-muted hover:text-ink">{t('cancel')}</button>
           </div>
@@ -485,7 +592,7 @@ export default function GuarantorPage() {
             </button>
             <button type="submit" disabled={saving}
               className="h-10 px-5 flex items-center gap-2 rounded-lg bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-colors shadow-sm disabled:opacity-50">
-              {saving ? t('saving') : t('save')}
+              {saving ? t('saving') : editingGuarantor ? t('update') : t('save')}
             </button>
           </div>
         </form>
@@ -539,7 +646,7 @@ export default function GuarantorPage() {
               {g.documents.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {g.documents.map((d, i) => (
-                    <a key={i} href={d.url} target="_blank" rel="noopener noreferrer"
+                    <a key={i} href={fileUrl(d.url)} target="_blank" rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-2.5 py-1 bg-subtle rounded-lg text-xs text-muted hover:bg-surface-hover transition-colors">
                       <svg className="w-3.5 h-3.5 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                       {d.description || d.fileName}
@@ -562,14 +669,15 @@ export default function GuarantorPage() {
               )}
 
               {/* Actions */}
-              {g.verificationStatus === 'PENDING' && (
-                <div className="flex items-center gap-3 pt-2 border-t border-line">
+              <div className="flex items-center gap-3 pt-2 border-t border-line">
+                {g.verificationStatus === 'PENDING' && (
                   <button onClick={() => handleVerify(g._id)}
                     className="h-8 px-4 flex items-center gap-1.5 rounded-lg bg-success-text text-white text-xs font-medium hover:opacity-90 transition-opacity">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                     {t('verify')}
                   </button>
-                  {rejectingId === g._id ? (
+                )}
+                {g.verificationStatus === 'PENDING' && (rejectingId === g._id ? (
                     <div className="flex items-center gap-2">
                       <input type="text" value={rejectReason} onChange={e => setRejectReason(e.target.value)}
                         placeholder={t('rejectionReason')} className="h-8 px-3 rounded-lg border border-danger-line bg-surface text-xs text-ink placeholder-muted focus:outline-none focus:ring-1 focus:ring-danger-text/20 w-48" />
@@ -582,13 +690,17 @@ export default function GuarantorPage() {
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                       {t('reject')}
                     </button>
-                  )}
-                  <button onClick={() => handleDelete(g._id)}
-                    className="h-8 px-3 rounded-lg text-muted hover:text-danger-text text-xs ml-auto">
-                    {t('delete')}
-                  </button>
-                </div>
-              )}
+                  ))}
+                <button onClick={() => openEdit(g)}
+                  className="h-8 px-4 flex items-center gap-1.5 rounded-lg border border-line text-ink text-xs font-medium hover:bg-subtle transition-colors">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H4a2 2 0 00-2 2v9a2 2 0 002 2h9m7-11l-4 4m0 0l4 4m-4-4H7" /></svg>
+                  {t('edit')}
+                </button>
+                <button onClick={() => handleDelete(g._id)}
+                  className="h-8 px-3 rounded-lg text-muted hover:text-danger-text text-xs ml-auto">
+                  {t('delete')}
+                </button>
+              </div>
             </div>
           ))}
         </div>

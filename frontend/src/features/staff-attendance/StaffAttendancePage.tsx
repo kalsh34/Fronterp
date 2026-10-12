@@ -12,6 +12,9 @@ interface Employee {
   employeeCode: string;
   firstName: string;
   lastName: string;
+  status?: string;
+  department?: string;
+  position?: string;
 }
 
 interface DayCell {
@@ -57,6 +60,22 @@ const STATUS_OPTIONS: { value: StaffAttendanceStatus; label: string; color: stri
 const STATUS_MAP = new Map(STATUS_OPTIONS.map((s) => [s.value, s]));
 
 const WEEKDAY_SHORT = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+/** Real HR status of the employee (from the Employee record), shown in the log. */
+const EMPLOYEE_STATUS_KEYS: Record<string, DictKey> = {
+  ACTIVE: 'active',
+  INACTIVE: 'inactive',
+  TERMINATED: 'statusTerminated',
+  ON_LEAVE: 'statusOnLeave',
+  CONTRACTED: 'statusContracted',
+};
+const EMPLOYEE_STATUS_STYLE: Record<string, string> = {
+  ACTIVE: 'bg-success-subtle text-success-text border-success-line',
+  CONTRACTED: 'bg-info-subtle text-info-text border-info-line',
+  ON_LEAVE: 'bg-warning-subtle text-warning-text border-warning-line',
+  INACTIVE: 'bg-subtle text-muted border-line',
+  TERMINATED: 'bg-danger-subtle text-danger-text border-danger-line',
+};
 
 export default function StaffAttendancePage() {
   const { user } = useAuthStore();
@@ -421,7 +440,12 @@ export default function StaffAttendancePage() {
                       )}
                       <td className="px-3 py-1.5 border border-line sticky left-0 bg-surface z-10">
                         <div className="font-medium text-sm text-ink">{row.employee.firstName} {row.employee.lastName}</div>
-                        <div className="text-[10px] text-subtext">{row.employee.employeeCode}</div>
+                        <div className="text-[10px] text-subtext flex items-center gap-1.5">
+                          <span>{row.employee.employeeCode}</span>
+                          <span className={`inline-flex px-1.5 py-px rounded-full text-[9px] font-medium border ${EMPLOYEE_STATUS_STYLE[row.employee.status || 'INACTIVE'] || 'bg-subtle text-muted border-line'}`}>
+                            {t(EMPLOYEE_STATUS_KEYS[row.employee.status || 'INACTIVE'] ?? 'status')}
+                          </span>
+                        </div>
                       </td>
                       {row.days.map((d) => {
                         const statusInfo = d.status ? STATUS_MAP.get(d.status) : null;
@@ -471,6 +495,7 @@ export default function StaffAttendancePage() {
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-subtext uppercase tracking-wider">{t('employee')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-subtext uppercase tracking-wider">{t('codeCol')}</th>
+                  <th className="text-center px-3 py-3 text-xs font-semibold text-subtext uppercase tracking-wider">{t('status')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-subtext uppercase tracking-wider">{t('daysCol')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-success-text uppercase tracking-wider">{t('colPresent')}</th>
                   <th className="text-center px-3 py-3 text-xs font-semibold text-danger-text uppercase tracking-wider">{t('colAbsent')}</th>
@@ -490,13 +515,18 @@ export default function StaffAttendancePage() {
               </thead>
               <tbody className="divide-y divide-line">
                 {filteredSummary.length === 0 ? (
-                  <tr><td colSpan={12} className="px-4 py-8 text-center text-muted">{search ? t('noMatchingStaff') : t('noData')}</td></tr>
+                  <tr><td colSpan={13} className="px-4 py-8 text-center text-muted">{search ? t('noMatchingStaff') : t('noData')}</td></tr>
                 ) : filteredSummary.map((s) => (
                   <tr key={s.employee._id} className="hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-3 text-left">
                       <p className="font-medium text-ink">{s.employee.firstName} {s.employee.lastName}</p>
                     </td>
                     <td className="px-3 py-3 text-center text-muted text-xs font-mono">{s.employee.employeeCode}</td>
+                    <td className="px-3 py-3 text-center">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border ${EMPLOYEE_STATUS_STYLE[s.employee.status || 'INACTIVE'] || 'bg-subtle text-muted border-line'}`}>
+                        {t(EMPLOYEE_STATUS_KEYS[s.employee.status || 'INACTIVE'] ?? 'status')}
+                      </span>
+                    </td>
                     <td className="px-3 py-3 text-center text-muted">{s.totalDaysInMonth}</td>
                     <td className="px-3 py-3 text-center font-medium text-ink">{s.counts.PRESENT}</td>
                     <td className="px-3 py-3 text-center font-medium text-danger-text">{s.counts.ABSENT}</td>

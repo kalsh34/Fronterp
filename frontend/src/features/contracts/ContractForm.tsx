@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../lib/api';
 import { InfoTooltip } from '../../components/ui';
 import { EmployeeCategory } from '../../types';
-import { useT } from '../../i18n';
+import { useT, useLang, formatDate } from '../../i18n';
 
 interface Employee {
   _id: string;
@@ -34,6 +34,16 @@ interface Contract {
   pensionEnrolled: boolean;
   notes?: string;
   status: string;
+}
+
+/** One salary-change row: the previous package → the new one. */
+interface SalaryHistoryEntry {
+  _id: string;
+  effectiveFrom?: string;
+  reason?: string;
+  previous?: Record<string, number>;
+  current?: Record<string, number>;
+  changedBy?: { firstName?: string; lastName?: string } | string | null;
 }
 
 interface PayGrade {
@@ -75,8 +85,10 @@ const labelCls = 'block text-sm font-medium text-ink mb-1.5';
 export default function ContractForm() {
   const navigate = useNavigate();
   const t = useT();
+  const lang = useLang();
   const { employeeId } = useParams<{ employeeId: string }>();
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [salaryHistory, setSalaryHistory] = useState<SalaryHistoryEntry[]>([]);
 
   const [payGrades, setPayGrades] = useState<PayGrade[]>([]);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
@@ -167,6 +179,12 @@ export default function ContractForm() {
           } catch {
             // No existing contract — this is create mode
           }
+          // Old salaries are kept on every pay change — surface them here so the
+          // user can see (and account for) the previous packages.
+          try {
+            const histRes = await api.get(`/contracts/employee/${employeeId}/salary-history`);
+            setSalaryHistory(histRes.data.data || []);
+          } catch { /* history is optional */ }
         }
       } catch (err: any) {
         setError(err.response?.data?.message || t('failedLoadData'));
@@ -445,6 +463,28 @@ export default function ContractForm() {
               className={inputCls}
             />
           </div>
+
+          {/* Old salaries are recorded on every pay change — show them here. */}
+          {salaryHistory.length > 0 && (
+            <div className="mb-6 p-4 rounded-xl bg-canvas border border-line">
+              <h3 className="text-sm font-medium text-ink mb-3">{t('salaryHistoryTitle')}</h3>
+              <div className="space-y-2">
+                {salaryHistory.map((h) => (
+                  <div key={h._id} className="flex items-center justify-between text-xs">
+                    <span className="text-muted">
+                      {h.previous
+                        ? `ETB ${Number(h.previous.wage || 0).toLocaleString()} → ETB ${Number(h.current?.wage ?? 0).toLocaleString()}`
+                        : t('salaryHistoryInitial')}
+                    </span>
+                    <span className="font-medium text-ink whitespace-nowrap ml-3">
+                      {h.effectiveFrom ? formatDate(lang, h.effectiveFrom) : ''}
+                      {h.reason ? ` · ${h.reason}` : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Allowances */}
           <div>

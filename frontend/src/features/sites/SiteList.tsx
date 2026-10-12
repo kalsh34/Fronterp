@@ -40,9 +40,10 @@ interface Site {
   status: string;
   agreedManpower: number;
   actualManpower: number;
+  maleCount?: number;
+  femaleCount?: number;
   contactPerson?: string;
   contactPhone?: string;
-  address?: string;
 }
 
 interface ColumnDef {
@@ -80,9 +81,9 @@ const emptyForm = {
   taxCenter: '', pensionSite: '', agreementStartDate: '', agreementEndDate: '',
   numberOfEmployees: 0, paymentPrice: 0,
   // Operational details (legacy required fields)
-  siteCode: '', siteType: 'COMMERCIAL', location: '', client: '',
-  agreedManpower: 0, actualManpower: 0,
-  contactPerson: '', contactPhone: '', address: '',
+  siteCode: '', siteType: 'COMMERCIAL', location: '',
+  agreedManpower: 0, actualManpower: 0, maleCount: 0, femaleCount: 0,
+  contactPerson: '', contactPhone: '',
   status: 'ACTIVE',
 };
 
@@ -213,12 +214,12 @@ export function SiteList() {
       siteCode: s.siteCode,
       siteType: s.siteType || 'COMMERCIAL',
       location: s.location || '',
-      client: s.client || '',
       agreedManpower: s.agreedManpower ?? 0,
       actualManpower: s.actualManpower ?? 0,
+      maleCount: s.maleCount ?? 0,
+      femaleCount: s.femaleCount ?? 0,
       contactPerson: s.contactPerson || '',
       contactPhone: s.contactPhone || '',
-      address: s.address || '',
       status: s.status || 'ACTIVE',
     });
     setFormError('');
@@ -253,12 +254,13 @@ export function SiteList() {
         paymentPrice: Number(form.paymentPrice) || 0,
         siteType: form.siteType,
         location: form.location.trim(),
-        client: form.client.trim() || undefined,
         agreedManpower: Number(form.agreedManpower) || 0,
         actualManpower: Number(form.actualManpower) || 0,
+        // Optional gender split of the actual manpower
+        maleCount: form.maleCount ? Number(form.maleCount) : undefined,
+        femaleCount: form.femaleCount ? Number(form.femaleCount) : undefined,
         contactPerson: form.contactPerson.trim() || undefined,
         contactPhone: form.contactPhone.trim() || undefined,
-        address: form.address.trim() || undefined,
       };
       if (editing) {
         payload.status = form.status;
@@ -838,28 +840,17 @@ export function SiteList() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="v-label v-label--required">{t('locationLabel')}</label>
-              <input
-                type="text"
-                value={form.location}
-                onChange={(e) => update('location', e.target.value)}
-                required
-                placeholder="e.g. Bole, Addis Ababa"
-                className="v-input"
-              />
-            </div>
-            <div>
-              <label className="v-label">{t('clientName')}</label>
-              <input
-                type="text"
-                value={form.client}
-                onChange={(e) => update('client', e.target.value)}
-                placeholder="e.g. ABC Corporation"
-                className="v-input"
-              />
-            </div>
+          {/* Client info is managed on the company/agreement level — not asked here. */}
+          <div>
+            <label className="v-label v-label--required">{t('locationLabel')}</label>
+            <input
+              type="text"
+              value={form.location}
+              onChange={(e) => update('location', e.target.value)}
+              required
+              placeholder="e.g. Bole, Addis Ababa"
+              className="v-input"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -887,6 +878,32 @@ export function SiteList() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
+              <label className="v-label">{t('maleGuards')}</label>
+              <input
+                type="number"
+                min={0}
+                value={form.maleCount}
+                onChange={(e) => update('maleCount', e.target.value)}
+                className="v-input"
+              />
+            </div>
+            <div>
+              <label className="v-label">{t('femaleGuards')}</label>
+              <input
+                type="number"
+                min={0}
+                value={form.femaleCount}
+                onChange={(e) => update('femaleCount', e.target.value)}
+                className="v-input"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted -mt-3">
+            {t('genderSplitHint', { filled: (Number(form.maleCount) || 0) + (Number(form.femaleCount) || 0), total: Number(form.actualManpower) || 0 })}
+          </p>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <label className="v-label">{t('contactPersonLabel')}</label>
               <input
                 type="text"
@@ -906,17 +923,6 @@ export function SiteList() {
                 className="v-input"
               />
             </div>
-          </div>
-
-          <div>
-            <label className="v-label">{t('fullAddress')}</label>
-            <input
-              type="text"
-              value={form.address}
-              onChange={(e) => update('address', e.target.value)}
-              placeholder="e.g. Bole Road, near Edna Mall"
-              className="v-input"
-            />
           </div>
 
           {editing && (

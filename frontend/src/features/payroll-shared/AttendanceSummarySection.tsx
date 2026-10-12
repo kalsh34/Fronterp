@@ -18,7 +18,8 @@ export interface StaffAttRow {
 
 export interface GuardAttRow {
   employeeId: string;
-  source: 'MONTHLY' | 'DAILY' | 'NONE';
+  source: 'MONTHLY' | 'DAILY' | 'NONE' | 'SNAPSHOT';
+  sites?: { siteId: string; siteName: string; isPrimary: boolean; normalHours: number; sundayHours: number; holidayHours: number }[];
   normalHours: number;
   holidayHours: number;
   sundayHours: number;
@@ -53,6 +54,8 @@ interface Props {
 export function AttendanceSummarySection({ kind, rows, daysInMonth, nameOf, onAddDeduction }: Props) {
   const t = useT();
   const [showAll, setShowAll] = useState(false);
+  const [search, setSearch] = useState('');
+  const [site, setSite] = useState('');
 
   const flagged = useMemo(() => {
     if (kind === 'STAFF') {
@@ -63,7 +66,9 @@ export function AttendanceSummarySection({ kind, rows, daysInMonth, nameOf, onAd
     );
   }, [rows, kind]);
 
-  const visible = showAll ? rows : flagged;
+  const siteNames = Array.from(new Set(rows.flatMap((r) => (r as GuardAttRow).sites?.map((s) => s.siteName) || []))).sort();
+  const visible = (showAll ? rows : flagged).filter((r) => nameOf(r.employeeId).toLowerCase().includes(search.toLowerCase()) &&
+    (!site || (r as GuardAttRow).sites?.some((s) => s.siteName === site)));
   const fmt = (n: number | null | undefined) =>
     (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -91,6 +96,13 @@ export function AttendanceSummarySection({ kind, rows, daysInMonth, nameOf, onAd
         </div>
       </div>
 
+      <div className="p-3 flex flex-wrap gap-3 border-b border-line">
+        <input aria-label="Filter guard or employee" placeholder="Search guard / employee" className="v-input max-w-xs" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {kind === 'GUARD' && <select aria-label="Filter attendance site" className="v-input max-w-xs" value={site} onChange={(e) => setSite(e.target.value)}>
+          <option value="">All primary and additional sites</option>{siteNames.map((name) => <option key={name}>{name}</option>)}
+        </select>}
+        {kind === 'GUARD' && <p className="text-xs text-muted">Saved payroll hours; site filters retain the guard’s complete breakdown. Earnings already reflect recorded hours; no automatic absence penalty.</p>}
+      </div>
       {visible.length === 0 ? (
         <p className="px-4 py-6 text-sm text-muted text-center">{kind === 'STAFF' ? t('attNoAbsence') : t('attNoShortfall')}</p>
       ) : (
@@ -129,7 +141,13 @@ export function AttendanceSummarySection({ kind, rows, daysInMonth, nameOf, onAd
                     : !(row as GuardAttRow).hasAttendance || ((row as GuardAttRow).percentageOfStandard ?? 100) < 100;
                 return (
                   <tr key={row.employeeId} className={`border-b border-line last:border-0 ${flaggedRow ? 'bg-warning-subtle/40' : ''}`}>
-                    <td className="px-4 py-2.5 font-medium text-ink">{nameOf(row.employeeId)}</td>
+                    <td className="px-4 py-2.5 font-medium text-ink">{nameOf(row.employeeId)}
+                      {kind === 'GUARD' && <details className="mt-2 text-xs font-normal text-muted"><summary className="cursor-pointer">Site-level hours</summary>
+                        {(row as GuardAttRow).sites?.map((s) => <div key={s.siteId} className="mt-1 border-l-2 border-line pl-2">
+                          <b>{s.siteName}</b> · {s.isPrimary ? 'Primary' : 'Additional'}<br />Normal {fmt(s.normalHours)}h · Sunday {fmt(s.sundayHours)}h · Holiday {fmt(s.holidayHours)}h
+                        </div>)}
+                      </details>}
+                    </td>
                     {kind === 'GUARD' ? (
                       <>
                         <td className="px-3 py-2.5 text-center">
@@ -162,7 +180,7 @@ export function AttendanceSummarySection({ kind, rows, daysInMonth, nameOf, onAd
                       {row.suggestedAmount != null ? <span className="text-warning-text">{fmt(row.suggestedAmount)}</span> : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      {flaggedRow && (
+                      {flaggedRow && kind === 'STAFF' && (
                         <Button variant="secondary" size="sm" onClick={() => onAddDeduction(row)} className="flex items-center gap-1 ml-auto">
                           <UserX size={13} />
                           {t('attDeductBtn')}

@@ -31,6 +31,7 @@ interface GuardAssignment {
   role: string;
   hourlyRate: number;
   effectiveFrom: string;
+  effectiveTo?: string;
   isCurrent: boolean;
   isPrimary?: boolean;
   standardMonthlyHours?: number;
@@ -91,10 +92,20 @@ export default function GuardsPage() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignSiteId, setAssignSiteId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ error?: string; success?: string }>({});
+  const [history, setHistory] = useState<GuardAssignment[]>([]);
+  const [correction, setCorrection] = useState<GuardAssignment | null>(null);
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [primaryTarget, setPrimaryTarget] = useState<string | null>(null);
 
   const [relieveTarget, setRelieveTarget] = useState<{ assignmentId: string; siteName: string } | null>(null);
 
   useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    setHistory([]);
+    if (selectedGuard) api.get(`/guards/${selectedGuard}/sites`).then((r) => setHistory(r.data.data || []))
+      .catch((e) => setFeedback({ error: e.response?.data?.message || 'Unable to load assignment history.' }));
+  }, [selectedGuard, guards]);
 
   const loadData = async () => {
     setLoading(true);
@@ -102,7 +113,7 @@ export default function GuardsPage() {
       const [gRes, sRes] = await Promise.all([api.get('/guards'), api.get('/sites')]);
       setGuards(gRes.data.data || []);
       setSites(sRes.data.data || []);
-    } catch (e) { console.error(e); }
+    } catch (e: any) { setFeedback({ error: e.response?.data?.message || 'Unable to load guards. Please retry.' }); }
     finally { setLoading(false); }
   };
 
@@ -149,7 +160,8 @@ export default function GuardsPage() {
       await api.post('/guards/assign-site', { guardId: selectedGuard, siteId: assignSiteId, role: 'GUARD' });
       closeAssignModal();
       await loadData();
-    } catch (e: any) { alert(e.response?.data?.message || t('guardsFailedAssign')); }
+      setFeedback({ success: 'Site assigned. Payroll uses effective site compensation, not the legacy profile rate.' });
+    } catch (e: any) { setFeedback({ error: e.response?.data?.message || t('guardsFailedAssign') }); }
     finally { setSaving(false); }
   };
 
@@ -159,7 +171,8 @@ export default function GuardsPage() {
       await api.delete(`/guards/site-assignment/${assignmentId}`);
       setRelieveTarget(null);
       await loadData();
-    } catch (e: any) { alert(e.response?.data?.message || t('guardsFailedRelieve')); }
+      setFeedback({ success: 'Assignment closed with history retained. If this was primary, explicitly select the next primary site.' });
+    } catch (e: any) { setFeedback({ error: e.response?.data?.message || t('guardsFailedRelieve') }); }
     finally { setSaving(false); }
   };
 
@@ -168,7 +181,9 @@ export default function GuardsPage() {
     try {
       await api.put(`/guards/${selectedGuard}/primary-site`, { siteId });
       await loadData();
-    } catch (e: any) { alert(e.response?.data?.message || t('guardsFailedSetPrimary')); }
+      setPrimaryTarget(null);
+      setFeedback({ success: 'Primary role change scheduled for tomorrow. Prior roles and dates are retained; a mid-month change will require segmented payroll.' });
+    } catch (e: any) { setFeedback({ error: e.response?.data?.message || t('guardsFailedSetPrimary') }); }
     finally { setSaving(false); }
   };
 
@@ -186,7 +201,10 @@ export default function GuardsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]">
+    <div className="flex h-[calc(100vh-4rem)] relative">
+      {(feedback.error || feedback.success) && <div role="status" className={`absolute top-2 right-4 z-40 max-w-xl p-3 rounded-xl border text-sm ${feedback.error ? 'bg-danger-subtle text-danger-text border-danger-line' : 'bg-success-subtle text-success-text border-success-line'}`}>
+        {feedback.error || feedback.success}<button aria-label="Dismiss message" className="ml-3" onClick={() => setFeedback({})}>×</button>
+      </div>}
       {/* Left Sidebar — Guard List */}
       <div className="w-80 flex-shrink-0 bg-surface border-r border-line flex flex-col">
         <div className="p-5 border-b border-line">
@@ -429,7 +447,7 @@ export default function GuardsPage() {
                                 >
                                   {a.role === 'SUPERVISOR' ? t('roleLabelSupervisor') : t('guard')}
                                 </span>
-                                <span>{a.hourlyRate > 0 ? `$${a.hourlyRate.toFixed(2)}/${t('guardsPerHour')}` : t('guardsRateNotSet')}</span>
+                                <span>Legacy rate (not payroll): {a.hourlyRate > 0 ? `ETB ${a.hourlyRate.toFixed(2)}/h` : 'Not set'}</span>
                                 <span>{t('guardsSince', { date: formatDate(lang, a.effectiveFrom) })}</span>
                                 {a.standardMonthlyHours && <span>{t('guardsHoursPerMonth', { hours: a.standardMonthlyHours })}</span>}
                               </div>
@@ -438,7 +456,7 @@ export default function GuardsPage() {
                           <div className="flex items-center gap-2">
                             {!siteGone && !a.isPrimary && (
                               <button
-                                onClick={() => handleMakePrimary(typeof a.siteId === 'object' && a.siteId ? a.siteId._id : (a.siteId || ''))}
+                                onClick={() => setPrimaryTarget(typeof a.siteId === 'object' && a.siteId ? a.siteId._id : (a.siteId || ''))}
                                 disabled={saving}
                                 className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-info-line bg-surface text-info-text text-xs font-medium hover:bg-info-subtle transition-colors disabled:opacity-50"
                                 title={t('guardsMakePrimaryTitle')}
@@ -465,6 +483,14 @@ export default function GuardsPage() {
               )}
             </div>
 
+            <div className="bg-surface rounded-2xl border border-line p-5 space-y-3">
+              <h3 className="text-sm font-bold text-ink">Effective assignment history</h3>
+              <p className="text-xs text-muted">Dates are inclusive. Primary flags describe historical roles, not just today. Corrections retain records and require a reason; finalized periods are protected.</p>
+              {history.map((a) => <div key={a._id} className="flex flex-wrap justify-between gap-2 border-t border-line pt-2 text-xs text-ink">
+                <div><b>{getSiteName(a.siteId) || 'Unavailable site'}</b> · {a.isPrimary ? 'Primary' : 'Additional'}<br />{a.effectiveFrom.slice(0, 10)} → {a.effectiveTo?.slice(0, 10) || 'Open-ended'}<small className="block text-muted">{a._id}</small></div>
+                <Button size="sm" variant="secondary" onClick={() => { setCorrection(a); setCorrectionReason(''); }}>Correct history</Button>
+              </div>)}
+            </div>
             {/* Rate Summary */}
             {selectedGuardData.currentAssignments.length > 0 && (
               <div className="bg-surface rounded-2xl border border-line shadow-card p-6">
@@ -506,6 +532,24 @@ export default function GuardsPage() {
         )}
       </div>
 
+      {primaryTarget && <Modal open onClose={() => setPrimaryTarget(null)} title="Schedule primary-site change" size="md">
+        <p className="text-sm text-muted mb-4">The old role ends today and the new primary role starts tomorrow. Attendance stays at its recorded site. Monthly totals spanning the change cannot be priced without segmented payroll.</p>
+        <Button onClick={() => handleMakePrimary(primaryTarget)} disabled={saving}>Confirm effective role change</Button>
+      </Modal>}
+      {correction && <Modal open onClose={() => setCorrection(null)} title="Audited assignment correction" size="md">
+        <div className="space-y-3">
+          <label className="v-label">Effective from (inclusive)<input aria-label="Correction start date" type="date" className="v-input" value={correction.effectiveFrom.slice(0, 10)} onChange={(e) => setCorrection({ ...correction, effectiveFrom: e.target.value })} /></label>
+          <label className="v-label">Effective to (inclusive, blank = open)<input aria-label="Correction end date" type="date" className="v-input" value={correction.effectiveTo?.slice(0, 10) || ''} onChange={(e) => setCorrection({ ...correction, effectiveTo: e.target.value })} /></label>
+          <label className="flex gap-2 text-sm text-ink"><input type="checkbox" checked={!!correction.isPrimary} onChange={(e) => setCorrection({ ...correction, isPrimary: e.target.checked })} />Primary during this interval</label>
+          <label className="v-label">Reason<textarea aria-label="Assignment correction reason" className="v-input" value={correctionReason} onChange={(e) => setCorrectionReason(e.target.value)} /></label>
+          <Button disabled={saving || !correctionReason.trim()} onClick={async () => {
+            setSaving(true);
+            try { await api.put(`/guards/site-assignment/${correction._id}/history`, { effectiveFrom: correction.effectiveFrom.slice(0, 10), effectiveTo: correction.effectiveTo?.slice(0, 10) || null, isPrimary: !!correction.isPrimary, reason: correctionReason }); setCorrection(null); await loadData(); setFeedback({ success: 'Assignment history corrected and audited; recalculate affected editable payroll.' }); }
+            catch (e: any) { setFeedback({ error: e.response?.data?.message || 'Correction failed. Check overlapping dates and payroll locks.' }); }
+            finally { setSaving(false); }
+          }}>Save audited correction</Button>
+        </div>
+      </Modal>}
       {/* Assign Modal */}
       {showAssignModal && selectedGuardData && (
         <Modal open onClose={closeAssignModal} title={t('guardsAssignSiteTitle')} size="md">

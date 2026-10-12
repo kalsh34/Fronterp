@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ChevronLeft, Download } from 'lucide-react';
 import api from '../../lib/api';
 import { LoadingSpinner } from '../ui';
 
@@ -32,11 +33,21 @@ interface PayslipData {
       holidayHours: number;
       holidayPay: number;
       transportPaid: number;
+      compensationAmount?: number;
+      basicHourlyRate?: number;
+      otRate?: number;
+      basicSalary?: number;
+      transportPercent?: number;
     };
     additionalSites?: {
       name: string;
       code?: string;
       totalHours: number;
+      compensationAmount?: number;
+      otRate?: number;
+      normalHours?: number;
+      sundayHours?: number;
+      holidayHours?: number;
       siteEarnings: number;
     }[];
     // Staff
@@ -55,6 +66,9 @@ interface PayslipData {
     otherDeductions?: { type?: string; label?: string; amount: number }[];
     totalDeductions: number;
   };
+  taxableEarnings?: number;
+  pensionBase?: number;
+  paymentRef?: string;
   netPay: number;
   bonus?: number;
   finalAmountPaid?: number;
@@ -83,6 +97,8 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
       setError(null);
       return;
     }
+    let cancelled = false;
+    setData(null);
     const fetchPayslip = async () => {
       setLoading(true);
       setError(null);
@@ -91,14 +107,15 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
           ? `/guard-payroll/records/${recordId}/payslip`
           : `/staff-payroll/records/${recordId}/payslip`;
         const res = await api.get(endpoint);
-        setData(res.data.data || res.data);
+        if (!cancelled) setData(res.data.data || res.data);
       } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to load official payslip');
+        if (!cancelled) setError(err.response?.data?.message || 'Failed to load official payslip');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchPayslip();
+    return () => { cancelled = true; };
   }, [isOpen, recordId, type]);
 
   if (!isOpen) return null;
@@ -107,18 +124,52 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
     window.print();
   };
 
+  /** Download the payslip as a standalone .html receipt copy (opens/prints offline). */
+  const handleDownload = () => {
+    const paper = document.getElementById('official-payslip-paper');
+    if (!paper || !data) return;
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Payslip ${data.employee.code} ${data.period}<\/title>
+<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:24px;background:#fff}.wrap{max-width:640px;margin:0 auto}</style>
+</head><body><div class="wrap">${paper.innerHTML.replace(/print:hidden/g, 'x')}</div></body></html>`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `payslip-${data.employee.code}-${data.period}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/70 backdrop-blur-sm p-4 overflow-y-auto">
+    <div role="dialog" aria-modal="true" aria-label="Payroll payslip" className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/70 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-navy-100 overflow-hidden my-8">
         {/* Modal Toolbar (hidden on print) */}
         <div className="print:hidden flex items-center justify-between px-6 py-4 bg-navy-950 border-b border-navy-800 text-white">
           <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              aria-label="Back to payroll"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-navy-200 hover:text-white hover:bg-navy-800 text-xs font-semibold transition-colors"
+            >
+              <ChevronLeft size={14} />
+              Back
+            </button>
             <span className="w-2.5 h-2.5 rounded-full bg-cobalt-400 animate-pulse" />
             <h3 className="text-sm font-semibold tracking-wide uppercase text-navy-100">
               Official Document Preview • {type === 'GUARD' ? 'Guard Payslip' : 'Staff Payslip'}
             </h3>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownload}
+              disabled={loading || !data}
+              className="flex items-center gap-2 px-3 py-1.5 bg-navy-800 hover:bg-navy-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-all"
+            >
+              <Download size={14} />
+              Download
+            </button>
             <button
               onClick={handlePrint}
               disabled={loading || !data}
@@ -131,6 +182,7 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
             </button>
             <button
               onClick={onClose}
+              aria-label="Close payslip"
               className="p-1.5 text-navy-400 hover:text-white hover:bg-navy-800 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -199,16 +251,16 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
                 <div className="space-y-1.5">
                   <div>
                     <span className="text-slate-400 uppercase text-[10px] font-semibold tracking-wide">Disbursement Bank</span>
-                    <p className="font-bold text-slate-900">{data.employee.bankName || 'Commercial Bank of Ethiopia'}</p>
+                    <p className="font-bold text-slate-900">{data.employee.bankName || 'Bank details missing'}</p>
                   </div>
                   <div>
                     <span className="text-slate-400 uppercase text-[10px] font-semibold tracking-wide">Account Number</span>
-                    <p className="font-mono font-medium text-slate-700">{data.employee.accountNumber || 'Pending Onboarding'}</p>
+                    <p className="font-mono font-medium text-slate-700">{data.employee.accountNumber ? `••••${data.employee.accountNumber.slice(-4)}` : 'Bank account missing'}</p>
                   </div>
                   <div>
                     <span className="text-slate-400 uppercase text-[10px] font-semibold tracking-wide">Pension Status</span>
                     <p className="font-semibold text-emerald-700">
-                      {data.employee.pensionEnrolled !== false ? 'Enrolled (POESSA 7% / 11%)' : 'Exempt'}
+                      {data.employee.pensionEnrolled === true ? 'Enrolled — snapshot contributions below' : data.employee.pensionEnrolled === false ? 'Not enrolled' : 'Enrollment not recorded'}
                     </p>
                   </div>
                 </div>
@@ -225,6 +277,9 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
 
                   {type === 'GUARD' && data.earnings.primarySite ? (
                     <div className="space-y-2">
+                      <p className="font-semibold text-slate-900">Primary: {data.earnings.primarySite.name}</p>
+                      <p className="text-slate-500">Agreed compensation: {formatETB(data.earnings.primarySite.compensationAmount)} · Basic: {formatETB(data.earnings.primarySite.basicSalary)}</p>
+                      <p className="text-slate-500">Basic hourly: {data.earnings.primarySite.basicHourlyRate} · OT hourly: {data.earnings.primarySite.otRate}</p>
                       <div className="flex justify-between text-slate-600">
                         <span>Normal Hours ({data.earnings.primarySite.normalHours}h)</span>
                         <span className="font-mono font-medium text-slate-900">{formatETB(data.earnings.primarySite.normalPay)}</span>
@@ -242,12 +297,12 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
                         </div>
                       )}
                       <div className="flex justify-between text-slate-600">
-                        <span>Transport Allowance (20%)</span>
+                        <span>Non-taxable Transport ({data.earnings.primarySite.transportPercent ?? '—'}%)</span>
                         <span className="font-mono font-medium text-slate-900">{formatETB(data.earnings.primarySite.transportPaid)}</span>
                       </div>
                       {data.earnings.additionalSites?.map((s, idx) => (
                         <div key={idx} className="flex justify-between text-slate-600">
-                          <span>Addl Site: {s.name} ({s.totalHours}h)</span>
+                          <span>Additional: {s.name} ({s.totalHours}h × {s.otRate})<small className="block">Compensation {formatETB(s.compensationAmount)} · Normal {s.normalHours}h / Sunday {s.sundayHours}h / Holiday {s.holidayHours}h</small></span>
                           <span className="font-mono font-medium text-slate-900">{formatETB(s.siteEarnings)}</span>
                         </div>
                       ))}
@@ -310,7 +365,7 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
                       <span className="font-mono font-medium text-red-600">-{formatETB(data.deductions.incomeTax)}</span>
                     </div>
                     <div className="flex justify-between text-slate-600">
-                      <span>Employee Pension (7%)</span>
+                      <span>Employee Pension</span>
                       <span className="font-mono font-medium text-red-600">-{formatETB(data.deductions.employeePension)}</span>
                     </div>
                     {data.deductions.otherDeductions?.map((d, i) => (
@@ -320,7 +375,7 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
                       </div>
                     ))}
                     <div className="flex justify-between text-slate-400 italic text-[11px] pt-1">
-                      <span>Employer Pension (11% Company Cost)</span>
+                      <span>Employer Pension (company expense, not deducted)</span>
                       <span className="font-mono">{formatETB(data.deductions.employerPension)}</span>
                     </div>
                   </div>
@@ -332,6 +387,12 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
                 </div>
               </div>
 
+              {type === 'GUARD' && <div className="rounded-lg border border-slate-200 p-3 text-xs space-y-1">
+                <p>Taxable earnings (all sites, transport excluded): <b>{formatETB(data.taxableEarnings)}</b></p>
+                <p>Pension base (primary normal earnings only): <b>{formatETB(data.pensionBase)}</b></p>
+                <p>Payroll status: <b>{data.status}</b>{data.paymentRef ? ` · Recorded payment reference: ${data.paymentRef}` : ''}</p>
+                <p className="text-slate-500">Saved payroll snapshot. A bank CSV is payment instructions only; it does not prove bank execution.</p>
+              </div>}
               {/* Net Pay & Bonus Summary Banner */}
               <div className="p-5 rounded-xl bg-gradient-to-r from-navy-900 to-navy-950 text-white flex items-center justify-between shadow-md">
                 <div>
@@ -359,7 +420,7 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
                   </div>
                 ) : (
                   <div className="w-16 h-16 rounded-xl border border-dashed border-navy-700 flex items-center justify-center text-[10px] text-navy-400 text-center font-bold uppercase tracking-widest">
-                    Approved
+                    {data.status}
                   </div>
                 )}
               </div>

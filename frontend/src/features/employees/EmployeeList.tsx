@@ -30,6 +30,9 @@ interface Employee {
     employmentType?: string;
     idCardNumber?: string;
   };
+  dateOfBirth?: string;
+  terminationDate?: string | null;
+  terminationReason?: string | null;
   statusHistory?: {
     from: string;
     to: string;
@@ -142,6 +145,13 @@ export default function EmployeeList() {
 
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState<{
+    contract?: any;
+    contractHistory?: any[];
+    guarantors?: any[];
+    documents?: any[];
+    files?: any[];
+  } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   // Create/Edit employee form rendered as an in-page modal (no navigation).
@@ -194,7 +204,7 @@ export default function EmployeeList() {
 
   const handleFormSaved = (emp: any) => {
     fetchEmployees();
-    if (selectedEmployee && emp?._id === selectedEmployee._id) setSelectedEmployee(emp);
+    if (selectedEmployee && emp?._id === selectedEmployee._id) handleView(emp);
   };
 
   const openStatusModal = (emp: Employee) => {
@@ -227,14 +237,25 @@ export default function EmployeeList() {
 
   const statusOptions = ['ACTIVE', 'CONTRACTED', 'INACTIVE', 'ON_LEAVE', 'TERMINATED'];
 
+  const fileUrl = (path: string) => `${getApiBaseUrl()}${path.startsWith('/') ? '' : '/'}${path}`;
+
   const handleView = async (emp: Employee) => {
     setSelectedEmployee(emp);
+    setDetail(null);
     setDetailLoading(true);
     try {
-      const res = await api.get(`/employees/${emp._id}`);
-      setSelectedEmployee(res.data.data);
+      // Full profile: employee + active contract + contract salary history +
+      // guarantors + documents, so everything is visible in one view.
+      const res = await api.get(`/employees/${emp._id}/detail`);
+      setSelectedEmployee(res.data.data?.employee ?? res.data.data);
+      setDetail(res.data.data ?? null);
     } catch (e) {
-      console.error('Failed to load employee details');
+      try {
+        const res = await api.get(`/employees/${emp._id}`);
+        setSelectedEmployee(res.data.data);
+      } catch {
+        console.error('Failed to load employee details');
+      }
     } finally {
       setDetailLoading(false);
     }
@@ -489,6 +510,11 @@ export default function EmployeeList() {
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${categoryChip[selectedEmployee.category] || 'bg-subtle text-muted'}`}>
                     {t(categoryLabels[selectedEmployee.category] ?? 'employee')}
                   </span>
+                  {selectedEmployee.status === 'TERMINATED' && selectedEmployee.terminationDate && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-danger-subtle text-danger-text border border-danger-line">
+                      {t('terminatedOn', { date: formatDate(lang, selectedEmployee.terminationDate) })}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex gap-3">
@@ -542,7 +568,7 @@ export default function EmployeeList() {
                       { label: t('phone'), value: selectedEmployee.phone || '—' },
                       { label: t('email'), value: selectedEmployee.email || '—' },
                       { label: t('gender'), value: selectedEmployee.gender || '—' },
-                      { label: t('dateOfBirth'), value: selectedEmployee.hireDate ? formatDate(lang, selectedEmployee.hireDate) : '—' },
+                      { label: t('dateOfBirth'), value: selectedEmployee.dateOfBirth ? formatDate(lang, selectedEmployee.dateOfBirth) : '—' },
                     ].map((f) => (
                       <div key={f.label}>
                         <p className="text-[11px] text-subtext uppercase tracking-wider">{f.label}</p>
@@ -577,22 +603,52 @@ export default function EmployeeList() {
                   </div>
                 </div>
 
-                <div className="bg-canvas  rounded-xl p-5 space-y-4">
-                  <h3 className="text-sm font-semibold text-ink">{t('compensation')}</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { label: t('salary'), value: selectedEmployee.salary ? `ETB ${selectedEmployee.salary.toLocaleString()}` : '—' },
-                      { label: t('transportAllowance'), value: selectedEmployee.transportAllowance ? `ETB ${selectedEmployee.transportAllowance.toLocaleString()}` : '—' },
-                      { label: t('bankName'), value: selectedEmployee.bankName || '—' },
-                      { label: t('accountNumber'), value: selectedEmployee.accountNumber || '—' },
-                    ].map((f) => (
-                      <div key={f.label}>
-                        <p className="text-[11px] text-subtext uppercase tracking-wider">{f.label}</p>
-                        <p className="text-sm font-medium text-ink mt-0.5">{f.value}</p>
+                {/* Compensation — taken from the ACTIVE CONTRACT (the source of truth for pay) */}
+                {(() => {
+                  const c = detail?.contract;
+                  const money = (n?: number) => (n != null && n !== 0 ? `ETB ${Number(n).toLocaleString()}` : '—');
+                  return (
+                    <div className="bg-canvas  rounded-xl p-5 space-y-4">
+                      <h3 className="text-sm font-semibold text-ink">{t('compensation')}</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        {[
+                          { label: t('salary'), value: c ? money(c.wage) : (selectedEmployee.salary ? `ETB ${selectedEmployee.salary.toLocaleString()}` : '—') },
+                          { label: t('transportAllowance'), value: c ? money(c.transportAllowance) : (selectedEmployee.transportAllowance ? `ETB ${selectedEmployee.transportAllowance.toLocaleString()}` : '—') },
+                          ...(c && selectedEmployee.category !== 'GUARD' ? [
+                            { label: t('responsibilityAllowanceEtb'), value: money(c.responsibilityAllowance) },
+                            { label: t('teleAllowanceEtb'), value: money(c.teleAllowance) },
+                          ] : []),
+                          { label: t('bankName'), value: selectedEmployee.bankName || '—' },
+                          { label: t('accountNumber'), value: selectedEmployee.accountNumber || '—' },
+                        ].map((f) => (
+                          <div key={f.label}>
+                            <p className="text-[11px] text-subtext uppercase tracking-wider">{f.label}</p>
+                            <p className="text-sm font-medium text-ink mt-0.5">{f.value}</p>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      {/* Old salary kept from contract updates — full history visible */}
+                      {(detail?.contractHistory || []).length > 1 && (
+                        <div className="pt-3 border-t border-line">
+                          <p className="text-[11px] text-subtext uppercase tracking-wider mb-2">Salary history</p>
+                          <div className="space-y-1.5">
+                            {detail!.contractHistory!.slice(0, 5).map((h: any, i: number) => (
+                              <div key={h._id || i} className="flex items-center justify-between text-xs">
+                                <span className="text-muted">
+                                  {h.previous ? `${t('salary')}: ETB ${Number(h.previous.wage).toLocaleString()}` : t('newContract') || 'Contract created'}
+                                </span>
+                                <span className="font-medium text-ink">
+                                  → ETB {Number(h.current?.wage ?? 0).toLocaleString()}
+                                  <span className="text-subtext ml-1.5">{h.effectiveFrom ? formatDate(lang, h.effectiveFrom) : ''}</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {selectedEmployee.category === 'GUARD' && selectedEmployee.guardInfo && (
                   <div className="bg-canvas  rounded-xl p-5 space-y-4">
@@ -607,6 +663,99 @@ export default function EmployeeList() {
                           <p className="text-sm font-medium text-ink mt-0.5">{f.value}</p>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Documents uploaded for this employee — visible & downloadable */}
+                {(() => {
+                  const docs = [
+                    ...((detail?.documents as any[]) || []),
+                    ...((detail?.files as any[]) || []).map((f) => ({
+                      title: f.title || f.description || f.originalName,
+                      url: f.path,
+                      fileName: f.fileName || f.originalName,
+                      uploadedAt: f.createdAt,
+                    })),
+                  ];
+                  const seen = new Set<string>();
+                  const unique = docs.filter((d) => d.url && !seen.has(d.url) && seen.add(d.url));
+                  return unique.length > 0 ? (
+                    <div className="bg-canvas  rounded-xl p-5">
+                      <h3 className="text-sm font-semibold text-ink mb-3">{t('documents')}</h3>
+                      <div className="space-y-2">
+                        {unique.map((d: any, i: number) => (
+                          <a
+                            key={i}
+                            href={fileUrl(d.url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2.5 p-2.5 rounded-lg border border-line hover:bg-subtle transition-colors"
+                          >
+                            <svg className="w-4 h-4 text-primary-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-ink truncate">{d.title || d.fileName}</p>
+                              {d.uploadedAt && <p className="text-[10px] text-subtext">{formatDate(lang, d.uploadedAt)}</p>}
+                            </div>
+                            <svg className="w-4 h-4 text-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Guarantors on file for this employee */}
+                {(detail?.guarantors || []).length > 0 && (
+                  <div className="bg-canvas  rounded-xl p-5 space-y-3">
+                    <h3 className="text-sm font-semibold text-ink">{t('tabGuarantor')}</h3>
+                    {detail!.guarantors!.map((g: any) => (
+                      <div key={g._id} className="p-3 rounded-lg border border-line">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-ink">{g.fullName}</p>
+                            <p className="text-xs text-muted">{g.phone}{g.relationship ? ` • ${g.relationship}` : ''}</p>
+                          </div>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                            g.verificationStatus === 'VERIFIED' ? 'bg-success-subtle text-success-text'
+                            : g.verificationStatus === 'REJECTED' ? 'bg-danger-subtle text-danger-text'
+                            : 'bg-warning-subtle text-warning-text'}`}>
+                            {g.verificationStatus}
+                          </span>
+                        </div>
+                        {(g.documents || []).length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {g.documents.map((d: any, i: number) => (
+                              <a key={i} href={fileUrl(d.url)} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 bg-surface rounded text-[10px] text-primary-600 dark:text-primary-400 hover:underline">
+                                {d.description || d.fileName} ↓
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    <Link to={`/employees/${selectedEmployee._id}/guarantor`} className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline">
+                      {t('guarantorManagement')} →
+                    </Link>
+                  </div>
+                )}
+
+                {/* Termination record — when & why this employee was terminated */}
+                {selectedEmployee.status === 'TERMINATED' && (
+                  <div className="bg-danger-subtle border border-danger-line rounded-xl p-5 space-y-2">
+                    <h3 className="text-sm font-semibold text-danger-text">{t('terminationRecord')}</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[11px] text-danger-text opacity-70 uppercase tracking-wider">{t('terminationDateCol')}</p>
+                        <p className="text-sm font-medium text-ink mt-0.5">
+                          {selectedEmployee.terminationDate ? formatDate(lang, selectedEmployee.terminationDate) : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-danger-text opacity-70 uppercase tracking-wider">{t('reason')}</p>
+                        <p className="text-sm font-medium text-ink mt-0.5">{selectedEmployee.terminationReason || '—'}</p>
+                      </div>
                     </div>
                   </div>
                 )}

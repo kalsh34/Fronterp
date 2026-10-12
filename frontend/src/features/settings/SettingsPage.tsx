@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import api from '../../lib/api';
 import { UserRole } from '../../types';
 import { Card, FormField, Modal, Select, InfoTooltip } from '../../components/ui';
@@ -81,6 +82,12 @@ const TAB_ITEMS: { key: string; labelKey: DictKey }[] = [
 
 function getInitials(firstName: string, lastName: string) {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+}
+
+/** Human label for a permission key (used by the module-access grant UI). */
+function permLabel(p: string, t: T): string {
+  const key = (PERM_LABEL_KEYS as Record<string, DictKey>)[p];
+  return key ? t(key) : p;
 }
 
 function roleLabel(role: string, t: T): string {
@@ -415,6 +422,7 @@ function ProvisionModal({ onClose }: { onClose: () => void }) {
   const [grants, setGrants] = useState<string[]>([]);
   const [denies, setDenies] = useState<string[]>([]);
   const [modules, setModules] = useState<{ key: string; label: string; permissions: string[] }[]>([]);
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -512,37 +520,68 @@ function ProvisionModal({ onClose }: { onClose: () => void }) {
           </div>
           <div className="space-y-2 max-h-72 overflow-y-auto border border-line rounded-lg p-3">
             {modules.map((m) => (
-              <div key={m.key} className="flex items-center justify-between gap-3 py-1.5">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink truncate">{m.label}</p>
-                  <p className="text-[11px] text-subtext truncate">
-                    {m.permissions.length} {m.permissions.length === 1 ? 'permission' : 'permissions'} — {m.permissions.join(', ')}
-                  </p>
+              <div key={m.key} className="py-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-label={expanded.includes(m.key) ? 'Hide actions and pages' : 'Show actions and pages'}
+                      onClick={() => setExpanded((x) => (x.includes(m.key) ? x.filter((k) => k !== m.key) : [...x, m.key]))}
+                      className="text-subtext hover:text-ink transition-colors flex-shrink-0"
+                    >
+                      <ChevronDown size={14} className={`transition-transform ${expanded.includes(m.key) ? 'rotate-180' : ''}`} />
+                    </button>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink truncate">
+                        {m.label}
+                        {grants.includes(m.key) && <span className="ml-2 text-[10px] font-bold text-success-600 uppercase">Granted</span>}
+                        {denies.includes(m.key) && <span className="ml-2 text-[10px] font-bold text-danger-text uppercase">Denied</span>}
+                      </p>
+                      <p className="text-[11px] text-subtext truncate">
+                        {m.permissions.length} {m.permissions.length === 1 ? 'permission' : 'permissions'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => grantAll(m.key)}
+                      className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-colors ${
+                        grants.includes(m.key)
+                          ? 'bg-success-subtle text-success-text border-success-line'
+                          : 'border-line text-muted hover:bg-subtle'
+                      }`}
+                    >
+                      {t('settingsModuleGrant')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => denyAll(m.key)}
+                      className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-colors ${
+                        denies.includes(m.key)
+                          ? 'bg-danger-subtle text-danger-text border-danger-line'
+                          : 'border-line text-muted hover:bg-subtle'
+                      }`}
+                    >
+                      {t('settingsModuleDeny')}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => grantAll(m.key)}
-                    className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-colors ${
-                      grants.includes(m.key)
-                        ? 'bg-success-subtle text-success-text border-success-line'
-                        : 'border-line text-muted hover:bg-subtle'
-                    }`}
-                  >
-                    {t('settingsModuleGrant')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => denyAll(m.key)}
-                    className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-colors ${
-                      denies.includes(m.key)
-                        ? 'bg-danger-subtle text-danger-text border-danger-line'
-                        : 'border-line text-muted hover:bg-subtle'
-                    }`}
-                  >
-                    {t('settingsModuleDeny')}
-                  </button>
-                </div>
+                {expanded.includes(m.key) && (
+                  <div className="mt-2 ml-6 pl-3 pr-2 py-2 rounded-lg bg-subtle/60 border border-line/60">
+                    <p className="text-[10px] font-bold text-subtext uppercase tracking-wide mb-1.5">Actions enabled by this module</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {m.permissions.map((p) => (
+                        <span key={p} className="px-2 py-0.5 rounded-md border border-line bg-surface text-[10px] font-medium text-muted font-mono">
+                          {permLabel(p, t)}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-subtext mt-1.5 leading-relaxed">
+                      Granting this module enables every listed action across all pages it covers (role defaults still apply; deny removes them).
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -577,6 +616,7 @@ function EditAccessModal({ user, onClose, onSaved }: { user: User; onClose: () =
   const [grants, setGrants] = useState<string[]>(user.moduleGrants || []);
   const [denies, setDenies] = useState<string[]>(user.moduleDenies || []);
   const [modules, setModules] = useState<{ key: string; label: string; permissions: string[] }[]>([]);
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -635,31 +675,62 @@ function EditAccessModal({ user, onClose, onSaved }: { user: User; onClose: () =
           </div>
           <div className="space-y-2 max-h-72 overflow-y-auto border border-line rounded-lg p-3">
             {modules.map((m) => (
-              <div key={m.key} className="flex items-center justify-between gap-3 py-1.5">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-ink truncate">{m.label}</p>
-                  <p className="text-[11px] text-subtext truncate">{m.permissions.length} permissions</p>
+              <div key={m.key} className="py-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-label={expanded.includes(m.key) ? 'Hide actions and pages' : 'Show actions and pages'}
+                      onClick={() => setExpanded((x) => (x.includes(m.key) ? x.filter((k) => k !== m.key) : [...x, m.key]))}
+                      className="text-subtext hover:text-ink transition-colors flex-shrink-0"
+                    >
+                      <ChevronDown size={14} className={`transition-transform ${expanded.includes(m.key) ? 'rotate-180' : ''}`} />
+                    </button>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink truncate">
+                        {m.label}
+                        {grants.includes(m.key) && <span className="ml-2 text-[10px] font-bold text-success-600 uppercase">Granted</span>}
+                        {denies.includes(m.key) && <span className="ml-2 text-[10px] font-bold text-danger-text uppercase">Denied</span>}
+                      </p>
+                      <p className="text-[11px] text-subtext truncate">{m.permissions.length} permissions</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => grantAll(m.key)}
+                      className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-colors ${
+                        grants.includes(m.key) ? 'bg-success-subtle text-success-text border-success-line' : 'border-line text-muted hover:bg-subtle'
+                      }`}
+                    >
+                      {t('settingsModuleGrant')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => denyAll(m.key)}
+                      className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-colors ${
+                        denies.includes(m.key) ? 'bg-danger-subtle text-danger-text border-danger-line' : 'border-line text-muted hover:bg-subtle'
+                      }`}
+                    >
+                      {t('settingsModuleDeny')}
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => grantAll(m.key)}
-                    className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-colors ${
-                      grants.includes(m.key) ? 'bg-success-subtle text-success-text border-success-line' : 'border-line text-muted hover:bg-subtle'
-                    }`}
-                  >
-                    {t('settingsModuleGrant')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => denyAll(m.key)}
-                    className={`px-3 h-8 rounded-lg text-xs font-semibold border transition-colors ${
-                      denies.includes(m.key) ? 'bg-danger-subtle text-danger-text border-danger-line' : 'border-line text-muted hover:bg-subtle'
-                    }`}
-                  >
-                    {t('settingsModuleDeny')}
-                  </button>
-                </div>
+                {expanded.includes(m.key) && (
+                  <div className="mt-2 ml-6 pl-3 pr-2 py-2 rounded-lg bg-subtle/60 border border-line/60">
+                    <p className="text-[10px] font-bold text-subtext uppercase tracking-wide mb-1.5">Actions enabled by this module</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {m.permissions.map((p) => (
+                        <span key={p} className="px-2 py-0.5 rounded-md border border-line bg-surface text-[10px] font-medium text-muted font-mono">
+                          {permLabel(p, t)}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-subtext mt-1.5 leading-relaxed">
+                      Granting this module enables every listed action across all pages it covers (role defaults still apply; deny removes them).
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>

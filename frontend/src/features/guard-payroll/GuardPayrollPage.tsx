@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronUp, CirclePlus, Clock, Download, Eye, Printer, Undo2, Wallet } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckCircle2, ChevronDown, ChevronLeft, ChevronUp, CirclePlus, Clock, Download, Eye, Printer, Undo2, Wallet, Wrench } from 'lucide-react';
 import api from '../../lib/api';
 import { Badge, Button, Card, EmptyState, LoadingSpinner, Modal, Select, Tabs } from '../../components/ui';
 import { useAuthStore } from '../../stores/authStore';
 import { UserRole } from '../../types';
 import { useT } from '../../i18n';
-import { fmtMoney, monthNameOf, PayrollRecord, PayrollRun, statusVariant } from './guardPayroll.types';
+import { fmtMoney, fmtHours, monthNameOf, PayrollRecord, PayrollRun, statusVariant } from './guardPayroll.types';
 import { PayrollRecordDetail } from './PayrollRecordDetail';
 import { SiteCompensationTab } from './SiteCompensationTab';
 import { DeductionsTab } from './DeductionsTab';
@@ -63,6 +63,10 @@ export default function GuardPayrollPage() {
   const [banksInUse, setBanksInUse] = useState<{ bank: string; count: number }[]>([]);
   // Site filter for the records table ('ALL' = no filter).
   const [siteFilter, setSiteFilter] = useState('ALL');
+  const [guardSearch, setGuardSearch] = useState('');
+  const [statutoryGuard, setStatutoryGuard] = useState('');
+  const [taxCenter, setTaxCenter] = useState('');
+  const [pensionCenter, setPensionCenter] = useState('');
 
   const siteOptions = (() => {
     const map = new Map<string, string>();
@@ -73,18 +77,27 @@ export default function GuardPayrollPage() {
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   })();
-  const filteredRecords = siteFilter === 'ALL'
-    ? (detail?.records || [])
-    : (detail?.records || []).filter((r) => {
-        const psid = (r.primarySite as any)?.siteId;
-        const id = psid?._id ? String(psid._id) : String(psid || '');
-        return id === siteFilter;
-      });
+  const filteredRecords = (detail?.records || []).filter((r) => {
+    if (siteFilter !== 'ALL') {
+      const psid = (r.primarySite as any)?.siteId;
+      const id = psid?._id ? String(psid._id) : String(psid || '');
+      if (id !== siteFilter) return false;
+    }
+    if (guardSearch.trim()) {
+      const q = guardSearch.trim().toLowerCase();
+      const hay = `${r.snapshot.fullName} ${r.snapshot.employeeCode}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
 
   const handleExportBank = async (bank: string) => {
     if (!detail?.run._id) return;
     const filterQuery = bank !== 'ALL' ? `?bank=${encodeURIComponent(bank)}` : '';
-    await downloadReport(`/guard-payroll/runs/${detail.run._id}/export/bank${filterQuery}`, `bank-disbursement-${bank}-${detail.run.periodKey}.csv`);
+    try {
+      await downloadReport(`/guard-payroll/runs/${detail.run._id}/export/bank${filterQuery}`, `bank-disbursement-${bank}-${detail.run.periodKey}.csv`);
+      setNotice('Payment instructions generated. No money was transferred; confirm execution with the bank before recording payment.');
+    } catch (e: any) { setError(e.response?.data?.message || 'Unable to generate bank instructions. Check approval and bank details.'); }
     setExportMenuOpen(false);
   };
 
@@ -298,6 +311,29 @@ export default function GuardPayrollPage() {
     });
   };
 
+  /** Group run problems by root cause — one entry per distinct (code, message),
+   *  with the count and affected guards so a recurring data defect reports once. */
+  const groupedProblems = (() => {
+    const map = new Map<string, { key: string; code: string; message: string; count: number; guards: string[]; employeeIds: string[] }>();
+    for (const p of run?.problems || []) {
+      const key = `${p.code}::${p.message}`;
+      const g = map.get(key);
+      const who = [p.guardName, p.employeeCode].filter(Boolean).join(' · ') || 'Guard';
+      if (g) { g.count += 1; if (!g.guards.includes(who)) g.guards.push(who); }
+      else map.set(key, { key, code: p.code, message: p.message, count: 1, guards: [who], employeeIds: [String(p.employeeId)] });
+    }
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  })();
+
+  /** Where to send the user to fix the root cause of a problem code. */
+  const problemFixTab: (code: string) => 'compensation' | 'deductions' | 'settings' | null = (code) => {
+    const c = code.toLowerCase();
+    if (c.includes('compensation') || c.includes('rate') || c.includes('site')) return 'compensation';
+    if (c.includes('deduction') || c.includes('loan')) return 'deductions';
+    if (c.includes('config') || c.includes('assignment') || c.includes('overlap')) return 'settings';
+    return null;
+  };
+
   return (
     <div className="p-6 space-y-5">
       {detail ? (
@@ -468,7 +504,7 @@ export default function GuardPayrollPage() {
                   {exportMenuOpen && (
                     <div className="absolute right-0 mt-2 w-72 bg-surface border border-line rounded-xl shadow-card z-50 py-2 divide-y divide-line/60 max-h-[70vh] overflow-y-auto">
                       <div className="py-1">
-                        <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Bank Batch Transfers</p>
+                        <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Bank Payment Instructions (CSV)</p>
                         <button onClick={() => handleExportBank('ALL')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors font-semibold">
                           All Banks Combined
                         </button>
@@ -491,26 +527,22 @@ export default function GuardPayrollPage() {
                       <div className="py-1">
                         <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Statutory Compliance — Tax</p>
                         <button onClick={() => handleExportTax()} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors font-semibold">
-                          All Tax Branches Combined
+                          Guard Income Tax Register
                         </button>
                         <button onClick={() => handleExportTax('GUARD')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
                           Guards — Private Org Income Tax
                         </button>
-                        <button onClick={() => handleExportTax('STAFF')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
-                          Staff Income Tax Branch
-                        </button>
+
                       </div>
                       <div className="py-1">
                         <p className="px-4 py-1 text-[10px] font-bold text-muted uppercase tracking-wider">Statutory Compliance — Pension</p>
                         <button onClick={() => handleExportPension()} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors font-semibold">
-                          All Pension Centers Combined
+                          Guard Pension Register
                         </button>
                         <button onClick={() => handleExportPension('GUARD')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
                           POESSA Private Organization (Guards)
                         </button>
-                        <button onClick={() => handleExportPension('STAFF')} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors">
-                          Staff Pension Center
-                        </button>
+
                       </div>
                       <div className="py-1">
                         <button onClick={() => { exportRegister(); setExportMenuOpen(false); }} className="w-full text-left px-4 py-1.5 text-xs text-ink hover:bg-subtle transition-colors font-semibold">
@@ -527,36 +559,84 @@ export default function GuardPayrollPage() {
               <div className="rounded-xl border border-danger-line bg-danger-subtle px-4 py-3 text-sm text-danger-text">{error}</div>
             )}
 
-            {/* Totals */}
+            {/* Totals — net pay gets emphasis; cards are tabular in light and dark. */}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               {[
-                { label: t('gpGross'), value: run.totals.grossEarnings },
-                { label: `${t('gpPension')} (EE)`, value: run.totals.employeePension },
-                { label: `${t('gpPension')} (ER)`, value: run.totals.employerPension },
-                { label: t('gpTax'), value: run.totals.incomeTax },
-                { label: t('gpDeductions'), value: run.totals.totalDeductions },
-                { label: t('gpNet'), value: run.totals.netPay },
+                { label: t('gpGross'), value: run.totals.grossEarnings, tone: 'default' as const },
+                { label: `${t('gpPension')} (EE)`, value: run.totals.employeePension, tone: 'default' as const },
+                { label: `${t('gpPension')} (ER)`, value: run.totals.employerPension, tone: 'default' as const },
+                { label: t('gpTax'), value: run.totals.incomeTax, tone: 'default' as const },
+                { label: t('gpDeductions'), value: run.totals.totalDeductions, tone: 'default' as const },
+                { label: t('gpNet'), value: run.totals.netPay, tone: 'primary' as const },
               ].map((c) => (
-                <Card key={c.label} className="p-3">
+                <Card key={c.label} className={`p-3 ${c.tone === 'primary' ? 'border border-primary-500/40 bg-primary-500/5' : ''}`}>
                   <p className="text-[11px] uppercase tracking-wide text-subtext">{c.label}</p>
-                  <p className="mt-1 text-sm font-semibold text-ink">{fmtMoney(c.value)}</p>
+                  <p className={`mt-1 text-sm font-semibold tabular-nums ${c.tone === 'primary' ? 'text-primary-600' : 'text-ink'}`}>{fmtMoney(c.value)}</p>
                 </Card>
               ))}
             </div>
 
-            {/* Problems */}
-            {run.problems.length > 0 && (
-              <Card className="p-4 border border-danger-line bg-danger-subtle">
-                <h4 className="flex items-center gap-2 text-sm font-semibold text-danger-text mb-2">
-                  <AlertTriangle size={15} />
-                  {t('gpProblems')} ({run.problems.length})
-                </h4>
-                <ul className="space-y-1.5 text-sm text-danger-text">
-                  {run.problems.map((p, i) => (
-                    <li key={i}>• {p.message}</li>
-                  ))}
-                </ul>
-              </Card>
+            <Card className="p-4 space-y-3">
+              <h4 className="font-semibold text-ink">Tax Center & Pension Center — saved run register</h4>
+              <div className="flex flex-wrap gap-3">
+                <input aria-label="Filter statutory guard" className="v-input max-w-xs" placeholder="Guard name or identifier" value={statutoryGuard} onChange={(e) => setStatutoryGuard(e.target.value)} />
+                <select aria-label="Tax center" className="v-input max-w-xs" value={taxCenter} onChange={(e) => setTaxCenter(e.target.value)}><option value="">All tax centers</option>{Array.from(new Set(detail.records.map((r) => (r.primarySite as any).taxCenter || 'Unspecified'))).map((c) => <option key={c}>{c}</option>)}</select>
+                <select aria-label="Pension center" className="v-input max-w-xs" value={pensionCenter} onChange={(e) => setPensionCenter(e.target.value)}><option value="">All pension centers</option>{Array.from(new Set(detail.records.map((r) => (r.primarySite as any).pensionCenter || 'Unspecified'))).map((c) => <option key={c}>{c}</option>)}</select>
+              </div>
+              <p className="text-xs text-muted">Period {run.periodKey} · {run.status}. One row per guard; all additional earnings are included in taxable pay. Unspecified means the snapshot has no center, not a guessed center.</p>
+              <div className="overflow-x-auto"><table className="w-full text-xs text-ink"><thead><tr className="text-left border-b border-line"><th className="p-2">Guard / centers</th><th className="p-2 text-right">Taxable earnings</th><th className="p-2 text-right">Non-taxable transport</th><th className="p-2 text-right">Tax payable</th><th className="p-2 text-right">Pension base</th><th className="p-2 text-right">Employee pension</th><th className="p-2 text-right">Employer expense</th></tr></thead><tbody>
+              {(() => {
+                const rows = detail.records.filter((r) => `${r.snapshot.fullName} ${r.snapshot.employeeCode}`.toLowerCase().includes(statutoryGuard.toLowerCase()) && (!taxCenter || ((r.primarySite as any).taxCenter || 'Unspecified') === taxCenter) && (!pensionCenter || ((r.primarySite as any).pensionCenter || 'Unspecified') === pensionCenter));
+                const values = (r: PayrollRecord) => [r.taxableEarnings, r.primarySite.transportPaid, r.incomeTax, r.pensionBase, r.employeePension, r.employerPension];
+                return <>{rows.map((r) => <tr key={r._id} className="border-b border-line"><td className="p-2">{r.snapshot.fullName} · {r.snapshot.employeeCode}<small className="block text-muted">{(r.primarySite as any).taxCenter || 'Unspecified tax center'} / {(r.primarySite as any).pensionCenter || 'Unspecified pension center'}</small></td>{values(r).map((n, i) => <td key={i} className="p-2 text-right tabular-nums">{fmtMoney(n)}</td>)}</tr>)}
+                <tr className="font-semibold bg-subtle"><td className="p-2">Filtered total ({rows.length} guards)</td>{Array.from({ length: 6 }, (_, i) => <td key={i} className="p-2 text-right tabular-nums">{fmtMoney(rows.reduce((sum, r) => sum + values(r)[i], 0))}</td>)}</tr></>;
+              })()}
+              </tbody></table></div>
+            </Card>
+            {/* Validation issue center — grouped by root cause, with counts,
+                affected guards and a direct correction link per group. */}
+            {groupedProblems.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-danger-text">
+                    <AlertTriangle size={15} />
+                    Validation issues — {groupedProblems.length} cause{groupedProblems.length === 1 ? '' : 's'} affecting {run.problems.length} guard entr{run.problems.length === 1 ? 'y' : 'ies'}
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {groupedProblems.map((g) => {
+                    const fixTab = problemFixTab(g.code);
+                    return (
+                      <Card key={g.key} className="p-4 border border-danger-line bg-danger-subtle/60">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-danger-text">
+                              {g.message}
+                            </p>
+                            <p className="text-xs text-danger-text/80 mt-0.5">
+                              {g.count} guard{g.count === 1 ? '' : 's'} affected · cause code <span className="font-mono">{g.code}</span>
+                            </p>
+                            <p className="text-xs text-muted mt-1 max-w-2xl">
+                              Affected: {g.guards.slice(0, 8).join(', ')}{g.guards.length > 8 ? ` +${g.guards.length - 8} more` : ''}
+                            </p>
+                          </div>
+                          {fixTab && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => { setDetail(null); setTab(fixTab); }}
+                              className="flex items-center gap-1.5 flex-shrink-0"
+                            >
+                              <Wrench size={13} />
+                              Go to {fixTab === 'compensation' ? 'site compensation' : fixTab === 'deductions' ? 'deductions' : 'settings'}
+                            </Button>
+                          )}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Return history */}
@@ -604,20 +684,29 @@ export default function GuardPayrollPage() {
             {/* Audit trail — lifecycle events for this run */}
             <PayrollAuditCard runId={run._id} />
 
-            {/* Guards — filterable by primary site */}
+            {/* Guards — filterable by primary site and searchable by name. */}
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h3 className="text-sm font-semibold text-muted">{t('gpGuards')} ({filteredRecords.length}{siteFilter !== 'ALL' ? ` of ${detail.records.length}` : ''})</h3>
-              <div className="w-56">
-                <Select
-                  label="Filter by site"
-                  value={siteFilter}
-                  onChange={(e) => setSiteFilter(e.target.value)}
-                >
-                  <option value="ALL">All sites</option>
-                  {siteOptions.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </Select>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  aria-label="Search guards"
+                  className="v-input w-56"
+                  placeholder="Search name or code"
+                  value={guardSearch}
+                  onChange={(e) => setGuardSearch(e.target.value)}
+                />
+                <div className="w-56">
+                  <Select
+                    label=""
+                    value={siteFilter}
+                    onChange={(e) => setSiteFilter(e.target.value)}
+                  >
+                    <option value="ALL">All sites</option>
+                    {siteOptions.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </Select>
+                </div>
               </div>
             </div>
             <Card className="overflow-x-auto">
@@ -626,13 +715,16 @@ export default function GuardPayrollPage() {
                   <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-subtext">
                     <th className="px-4 py-3">{t('gpGuards')}</th>
                     <th className="px-4 py-3">{t('gpPrimarySite')}</th>
-                    <th className="px-4 py-3 text-center">{t('gpAdditionalSites')}</th>
+                    <th className="px-4 py-3 text-right">{t('gpNormalHours')}</th>
+                    <th className="px-4 py-3 text-right">{t('gpSundayHours')}</th>
+                    <th className="px-4 py-3 text-right">{t('gpHolidayHours')}</th>
+                    <th className="px-4 py-3">{t('gpAdditionalSites')}</th>
                     <th className="px-4 py-3 text-right">{t('gpGross')}</th>
-                    <th className="px-4 py-3 text-right">{t('gpPension')}</th>
                     <th className="px-4 py-3 text-right">{t('gpTax')}</th>
+                    <th className="px-4 py-3 text-right">{t('gpPension')}</th>
                     <th className="px-4 py-3 text-right">{t('gpDeductions')}</th>
                     <th className="px-4 py-3 text-right">{t('gpNet')}</th>
-                    <th className="px-4 py-3" />
+                    <th className="px-4 py-3 text-right">{t('actions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -642,57 +734,84 @@ export default function GuardPayrollPage() {
                         <p className="font-medium text-ink">{rec.snapshot.fullName}</p>
                         <p className="text-xs text-subtext">{rec.snapshot.employeeCode}</p>
                       </td>
-                      <td className="px-4 py-3 text-muted">{rec.primarySite.siteName}</td>
-                      <td className="px-4 py-3 text-center text-muted">{rec.additionalSites.length}</td>
-                      <td className="px-4 py-3 text-right">{fmtMoney(rec.grossEarnings)}</td>
-                      <td className="px-4 py-3 text-right">{fmtMoney(rec.employeePension)}</td>
-                      <td className="px-4 py-3 text-right">{fmtMoney(rec.incomeTax)}</td>
-                      <td className="px-4 py-3 text-right">{fmtMoney(rec.totalDeductions)}</td>
-                      <td className="px-4 py-3 text-right font-semibold">{fmtMoney(rec.netPay)}</td>
-                      <td className="px-4 py-3 text-right">
-                        {canInputDeductions && (
+                      <td className="px-4 py-3 text-muted whitespace-nowrap">{rec.primarySite.siteName}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtHours(rec.primarySite.normalHours)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtHours(rec.primarySite.sundayHours)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtHours(rec.primarySite.holidayHours)}</td>
+                      <td className="px-4 py-3 max-w-[180px]">
+                        {rec.additionalSites.length === 0 ? (
+                          <span className="text-xs text-subtext">—</span>
+                        ) : (
+                          <span className="text-xs text-muted" title={rec.additionalSites.map((s) => `${s.siteName}: ${s.totalHours}h × ${s.otRate}`).join('\n')}>
+                            {rec.additionalSites.length} site{rec.additionalSites.length === 1 ? '' : 's'}
+                            <small className="block text-subtext">{rec.additionalSites.reduce((s, x) => s + x.totalHours, 0)}h total</small>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right tabular-nums">{fmtMoney(rec.grossEarnings)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(rec.incomeTax)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(rec.employeePension)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums text-muted">{fmtMoney(rec.totalDeductions)}</td>
+                      <td className="px-4 py-3 text-right tabular-nums font-semibold text-ink">{fmtMoney(rec.netPay)}</td>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-0.5">
+                          {canInputDeductions && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setDedModal({
+                                  employeeId: rec.employeeId.toString(),
+                                  name: `${rec.snapshot.fullName} (${rec.snapshot.employeeCode})`,
+                                })
+                              }
+                              title={t('attBasedDeduction')}
+                            >
+                              <CirclePlus size={14} />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() =>
-                              setDedModal({
-                                employeeId: rec.employeeId.toString(),
-                                name: `${rec.snapshot.fullName} (${rec.snapshot.employeeCode})`,
-                              })
-                            }
-                            className="flex items-center gap-1"
+                            onClick={() => {
+                              setPayslipRecordId(rec._id);
+                              setPayslipModalOpen(true);
+                            }}
+                            title="Official Payslip"
                           >
-                            <CirclePlus size={14} />
-                            {t('gpDeductions')}
+                            <Eye size={14} className="text-primary-600" />
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setPayslipRecordId(rec._id);
-                            setPayslipModalOpen(true);
-                          }}
-                          title="Official Payslip"
-                        >
-                          <Eye size={14} className="text-primary-600" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => openPayslip(rec)} title={t('payslip')}>
-                          <Printer size={14} />
-                        </Button>
-                        <Button variant="secondary" onClick={() => setRecord(rec)}>{t('gpViewDetail')}</Button>
+                          <Button variant="ghost" size="sm" onClick={() => openPayslip(rec)} title={t('payslip')}>
+                            <Printer size={14} />
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => setRecord(rec)}>{t('gpViewDetail')}</Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                   {filteredRecords.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-muted">
+                      <td colSpan={12} className="px-4 py-8 text-center text-muted">
                         <CheckCircle2 size={18} className="inline mr-2" />
-                        {siteFilter !== 'ALL' ? 'No payroll records for this site' : t('gpNoProblems')}
+                        {siteFilter !== 'ALL' || guardSearch ? 'No payroll records match the current filters' : t('gpNoProblems')}
                       </td>
                     </tr>
                   )}
                 </tbody>
+                {filteredRecords.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-line bg-subtle/70 text-xs font-semibold text-ink">
+                      <td className="px-4 py-2.5" colSpan={5}>Total ({filteredRecords.length} {t('gpGuards').toLowerCase()})</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtHours(filteredRecords.reduce((s, r) => s + r.primarySite.normalHours + r.primarySite.sundayHours + r.primarySite.holidayHours, 0))}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtMoney(filteredRecords.reduce((s, r) => s + r.grossEarnings, 0))}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtMoney(filteredRecords.reduce((s, r) => s + r.incomeTax, 0))}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtMoney(filteredRecords.reduce((s, r) => s + r.employeePension, 0))}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{fmtMoney(filteredRecords.reduce((s, r) => s + r.totalDeductions, 0))}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-primary-600">{fmtMoney(filteredRecords.reduce((s, r) => s + r.netPay, 0))}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </Card>
           </div>
