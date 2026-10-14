@@ -91,6 +91,7 @@ export default function GuardsPage() {
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignSiteId, setAssignSiteId] = useState('');
+  const [assignFrom, setAssignFrom] = useState(new Date().toLocaleDateString('en-CA'));
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ error?: string; success?: string }>({});
   const [history, setHistory] = useState<GuardAssignment[]>([]);
@@ -157,7 +158,7 @@ export default function GuardsPage() {
     if (!selectedGuard || !assignSiteId) return;
     setSaving(true);
     try {
-      await api.post('/guards/assign-site', { guardId: selectedGuard, siteId: assignSiteId, role: 'GUARD' });
+      await api.post('/guards/assign-site', { guardId: selectedGuard, siteId: assignSiteId, effectiveFrom: assignFrom, role: 'GUARD' });
       closeAssignModal();
       await loadData();
       setFeedback({ success: 'Site assigned. Payroll uses effective site compensation, not the legacy profile rate.' });
@@ -206,7 +207,7 @@ export default function GuardsPage() {
         {feedback.error || feedback.success}<button aria-label="Dismiss message" className="ml-3" onClick={() => setFeedback({})}>×</button>
       </div>}
       {/* Left Sidebar — Guard List */}
-      <div className="w-80 flex-shrink-0 bg-surface border-r border-line flex flex-col">
+      <div className="w-80 flex-shrink-0 bg-surface border-r border-line flex flex-col" data-tour="guards-roster">
         <div className="p-5 border-b border-line">
           <div className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-2xl p-4 mb-4">
             <h2 className="text-base font-bold text-white">{t('guardsRosterTitle')}</h2>
@@ -320,7 +321,7 @@ export default function GuardsPage() {
       {/* Right Content — Selected Guard Detail */}
       <div className="flex-1 overflow-y-auto bg-canvas p-6">
         {selectedGuardData ? (
-          <div className="max-w-3xl mx-auto space-y-6">
+          <div className="max-w-3xl mx-auto space-y-6" data-tour="guards-detail">
             {/* Guard Profile Header */}
             <div className="bg-surface rounded-2xl border border-line shadow-card p-6">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -557,6 +558,7 @@ export default function GuardsPage() {
             {selectedGuardData.employee.firstName} {selectedGuardData.employee.lastName}
           </p>
 
+          <label className="v-label mb-4">Assignment start date<input aria-label="Assignment start date" type="date" className="v-input" value={assignFrom} onChange={e => setAssignFrom(e.target.value)} /></label>
           {selectedGuardData.currentAssignments.length > 0 && (
             <div className="mb-4">
               <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-1.5">{t('guardsCurrentlyAssigned')}</p>

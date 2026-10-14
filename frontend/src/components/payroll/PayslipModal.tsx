@@ -389,7 +389,7 @@ export default function PayslipModal({ isOpen, onClose, recordId, type }: Paysli
 
               {type === 'GUARD' && <div className="rounded-lg border border-slate-200 p-3 text-xs space-y-1">
                 <p>Taxable earnings (all sites, transport excluded): <b>{formatETB(data.taxableEarnings)}</b></p>
-                <p>Pension base (primary normal earnings only): <b>{formatETB(data.pensionBase)}</b></p>
+                <p>Pension base (primary normal + Sunday earnings): <b>{formatETB(data.pensionBase)}</b></p>
                 <p>Payroll status: <b>{data.status}</b>{data.paymentRef ? ` · Recorded payment reference: ${data.paymentRef}` : ''}</p>
                 <p className="text-slate-500">Saved payroll snapshot. A bank CSV is payment instructions only; it does not prove bank execution.</p>
               </div>}

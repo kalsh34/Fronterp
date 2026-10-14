@@ -149,7 +149,7 @@ export default function EmployeeFormModal({ open, onClose, employee, onSaved }: 
   };
 
   /** Personal Info must be complete before the wizard can move on. */
-  const personalIncomplete = !form.firstName.trim() || !form.lastName.trim() || !form.phone.trim();
+  const personalIncomplete = !form.employeeCode.trim() || !form.firstName.trim() || !form.lastName.trim() || !form.phone.trim();
 
   const goTo = (step: StepKey) => {
     if (step === activeStep) return;
@@ -192,7 +192,7 @@ export default function EmployeeFormModal({ open, onClose, employee, onSaved }: 
     setError('');
     setSaving(true);
     try {
-      const payload = { ...form, salary: Number(form.salary) };
+      const payload = { ...form, gender: form.gender || undefined, dateOfBirth: form.dateOfBirth || undefined, salary: Number(form.salary) };
       let employeeId = employee?._id;
       if (isEdit && employeeId) {
         const res = await api.put(`/employees/${employeeId}`, payload);

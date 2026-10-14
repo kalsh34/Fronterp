@@ -5,7 +5,7 @@ import { AdditionalSiteSnapshot, fmtHours, fmtMoney, PayrollRecord, PrimarySiteS
 
 function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className={`flex items-center justify-between py-1.5 text-sm ${strong ? 'font-semibold text-ink' : 'text-muted'}`}>
+    <div className={`flex flex-wrap items-center justify-between gap-2 py-1.5 text-sm ${strong ? 'font-semibold text-ink' : 'text-muted'}`}>
       <span>{label}</span>
       <span className={strong ? 'text-ink' : 'text-ink'}>{value}</span>
     </div>
@@ -59,14 +59,17 @@ export function PayrollRecordDetail({ record }: { record: PayrollRecord }) {
         <SectionTitle icon={<Building2 size={15} />}>
           {t('gpPrimarySite')} — {primarySiteName}{p.siteCode ? ` (${p.siteCode})` : ''}
         </SectionTitle>
+        <p className="text-xs text-muted mb-3">Structural Sunday allocation decomposes the agreed amount; it is not added again to earnings. Transport is paid once when primary-site attendance exists. Pension uses primary-site normal pay plus actual Sunday pay; holiday pay, additional-site earnings and transport are excluded.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
           <div>
             <Row label={t('gpCompensation')} value={fmtMoney(p.compensationAmount)} />
             <Row label={`${t('gpOtRate')} (${p.compensationAmount} ÷ ${p.standardMonthlyHours})`} value={fmtMoney(p.otRate)} />
             <Row label={`${t('gpSundayStructuralHours')} (${p.otRate} × ${p.sundayStructuralHours})`} value={fmtMoney(p.sundayStructuralAllocation)} />
+            <Row label="Remaining after structural allocation" value={fmtMoney(p.remaining)} />
+            <Row label="Full transport allowance (non-taxable)" value={fmtMoney(p.transportFull)} />
             <Row label={t('gpTransportPercent')} value={`${p.transportPercent}%`} />
             <Row label={t('gpBasicSalary')} value={fmtMoney(p.basicSalary)} strong />
-            <Row label={`${t('gpBasicHourlyRate')} (÷ ${p.basicHourlyDivisor})`} value={fmtMoney(p.basicHourlyRate)} strong />
+            <Row label={`${t('gpBasicHourlyRate')} (÷ ${p.basicHourlyDivisor})`} value={p.basicHourlyRate.toFixed(4)} strong />
           </div>
           <div>
             <Row label={`${t('gpNormalHours')} × ${fmtMoney(p.basicHourlyRate)}`} value={`${fmtHours(p.normalHours)} → ${fmtMoney(p.normalPay)}`} />

@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Percent, Save } from 'lucide-react';
 import api from '../../lib/api';
 import { Badge, Button, Card, FormField, LoadingSpinner } from '../../components/ui';
-import { useAuthStore } from '../../stores/authStore';
-import { UserRole } from '../../types';
+import { can, useAuthStore } from '../../stores/authStore';
 import { useT } from '../../i18n';
 import { fmtMoney } from './guardPayroll.types';
 
@@ -33,7 +32,7 @@ interface PensionRuleRow {
 export function ConfigTab({ onError }: { onError: (msg: string | null) => void }) {
   const t = useT();
   const { user } = useAuthStore();
-  const canEdit = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.FINANCE_OFFICER;
+  const canEdit = can(user?.permissions, 'guard-payroll.rates');
 
   const [config, setConfig] = useState<ConfigShape | null>(null);
   const [taxTables, setTaxTables] = useState<TaxTable[]>([]);
@@ -51,16 +50,16 @@ export function ConfigTab({ onError }: { onError: (msg: string | null) => void }
     setLoading(true);
     try {
       const [cfgRes, taxRes, pensionRes] = await Promise.all([
-        api.get('/guard-payroll/config').catch(() => ({ data: { data: { transportAllowancePercent: 20, defaultMonthlyHours: 208, defaultDaysPerMonth: 26, overtimeDayDivisor: 26, overtimeHourDivisor: 8, standardDailyHours: 8 } } })),
-        api.get('/payroll-common/tax-brackets').catch(() => ({ data: { data: [] } })),
-        api.get('/payroll-common/pension-rules').catch(() => ({ data: { data: [] } })),
+        api.get('/guard-payroll/config'),
+        api.get('/payroll-common/tax-brackets', { params: { kind: 'GUARD' } }),
+        api.get('/payroll-common/pension-rules', { params: { kind: 'GUARD' } }),
       ]);
       setConfig(cfgRes.data.data);
       setTaxTables(taxRes.data.data || []);
       setPensionRules(pensionRes.data.data || []);
       onError(null);
-    } catch {
-      onError(null);
+    } catch (e) {
+      onError(errMsg(e));
     } finally {
       setLoading(false);
     }
@@ -139,7 +138,8 @@ export function ConfigTab({ onError }: { onError: (msg: string | null) => void }
     return { otRate, sundayStructural, remaining, transport, basic, basicHourly };
   }, [config, previewComp]);
 
-  if (loading || !config) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
+  if (!config) return <p className="text-sm text-danger-text">Payroll settings could not be loaded. <button className="underline" onClick={load}>Retry</button></p>;
 
   return (
     <div className="space-y-4">

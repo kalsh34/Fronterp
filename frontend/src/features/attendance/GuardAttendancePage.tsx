@@ -140,11 +140,11 @@ export default function GuardAttendancePage() {
 
   // Payroll lock + month label for whichever period is on screen.
   useEffect(() => {
-    const pk = `${year}-${String(month).padStart(2, '0')}`;
+    const pk = tab === 'daily' ? date.slice(0, 7) : `${year}-${String(month).padStart(2, '0')}`;
     api.get('/guard-payroll/attendance-lock', { params: { periodKey: pk } })
       .then((res) => setPeriodLock({ locked: !!res.data.data?.locked, runStatus: res.data.data?.runStatus || null }))
       .catch(() => setPeriodLock(null));
-  }, [year, month]);
+  }, [year, month, date, tab]);
   const periodLabel = `${monthName(month)} ${year}`;
   const dayPeriodLabel = (dateStr: string) => `${monthName(Number(dateStr.slice(5, 7)))} ${dateStr.slice(0, 4)}`;
 
@@ -411,7 +411,11 @@ export default function GuardAttendancePage() {
       } else {
         setNotice(t('attendanceSavedMonthly', { count: String(savedCount), period: `${monthName(month)} ${year}` }));
       }
+      const feedback = failed.length > 0 ? null : t('attendanceSavedMonthly', { count: String(savedCount), period: `${monthName(month)} ${year}` });
+      const saveError = failed.length > 0 ? t('attendanceSavedWithRejected', { saved: String(savedCount), rejected: String(failed.length), detail: failed.map(f => f.message).join(' | ') }) : null;
       await loadSheet();
+      setNotice(feedback);
+      setError(saveError);
     } catch (e) {
       setError(errMsg(e, t('attendanceFailedSave')));
     } finally {
@@ -459,7 +463,7 @@ export default function GuardAttendancePage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div className="border-b border-line flex items-center justify-between">
+      <div className="border-b border-line flex items-center justify-between" data-tour="att-tabs">
         <Tabs
           tabs={[
             { key: 'daily', label: t('attendanceTabDaily') },
@@ -661,7 +665,7 @@ export default function GuardAttendancePage() {
           )}
 
           {!loading && roster && roster.rows.length > 0 && (
-            <div className="flex justify-end">
+            <div className="flex justify-end" data-tour="att-save-daily">
               <Button onClick={saveDay} disabled={saving || locked || !canManage || !dirty}>
                 {saving ? t('attendanceSaving') : t('attendanceSaveAttendance')}
               </Button>

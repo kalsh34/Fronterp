@@ -31,6 +31,7 @@ import GuarantorPage from './features/guarantor/GuarantorPage';
 import StaffPayrollPage from './features/staff-payroll/StaffPayrollPage';
 import GuardPayrollPage from './features/guard-payroll/GuardPayrollPage';
 import ModuleReportsPage from './features/reports/ModuleReportsPage';
+import { HelpProvider, HelpWidget, HelpPanel, TourOverlay, HelpCenter } from './help';
 
 function AppLayout() {
   const { user } = useAuthStore();
@@ -54,10 +55,11 @@ function AppLayout() {
   const moduleGroup = getModuleGroupForRoute(location.pathname);
 
   return (
-    <div className="min-h-screen bg-canvas overflow-x-hidden">
-      {moduleGroup && <ModuleNavbar moduleGroup={moduleGroup} />}
-      <main className={moduleGroup ? 'overflow-x-hidden' : 'min-h-screen overflow-x-hidden'}>
-        <Routes>
+    <HelpProvider>
+      <div className="min-h-screen bg-canvas overflow-x-hidden">
+        {moduleGroup && <ModuleNavbar moduleGroup={moduleGroup} />}
+        <main className={moduleGroup ? 'overflow-x-hidden' : 'min-h-screen overflow-x-hidden'}>
+          <Routes>
           <Route path="/" element={<DashboardPage />} />
 
           <Route path="/employees" element={<ProtectedRoute roles={[UserRole.SUPER_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.HR_ADMIN, UserRole.CEO]}><EmployeeList /></ProtectedRoute>} />
@@ -92,8 +94,13 @@ function AppLayout() {
 
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
-      </main>
-    </div>
+        </main>
+        <HelpWidget />
+        <HelpPanel />
+        <TourOverlay />
+        <HelpCenter />
+      </div>
+    </HelpProvider>
   );
 }
 

@@ -2,8 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { History, Lock, Pencil, Plus, Save } from 'lucide-react';
 import api from '../../lib/api';
 import { Badge, Button, Card, FormField, LoadingSpinner, Select, InfoTooltip } from '../../components/ui';
-import { useAuthStore } from '../../stores/authStore';
-import { UserRole } from '../../types';
+import { can, useAuthStore } from '../../stores/authStore';
 import { useT } from '../../i18n';
 
 interface SiteOption { _id: string; siteName: string; siteCode?: string }
@@ -37,7 +36,7 @@ const siteIdOf = (row: CompensationRow) => (typeof row.siteId === 'object' ? row
 export function SiteCompensationTab({ onError }: { onError: (msg: string | null) => void }) {
   const t = useT();
   const { user } = useAuthStore();
-  const canEdit = user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.FINANCE_OFFICER;
+  const canEdit = can(user?.permissions, 'guard-payroll.rates');
 
   const [sites, setSites] = useState<SiteOption[]>([]);
   const [rows, setRows] = useState<CompensationRow[]>([]);
@@ -51,6 +50,22 @@ export function SiteCompensationTab({ onError }: { onError: (msg: string | null)
   const [editFrom, setEditFrom] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [newSite, setNewSite] = useState('');
+  const [newAmount, setNewAmount] = useState('');
+  const [newFrom, setNewFrom] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const addCompensation = async () => {
+    setSaving(true);
+    setNotice('');
+    try {
+      await api.post('/guard-payroll/compensations', { siteId: newSite, compensationAmount: Number(newAmount), effectiveFrom: newFrom, notes: 'Initial agreed site compensation' });
+      setNewSite(''); setNewAmount(''); setNewFrom('');
+      await load();
+      setNotice('Site compensation saved. Review attendance and recalculate any editable payroll to apply it.');
+    } catch (e) { onError(errMsg(e)); }
+    finally { setSaving(false); }
+  };
 
   const errMsg = (e: any) => e?.response?.data?.message || e?.message || 'Request failed';
 
@@ -58,15 +73,14 @@ export function SiteCompensationTab({ onError }: { onError: (msg: string | null)
     setLoading(true);
     try {
       const [sitesRes, compRes] = await Promise.all([
-        api.get('/sites').catch(() => ({ data: { data: [] } })),
-        api.get('/guard-payroll/compensations').catch(() => ({ data: { data: [] } })),
+        api.get('/sites', { params: { limit: 1000 } }),
+        api.get('/guard-payroll/compensations'),
       ]);
       setSites(sitesRes.data.data || []);
       setRows(compRes.data.data || []);
       onError(null);
-    } catch {
-      onError(null);
-      setRows([]);
+    } catch (e) {
+      onError(errMsg(e));
     } finally {
       setLoading(false);
     }
@@ -155,6 +169,17 @@ export function SiteCompensationTab({ onError }: { onError: (msg: string | null)
 
   return (
     <div className="space-y-4">
+      {notice && <p role="status" className="rounded-lg border border-success-line bg-success-subtle p-3 text-sm text-success-text">{notice}</p>}
+      {canEdit && <Card className="p-4">
+        <h3 className="text-sm font-semibold text-ink mb-3">Add site compensation</h3>
+        <p className="text-xs text-muted mb-3">Agreed guard compensation, not client billing or contract wage. Use the first day of a payroll month; mid-month rate changes require segmented payroll.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+          <Select aria-label="Site to configure" label="Site to configure" value={newSite} onChange={(e) => setNewSite(e.target.value)}><option value="">Select a site</option>{sites.filter(s => !rows.some(r => siteIdOf(r) === s._id)).map(s => <option key={s._id} value={s._id}>{s.siteName}</option>)}</Select>
+          <FormField label="Agreed compensation (ETB)"><input aria-label="Agreed compensation (ETB)" className="v-input" type="number" min="0.01" step="0.01" value={newAmount} onChange={e => setNewAmount(e.target.value)} /></FormField>
+          <FormField label="Effective start date"><input aria-label="Effective start date" className="v-input" type="date" value={newFrom} onChange={e => setNewFrom(e.target.value)} /></FormField>
+          <Button onClick={addCompensation} disabled={saving || !newSite || !(Number(newAmount) > 0) || !newFrom}>{saving ? 'Saving…' : 'Save compensation'}</Button>
+        </div>
+      </Card>}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 max-w-xs w-full">
           <Select label={t('gpSite')} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)}>
@@ -296,7 +321,7 @@ export function SiteCompensationTab({ onError }: { onError: (msg: string | null)
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-muted">
                   <Plus size={16} className="inline mr-2" />
-                  {t('gpNoRun')}
+                  No site compensation configured. Add an agreed amount above before calculating payroll.
                 </td>
               </tr>
             )}

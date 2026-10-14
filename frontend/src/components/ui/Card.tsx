@@ -1,15 +1,15 @@
 import { ReactNode } from 'react';
 
-interface CardProps {
-  children: ReactNode;
-  className?: string;
+/** HTML attributes (class, data-*, aria-*) may be passed through. */
+type CardProps = React.HTMLAttributes<HTMLDivElement> & {
+  children?: ReactNode;
   padding?: boolean;
-}
+};
 
 /** White surface, light-gray border, soft shadow — the one card style used everywhere. */
-export function Card({ children, className = '', padding = true }: CardProps) {
+export function Card({ children, className = '', padding = true, ...rest }: CardProps) {
   return (
-    <div className={`bg-surface border border-line rounded-2xl shadow-card ${padding ? 'p-6' : ''} ${className}`}>
+    <div className={`bg-surface border border-line rounded-2xl shadow-card ${padding ? 'p-6' : ''} ${className}`} {...rest}>
       {children}
     </div>
   );

@@ -96,10 +96,15 @@ export default {
           from: { opacity: '0', transform: 'translateY(8px) scale(0.98)' },
           to: { opacity: '1', transform: 'translateY(0) scale(1)' },
         },
+        helpIn: {
+          from: { transform: 'translateX(24px)', opacity: '0' },
+          to: { transform: 'translateX(0)', opacity: '1' },
+        },
       },
       animation: {
         overlayIn: 'overlayIn 150ms ease-out',
         modalIn: 'modalIn 180ms ease-out',
+        helpIn: 'helpIn 200ms ease-out',
       },
     },
   },

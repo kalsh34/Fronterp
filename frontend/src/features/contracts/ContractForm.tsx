@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../lib/api';
 import { InfoTooltip } from '../../components/ui';
+import { FieldHint } from '../../help';
 import { EmployeeCategory } from '../../types';
 import { useT, useLang, formatDate } from '../../i18n';
 
@@ -453,7 +454,15 @@ export default function ContractForm() {
 
 
           <div className="mb-6">
-            <label className={labelCls}>{t('basicSalaryEtb')} *</label>
+            <label className={labelCls}>
+              {t('basicSalaryEtb')} *
+              <FieldHint
+                title="Basic Salary (ETB)"
+                what="The monthly gross contract wage. Staff Payroll snapshots this value at every calculation, so later edits never change past payslips."
+                example="e.g. 8500"
+                validation="Required — a positive number. Pension (7% employee / 11% employer) is computed on this amount."
+              />
+            </label>
             <input
               type="number"
               value={form.wage || ''}
@@ -492,12 +501,19 @@ export default function ContractForm() {
 
             {isGuard ? (
               /* Guard: only Transport Allowance */
-              <div className="max-w-sm">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <label className="text-sm font-medium text-ink">{t('transportAllowanceEtb')}</label>
-                  <InfoTooltip content={t('guardAllowanceNote')} />
-                </div>
-                <input
+            <div className="max-w-sm" data-help="transport-guard">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <label className="text-sm font-medium text-ink">{t('transportAllowanceEtb')}
+                  <FieldHint
+                    title="Transport Allowance (ETB) — guards"
+                    what="Operational allowance for guard contracts. In Guard Payroll the site compensation—not this field—drives the calculation; this allowance is used for the guard's profile rate summary."
+                    example="e.g. 600"
+                    validation="Optional number. Leave 0 when the guard is paid purely from site compensation."
+                  />
+                </label>
+                <InfoTooltip content={t('guardAllowanceNote')} />
+              </div>
+              <input
                   type="number"
                   value={form.transportAllowance || ''}
                   onChange={(e) => setForm({ ...form, transportAllowance: parseFloat(e.target.value) || 0 })}

@@ -279,8 +279,8 @@ export default function EmployeeList() {
   return (
     <div className="p-6 space-y-4">
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-line items-center justify-between">
-        <div className="flex gap-1 overflow-x-auto">
+      <div className="flex gap-1 border-b border-line items-center justify-between" data-tour="emp-tabs">
+        <div className="flex gap-1 overflow-x-auto" data-tour="emp-toolbar">
           {tabs.map((tab, i) => (
             <button
               key={tab}
@@ -487,7 +487,7 @@ export default function EmployeeList() {
             {detailLoading ? (
               <div className="flex items-center justify-center h-full">{spinner}</div>
             ) : (
-              <div className="p-6 space-y-6">
+              <div className="p-6 space-y-6" data-tour="emp-detail">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
                     <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white text-lg font-bold">

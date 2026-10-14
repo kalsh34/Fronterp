@@ -391,7 +391,7 @@ export function SiteList() {
   return (
     <div className="p-6 space-y-4">
       {/* Toolbar: search + refresh | Export, Add Site, column visibility */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3" data-tour="sites-toolbar">
         <div className="relative flex-1 min-w-[220px] max-w-sm">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
           <input

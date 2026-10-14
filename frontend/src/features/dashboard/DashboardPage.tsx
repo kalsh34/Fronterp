@@ -182,7 +182,7 @@ export default function DashboardPage() {
       <div className="px-8 py-8 max-w-[1600px] mx-auto space-y-6">
         {/* Welcome & Command Banner */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-line/60">
-          <div>
+          <div data-tour="dashboard-welcome">
             <div className="flex items-center gap-2 mb-1">
               <span className="p-1 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
                 <Shield className="w-4 h-4" />

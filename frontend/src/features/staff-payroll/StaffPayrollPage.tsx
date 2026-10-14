@@ -310,7 +310,7 @@ export default function StaffPayrollPage() {
 
       {tab === 'runs' && !detail && (
         <div className="space-y-4">
-          <Card className="p-4">
+          <Card className="p-4" data-tour="sp-runs">
             <div className="flex flex-wrap items-end gap-3">
               <div>
                 <label className="text-xs font-medium text-subtext block mb-1">{t('spYear')}</label>
@@ -383,7 +383,7 @@ export default function StaffPayrollPage() {
           {detailLoading && <LoadingSpinner text={t('loading')} />}
           {!detailLoading && run && (
             <>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3" data-tour="sp-actions">
                 <h2 className="text-lg font-semibold text-ink">{t('spRuns')} · {monthLabelOf(run.periodKey)}</h2>
                 <Badge variant={statusVariant(run.status)}>{run.status}</Badge>
                 <div className="flex-1" />
